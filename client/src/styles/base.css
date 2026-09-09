@@ -15,6 +15,7 @@
 
   --page-width: 1200px;
   --radius: 10px;
+  --control-height: 38px;
 }
 
 * {
@@ -23,8 +24,23 @@
 
 html {
   background: var(--color-bg);
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) var(--color-bg);
 }
-
+html::-webkit-scrollbar {
+  width: 10px;
+}
+html::-webkit-scrollbar-track {
+  background: var(--color-bg);
+}
+html::-webkit-scrollbar-thumb {
+  border: 2px solid var(--color-bg);
+  border-radius: 999px;
+  background: var(--color-border);
+}
+html::-webkit-scrollbar-thumb:hover {
+  background: #555b68;
+}
 body {
   min-width: 320px;
   margin: 0;
@@ -41,7 +57,8 @@ body {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
 }
 
@@ -76,16 +93,22 @@ button:disabled {
 
 button:focus-visible,
 input:focus-visible,
+select:focus-visible,
 .movie-poster:focus-visible {
   outline: 2px solid var(--color-to-watch);
   outline-offset: 3px;
 }
 
-input {
+input,
+select {
   min-width: 0;
   padding: 9px 11px;
   border: 1px solid var(--color-border);
   border-radius: 7px;
   background: var(--color-surface);
   color: var(--color-text);
+}
+
+select {
+  cursor: pointer;
 }

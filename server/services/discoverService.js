@@ -4,22 +4,61 @@ import { TMDB_PAGE_SIZE, TMDB_MAX_PAGES } from "../config/tmdb.js";
 
 const APP_PAGE_SIZE = 30;
 
-function buildDiscoverEndpoint(type, year, page) {
+function getSortValue(type, sort) {
+  const sortMap = {
+    popularity: "popularity.desc",
+
+    rating: "vote_average.desc",
+
+    newest: type === "tv" ? "first_air_date.desc" : "primary_release_date.desc",
+
+    oldest: type === "tv" ? "first_air_date.asc" : "primary_release_date.asc",
+  };
+
+  return sortMap[sort] || "popularity.desc";
+}
+
+function buildDiscoverEndpoint({
+  type,
+  year,
+  genre,
+  language,
+  minRating,
+  maxRating,
+  sort,
+  page,
+}) {
+  const params = new URLSearchParams();
+
   if (type === "tv") {
-    return (
-      `/discover/tv` +
-      `?first_air_date_year=${year}` +
-      `&sort_by=popularity.desc` +
-      `&page=${page}`
-    );
+    if (year) {
+      params.set("first_air_date_year", year);
+    }
+  } else if (year) {
+    params.set("primary_release_year", year);
   }
 
-  return (
-    `/discover/movie` +
-    `?primary_release_year=${year}` +
-    `&sort_by=popularity.desc` +
-    `&page=${page}`
-  );
+  if (genre) {
+    params.set("with_genres", genre);
+  }
+
+  if (language) {
+    params.set("with_original_language", language);
+  }
+
+  if (minRating !== "") {
+    params.set("vote_average.gte", minRating);
+  }
+
+  if (maxRating !== "") {
+    params.set("vote_average.lte", maxRating);
+  }
+
+  params.set("sort_by", getSortValue(type, sort));
+
+  params.set("page", page);
+
+  return `/discover/${type === "tv" ? "tv" : "movie"}?${params.toString()}`;
 }
 
 function buildSearchEndpoint(type, query, page) {
@@ -32,12 +71,33 @@ function buildSearchEndpoint(type, query, page) {
   );
 }
 
-async function fetchTmdbPage({ type, query, year, page }) {
-  const endpoint = query
-    ? buildSearchEndpoint(type, query, page)
-    : buildDiscoverEndpoint(type, year || new Date().getFullYear(), page);
+async function fetchTmdbPage({
+  type,
+  query,
+  year,
+  genre,
+  language,
+  minRating,
+  maxRating,
+  sort,
+  page,
+}) {
+  if (query) {
+    return tmdbFetch(buildSearchEndpoint(type, query, page));
+  }
 
-  return tmdbFetch(endpoint);
+  return tmdbFetch(
+    buildDiscoverEndpoint({
+      type,
+      year,
+      genre,
+      language,
+      minRating,
+      maxRating,
+      sort,
+      page,
+    }),
+  );
 }
 
 function addScores(results) {
@@ -56,19 +116,15 @@ export async function discoverMedia({
   type = "movie",
   query = "",
   year = "",
+  genre = "",
+  language = "",
+  minRating = "",
+  maxRating = "",
+  sort = "popularity",
   page = 1,
 }) {
   const appPage = Math.max(Number(page) || 1, 1);
 
-  /*
-   * Our app:
-   *   30 results per page
-   *
-   * TMDB:
-   *   20 results per page
-   *
-   * Convert our app-page offset into TMDB pages.
-   */
   const offset = (appPage - 1) * APP_PAGE_SIZE;
 
   const tmdbStartPage = Math.floor(offset / TMDB_PAGE_SIZE) + 1;
@@ -89,6 +145,11 @@ export async function discoverMedia({
       type,
       query,
       year,
+      genre,
+      language,
+      minRating,
+      maxRating,
+      sort,
       page: tmdbPage,
     });
 
@@ -115,6 +176,7 @@ export async function discoverMedia({
     results,
   };
 }
+
 export async function discoverPersonCredits({
   personId,
   role = "actor",
@@ -137,15 +199,16 @@ export async function discoverPersonCredits({
     .filter((item) => item.id != null)
     .sort((a, b) => {
       const dateA = a.release_date || a.first_air_date || "";
+
       const dateB = b.release_date || b.first_air_date || "";
 
       return dateB.localeCompare(dateA);
     });
 
-  const APP_PAGE_SIZE = 30;
   const appPage = Math.max(Number(page) || 1, 1);
 
   const totalResults = normalized.length;
+
   const totalPages = Math.ceil(totalResults / APP_PAGE_SIZE);
 
   const start = (appPage - 1) * APP_PAGE_SIZE;

@@ -4,38 +4,70 @@ import { discoverMedia, discoverPerson } from "../services/api";
 export function useDiscoverSearch({ type, personFilter, initialPage = 1 }) {
   const [query, setQuery] = useState("");
   const [year, setYear] = useState("");
+  const [genre, setGenre] = useState("");
+  const [language, setLanguage] = useState("");
+  const [minRating, setMinRating] = useState("");
+  const [maxRating, setMaxRating] = useState("");
+  const [sort, setSort] = useState("popularity");
+
   const [page, setPage] = useState(initialPage);
   const [reloadKey, setReloadKey] = useState(0);
   const [pageInput, setPageInput] = useState("1");
 
-  const searchRef = useRef({ query: "", year: "" });
+  const searchRef = useRef({
+    query: "",
+    year: "",
+    genre: "",
+    language: "",
+    minRating: "",
+    maxRating: "",
+    sort: "popularity",
+  });
 
   const [items, setItems] = useState([]);
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const loadMedia = useCallback(async ({ type, query, year, page }) => {
-    try {
-      setLoading(true);
-      setError("");
+  const loadMedia = useCallback(
+    async ({
+      type,
+      query,
+      year,
+      genre,
+      language,
+      minRating,
+      maxRating,
+      sort,
+      page,
+    }) => {
+      try {
+        setLoading(true);
+        setError("");
 
-      const data = await discoverMedia({
-        type,
-        query,
-        year,
-        page,
-      });
+        const data = await discoverMedia({
+          type,
+          query,
+          year,
+          genre,
+          language,
+          minRating,
+          maxRating,
+          sort,
+          page,
+        });
 
-      setItems(data.results || []);
-      setTotalPages(data.total_pages || 1);
-    } catch (err) {
-      console.error(err);
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+        setItems(data.results || []);
+        setTotalPages(data.total_pages || 1);
+      } catch (err) {
+        console.error(err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [],
+  );
 
   const loadPersonCredits = useCallback(async ({ personId, role, page }) => {
     try {
@@ -87,7 +119,16 @@ export function useDiscoverSearch({ type, personFilter, initialPage = 1 }) {
   function handleSearch(event) {
     event.preventDefault();
 
-    searchRef.current = { query, year };
+    searchRef.current = {
+      query,
+      year,
+      genre,
+      language,
+      minRating,
+      maxRating,
+      sort,
+    };
+
     setPage(1);
     setReloadKey((current) => current + 1);
   }
@@ -95,23 +136,58 @@ export function useDiscoverSearch({ type, personFilter, initialPage = 1 }) {
   function changeType(newType) {
     setQuery("");
     setYear("");
-    searchRef.current = { query: "", year: "" };
+    setGenre("");
+    setLanguage("");
+    setMinRating("");
+    setMaxRating("");
+    setSort("popularity");
+
+    searchRef.current = {
+      query: "",
+      year: "",
+      genre: "",
+      language: "",
+      minRating: "",
+      maxRating: "",
+      sort: "popularity",
+    };
+
     setPage(1);
   }
 
   return {
     query,
     setQuery,
+
     year,
     setYear,
+
+    genre,
+    setGenre,
+
+    language,
+    setLanguage,
+
+    minRating,
+    setMinRating,
+
+    maxRating,
+    setMaxRating,
+
+    sort,
+    setSort,
+
     page,
     setPage,
+
     pageInput,
     setPageInput,
+
     items,
     totalPages,
     loading,
     error,
+
     handleSearch,
     changeType,
   };

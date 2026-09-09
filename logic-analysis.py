@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 
-from google import genai
+import requests
 
 
 # ============================================================
@@ -12,10 +12,23 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 
 OUTPUT_FILE = PROJECT_ROOT / "logic-analysis.md"
 
-MODEL = os.getenv(
-    "GEMINI_MODEL",
-    "gemini-3.6-flash",
+OLLAMA_URL = os.getenv(
+    "OLLAMA_URL",
+    "http://localhost:11434/api/chat",
 )
+
+MODEL = os.getenv(
+    "OLLAMA_MODEL",
+    "qwen3:8b",
+)
+
+# Keep individual requests comfortably below Qwen3's
+# 40,960-token context window.
+MAX_PASS_CHARS = 90_000
+
+# Maximum amount of synthesized analysis sent to the final
+# synthesis pass.
+MAX_SYNTHESIS_CHARS = 110_000
 
 IGNORED_DIRECTORIES = {
     "node_modules",
@@ -78,108 +91,210 @@ def collect_files():
 
 
 # ============================================================
-# Project snapshot
+# File loading
 # ============================================================
 
-def build_project_snapshot(files):
-    sections = []
+def read_file(path: Path):
+    try:
+        return path.read_text(
+            encoding="utf-8",
+            errors="replace",
+        )
+    except Exception as error:
+        print(
+            f"Skipping {path.relative_to(PROJECT_ROOT)}: "
+            f"{error}"
+        )
+        return None
+
+
+def format_file(path: Path, content: str):
+    relative_path = path.relative_to(PROJECT_ROOT)
+
+    line_count = len(content.splitlines())
+
+    return (
+        "\n"
+        + "=" * 70
+        + f"\nFILE: {relative_path}"
+        + f"\nLINES: {line_count}"
+        + "\n"
+        + "=" * 70
+        + "\n\n"
+        + content
+        + "\n"
+    )
+
+
+def load_project_files(files):
+    loaded = []
 
     for path in files:
-        relative_path = path.relative_to(PROJECT_ROOT)
+        content = read_file(path)
 
-        try:
-            content = path.read_text(
-                encoding="utf-8",
-                errors="replace",
-            )
-        except Exception as error:
-            print(
-                f"Skipping {relative_path}: {error}"
-            )
+        if content is None:
             continue
 
-        line_count = len(
-            content.splitlines()
-        )
+        loaded.append({
+            "path": path,
+            "relative": str(
+                path.relative_to(PROJECT_ROOT)
+            ).replace("\\", "/"),
+            "content": content,
+        })
 
-        sections.append(
-            f"""
-============================================================
-FILE: {relative_path}
-LINES: {line_count}
-============================================================
-
-{content}
-"""
-        )
-
-    return "\n".join(sections)
+    return loaded
 
 
 # ============================================================
-# Gemini prompt
+# Analysis groups
 # ============================================================
 
-def build_prompt(snapshot, file_count):
-    return f"""
-You are a senior software engineer, software architect,
-algorithm designer, and code reviewer performing a
-repository-wide LOGIC AND CORRECTNESS AUDIT.
+def classify_file(file_info):
+    path = file_info["relative"].lower()
 
-You have been given the complete source code of a React + Vite
-frontend and Node/Express backend.
+    # Recommendation source code only.
+    if (
+        path.startswith("server/services/recommendations/")
+        or path.startswith("server/routes/recommendations")
+        or path.startswith("server/services/recommendation")
+    ):
+        return "recommendations"
 
-There are {file_count} source files.
+    if path.startswith("client/"):
+        return "frontend"
 
-This is NOT primarily a refactoring audit.
+    if path.startswith("server/"):
+        return "backend"
 
-The previous audit already examined file responsibilities,
-architecture, separation of concerns, and refactoring
-opportunities.
+    if path.endswith(".css"):
+        return "frontend"
 
-This audit has a different purpose:
+    if path.endswith(".json"):
+        return "data"
 
-Determine whether the application actually behaves correctly,
-whether its logic makes sense, whether the algorithms are sound,
-and whether the implementation is as good as it reasonably can
-be at its current stage.
+    return "integration"
+def build_groups(loaded_files):
+    groups = {
+        "recommendations": [],
+        "frontend": [],
+        "backend": [],
+        "data": [],
+        "integration": [],
+    }
 
-============================================================
-IMPORTANT RULES
-============================================================
+    for file_info in loaded_files:
+        groups[classify_file(file_info)].append(
+            file_info
+        )
 
-DO NOT MODIFY ANY FILES.
+    return groups
 
-This is ANALYSIS ONLY.
 
-Do not assume that existing code is correct simply because it
-currently works.
+def render_group(files):
+    return "\n".join(
+        format_file(
+            item["path"],
+            item["content"],
+        )
+        for item in files
+    )
 
-Do not assume that previous architectural decisions are correct.
 
-Challenge the implementation.
+# ============================================================
+# Chunking
+# ============================================================
 
-Look for things that:
+def split_large_group(files, max_chars=MAX_PASS_CHARS):
+    """
+    Split a group without splitting individual files.
 
-- are logically incorrect
-- work accidentally
-- produce misleading results
-- fail under realistic edge cases
-- contain hidden assumptions
-- lose information
-- produce incorrect state
-- produce incorrect recommendations
-- unnecessarily call external APIs
-- scale badly
-- create inconsistent data
-- behave differently depending on execution order
-- silently fail
-- hide errors
-- create false confidence
-- are unnecessarily complicated
-- could be significantly simpler
-- could be significantly more accurate
-- could be significantly more efficient
+    This is important because a file's logic should remain
+    intact whenever possible.
+    """
+
+    chunks = []
+    current = []
+    current_size = 0
+
+    for file_info in files:
+        rendered = format_file(
+            file_info["path"],
+            file_info["content"],
+        )
+
+        rendered_size = len(rendered)
+
+        if (
+            current
+            and current_size + rendered_size > max_chars
+        ):
+            chunks.append(current)
+            current = []
+            current_size = 0
+
+        current.append(file_info)
+        current_size += rendered_size
+
+    if current:
+        chunks.append(current)
+
+    return chunks
+
+
+# ============================================================
+# Ollama API
+# ============================================================
+
+def analyze_with_ollama(prompt):
+    payload = {
+        "model": MODEL,
+        "messages": [
+            {
+                "role": "user",
+                "content": prompt,
+            }
+        ],
+        "stream": False,
+        "options": {
+            "temperature": 0.2,
+        },
+    }
+
+    response = requests.post(
+        OLLAMA_URL,
+        json=payload,
+        timeout=1800,
+    )
+
+    response.raise_for_status()
+
+    data = response.json()
+
+    content = data.get("message", {}).get(
+        "content"
+    )
+
+    if not content:
+        raise RuntimeError(
+            "Ollama returned an empty response."
+        )
+
+    return content
+
+
+# ============================================================
+# Shared audit instructions
+# ============================================================
+
+COMMON_RULES = """
+You are performing a LOGIC AND CORRECTNESS AUDIT.
+
+This is analysis only.
+
+Do NOT modify files.
+
+Do NOT assume existing code is correct because it works.
 
 Distinguish between:
 
@@ -189,81 +304,12 @@ Distinguish between:
 4. Potential improvements
 5. Reasonable current compromises
 
-Do NOT recommend changes merely because another implementation
+Do not recommend changes merely because another implementation
 is theoretically possible.
 
-The question is:
+Only report an issue when there is a concrete reason.
 
-"Is there a concrete reason the current implementation should
-change?"
-
-============================================================
-1. SYSTEM BEHAVIOR AUDIT
-============================================================
-
-Understand the application as a complete system.
-
-Trace the major flows:
-
-User
- ↓
-React UI
- ↓
-Hooks / services
- ↓
-Express API
- ↓
-Backend services
- ↓
-TMDB
- ↓
-Backend transformation
- ↓
-Frontend
- ↓
-User state
-
-Identify any point where assumptions between layers do not
-match.
-
-Look for:
-
-- incorrect data shapes
-- inconsistent naming
-- missing fields
-- unexpected null/undefined behavior
-- incorrect defaults
-- stale state
-- synchronization problems
-- incorrect status transitions
-- incorrect rating handling
-- incorrect type handling
-- incorrect movie/TV handling
-- incorrect API contracts
-
-============================================================
-2. LOGIC CORRECTNESS
-============================================================
-
-For every important business rule, determine whether the
-implementation actually implements that rule.
-
-Pay particular attention to:
-
-- watch status
-- personal ratings
-- history updates
-- recommendation generation
-- candidate filtering
-- recommendation scoring
-- movie vs TV separation
-- network generation
-- discovery
-- pagination
-- caching
-- TMDB metadata handling
-
-For every issue explain:
+For every important finding explain:
 
 WHAT happens?
 
@@ -273,23 +319,59 @@ WHAT should happen instead?
 
 HOW serious is it?
 
+HOW confident are you?
+
+Use the actual source code as evidence.
+
+Do not invent code that is not present.
+
+Do not assume libraries behave differently from their actual
+usage.
+
+The application is being developed incrementally.
+
+Avoid premature recommendations involving:
+
+- databases
+- Redux
+- Zustand
+- TypeScript migration
+- machine learning
+- vector databases
+- microservices
+- recommendation frameworks
+
+unless the current code has a concrete problem requiring them.
+"""
+
+
+# ============================================================
+# Pass prompts
+# ============================================================
+
+def build_recommendation_prompt(snapshot):
+    return f"""
+{COMMON_RULES}
+
 ============================================================
-3. RECOMMENDATION ALGORITHM AUDIT
+SPECIALIZED PASS: RECOMMENDATION SYSTEM
 ============================================================
 
-This is one of the most important sections.
+This is the most important specialized audit.
 
-Reverse-engineer the entire recommendation pipeline.
+Reverse-engineer the recommendation system from the source.
 
-Current intended conceptual architecture:
+Trace:
 
 Watch history
  ↓
-Taste analysis
+History analysis
+ ↓
+Profile construction
  ↓
 Candidate generation
  ↓
-Known-title exclusion
+Candidate filtering
  ↓
 Candidate enrichment
  ↓
@@ -297,146 +379,628 @@ Candidate scoring
  ↓
 Ranking
  ↓
-User feedback
- ↓
-Future learning
+Final recommendations
 
-Determine whether the implementation actually follows this
-architecture.
+Determine whether the implementation actually follows that
+conceptual architecture.
 
-Analyze:
+Audit:
 
-- rating interpretation
 - positive feedback
 - negative feedback
-- confidence
-- repeated evidence
-- connection strength
-- actor relationships
-- director relationships
-- genre relationships
-- franchise relationships
-- studio relationships
-- movie/TV separation
-- candidate diversity
-- candidate duplication
-- candidate coverage
-- exploration
-- popularity influence
-- TMDB rating influence
-- known-title exclusion
+- ratings
 - unrated watched media
 - not_sure
 - to_watch
-- personal ratings
+- connection strength
+- repeated evidence
+- actor connections
+- director connections
+- genre connections
+- franchise connections
+- studio connections
+- decade
+- language
+- movie vs TV separation
+- known-title exclusion
+- candidate duplication
+- candidate coverage
+- exploration
+- diversity
+- popularity influence
+- TMDB rating influence
 - sparse history
-- small history
 - large history
 
+Pay particular attention to whether negative feedback actually
+affects scoring.
+
+Determine whether the system can recommend something because it
+shares connections with disliked media.
+
+Determine whether repeated connections dominate scoring.
+
+Determine whether one highly connected actor/person can drown
+out more meaningful genre/franchise/story signals.
+
+Determine whether movie and TV behavior is appropriately
+separated.
+
+The user has observed that a first recommendation batch contained
+100 recommendations, of which 27 were titles they recognized as
+having actually watched.
+
+Treat this as empirical evidence, NOT as a formal accuracy metric.
+
+Explain what this observation tells us and what it does not tell us.
+
+Design a realistic future offline evaluation method based on
+historical replay.
+
+Also evaluate what information the current architecture collects
+for future learning:
+
+- recommendation exposure
+- recommendation position
+- matched connections
+- recommendation source
+- clicked recommendation
+- skipped recommendation
+- watched recommendation
+- personal rating after recommendation
+- timestamp
+
+End with:
+
+1. Actual bugs
+2. Important weaknesses
+3. Good decisions
+4. Immediate fixes
+5. Future improvements
+6. Recommended tests
+
+SOURCE CODE:
+
+{snapshot}
+"""
+
+
+def build_frontend_prompt(snapshot):
+    return f"""
+{COMMON_RULES}
+
 ============================================================
-4. RECOMMENDATION QUALITY EXPERIMENT
+SPECIALIZED PASS: FRONTEND LOGIC
 ============================================================
 
-There is an important real-world observation:
+Audit the React/Vite frontend for behavioral correctness.
 
-The first recommendation batch contained 100 recommendations.
+Focus on:
 
-The user recognized 27 of those 100 as movies/series they had
-actually watched.
+- state management
+- derived state
+- effects
+- dependencies
+- stale closures
+- event listeners
+- localStorage synchronization
+- watch status
+- personal ratings
+- pagination
+- filtering
+- sorting
+- expansion state
+- movie/TV type handling
+- loading states
+- error states
+- API responses
+- race conditions
+- unnecessary requests
+- unnecessary rerenders
 
-Treat this as empirical evidence.
+Pay particular attention to:
 
-Do NOT automatically interpret 27/100 as a formal accuracy metric.
+Recommendations
+Library
+Discover
+MovieCard
+ExpandedCard
+useWatchStatus
+useWatchRating
+useMediaDetails
+useDiscoverSearch
+watchlist service
 
-Explain:
+Check whether frontend assumptions match backend/API data.
 
-- what this observation tells us
-- what it does NOT tell us
-- whether it suggests candidate generation is working
-- whether it suggests the scoring system is working
-- what information is missing
-- how this could eventually become a proper evaluation metric
+Look for bugs that produce correct-looking UI while storing
+incorrect application state.
 
-Discuss how we could create a real offline evaluation later.
+End with:
 
-For example:
+1. Actual bugs
+2. Important weaknesses
+3. Good decisions
+4. Immediate fixes
+5. Future improvements
+6. Recommended tests
 
-Historical replay:
+SOURCE CODE:
 
-Take older watched titles.
+{snapshot}
+"""
 
-Pretend they were unknown.
 
-Generate recommendations using only earlier history.
-
-Measure whether the system ranks those later-watched titles
-highly.
-
-Design a realistic evaluation methodology.
+def build_backend_prompt(snapshot):
+    return f"""
+{COMMON_RULES}
 
 ============================================================
-5. DATA AND STATE CONSISTENCY
+SPECIALIZED PASS: BACKEND LOGIC
 ============================================================
 
-Audit all data structures.
+Audit the Node/Express backend.
 
-Look for:
+Trace:
 
-- duplicate representations
-- conflicting field names
-- same concept represented differently
-- personal rating vs TMDB rating confusion
-- movie vs TV naming differences
+Routes
+ ↓
+Services
+ ↓
+TMDB
+ ↓
+Normalization
+ ↓
+Recommendation/network logic
+ ↓
+Response
+
+Focus on:
+
+- API contracts
+- validation
+- error handling
+- metadata normalization
+- movie/TV differences
+- TMDB calls
+- caching
+- sequential requests
+- duplicate requests
+- missing metadata
 - null handling
-- ID collisions
-- status inconsistencies
-- stale localStorage state
-- event synchronization
-- derived state bugs
+- candidate filtering
+- graph generation
+- network construction
+- recommendation calculations
 
-Pay special attention to:
+Analyze complexity where meaningful.
+
+Consider histories of:
+
+100 titles
+500 titles
+1,000 titles
+5,000 titles
+
+Determine when the current implementation becomes problematic.
+
+End with:
+
+1. Actual bugs
+2. Important weaknesses
+3. Good decisions
+4. Immediate fixes
+5. Future improvements
+6. Recommended tests
+
+SOURCE CODE:
+
+{snapshot}
+"""
+
+
+def build_data_prompt(snapshot):
+    return f"""
+{COMMON_RULES}
+
+============================================================
+SPECIALIZED PASS: DATA AND STATE CONSISTENCY
+============================================================
+
+Audit how information is represented throughout the application.
+
+Focus on:
+
+- IDs
+- type
+- title
+- name
+- dates
+- status
+- personal ratings
+- TMDB ratings
+- genres
+- actors
+- directors
+- franchises
+- studios
+- language
+- popularity
+- localStorage
+- API payloads
+- normalized metadata
+
+Pay particular attention to possible confusion between:
 
 historyItem.rating
 
 metadata.rating
 
-tmdbRating
+TMDB vote_average
 
 status
 
-type
+movie
 
-id
+tv
 
 title
 
 name
 
+release_date
+
+first_air_date
+
 year
 
-releaseDate
+Determine whether information is lost between layers.
 
-poster_path
+Determine whether the current localStorage schema is sufficient
+for the application's future recommendation goals.
+
+Also audit:
+
+- corrupted localStorage
+- duplicate history records
+- missing metadata
+- stale data
+- status transitions
+- rating transitions
+
+End with:
+
+1. Actual bugs
+2. Important weaknesses
+3. Good decisions
+4. Immediate fixes
+5. Future improvements
+6. Recommended tests
+
+SOURCE CODE:
+
+{snapshot}
+"""
+
+
+def build_integration_prompt(snapshot):
+    return f"""
+{COMMON_RULES}
 
 ============================================================
-6. ALGORITHM COMPLEXITY
+SPECIALIZED PASS: SYSTEM INTEGRATION
 ============================================================
 
-Analyze computational complexity.
+Audit how the entire application fits together.
 
-Identify:
+Trace important flows across multiple files.
 
-- O(n²) or worse operations
-- unnecessary nested loops
+Analyze:
+
+User
+ ↓
+React
+ ↓
+hooks/services
+ ↓
+Express
+ ↓
+backend services
+ ↓
+TMDB
+ ↓
+transformation
+ ↓
+frontend
+
+Look for mismatched assumptions between subsystems.
+
+Focus on:
+
+- incorrect data shapes
+- inconsistent naming
+- missing fields
+- null handling
+- movie/TV differences
+- API contracts
+- synchronization
+- caching
+- pagination
+- error propagation
+- recommendation flow
+- network flow
+- discover flow
+- library flow
+
+Also identify integration issues that would not be visible when
+looking at a single file in isolation.
+
+End with:
+
+1. Actual bugs
+2. Important weaknesses
+3. Good decisions
+4. Immediate fixes
+5. Future improvements
+6. Recommended tests
+
+SOURCE CODE:
+
+{snapshot}
+"""
+
+
+def build_general_prompt(snapshot):
+    return f"""
+{COMMON_RULES}
+
+============================================================
+SPECIALIZED PASS: GENERAL CORRECTNESS / EDGE CASES
+============================================================
+
+Audit the supplied code for concrete logic and robustness issues.
+
+Mentally test cases such as:
+
+- empty history
+- one watched movie
+- one rated movie
+- only S ratings
+- only D ratings
+- no ratings
+- only to_watch
+- only not_sure
+- no movies
+- no TV
+- no actors
+- no directors
+- no franchises
+- missing poster
+- missing overview
+- missing release date
+- missing credits
+- missing TMDB metadata
+- TMDB failure
+- TMDB rate limiting
+- duplicate candidates
+- already watched candidates
+- large history
+- very large candidate pool
+
+Also consider:
+
+- O(n²) operations
 - repeated scans
-- repeated Set/Map construction
-- repeated metadata lookups
-- redundant enrichment
-- repeated TMDB calls
-- sequential API requests that could safely be parallelized
-- unnecessary frontend rerenders
+- repeated requests
+- unnecessary work
+- security/robustness issues
+- error leakage
+- malformed input
+- excessive request sizes
 
-For each important case estimate:
+Do not invent vulnerabilities.
+
+End with:
+
+1. Actual bugs
+2. Important weaknesses
+3. Good decisions
+4. Immediate fixes
+5. Future improvements
+6. Recommended tests
+
+SOURCE CODE:
+
+{snapshot}
+"""
+
+
+# ============================================================
+# Pass metadata
+# ============================================================
+
+PASS_DEFINITIONS = {
+    "recommendations": (
+        "Recommendation Algorithm",
+        build_recommendation_prompt,
+    ),
+    "frontend": (
+        "Frontend Logic",
+        build_frontend_prompt,
+    ),
+    "backend": (
+        "Backend Logic",
+        build_backend_prompt,
+    ),
+    "data": (
+        "Data Consistency",
+        build_data_prompt,
+    ),
+    "integration": (
+        "System Integration",
+        build_integration_prompt,
+    ),
+}
+
+
+# ============================================================
+# Final synthesis prompt
+# ============================================================
+
+def build_synthesis_prompt(reports, file_count):
+    reports_text = "\n\n".join(reports)
+
+    return f"""
+You are now the lead software architect reviewing the results
+of several independent repository audits.
+
+The repository contains {file_count} source files.
+
+The reports below were produced by specialized audits.
+
+Your task is to synthesize them into ONE authoritative final
+LOGIC AND CORRECTNESS AUDIT.
+
+{COMMON_RULES}
+
+IMPORTANT:
+
+Do not blindly repeat findings.
+
+Cross-check findings between passes.
+
+If two reports disagree, reason from the evidence.
+
+Do not turn every suggestion into a bug.
+
+Prioritize concrete correctness problems.
+
+============================================================
+FINAL REPORT STRUCTURE
+============================================================
+
+# Logic and Correctness Audit
+
+## 1. Executive Summary
+
+Start with:
+
+- overall assessment
+- number of high-confidence issues
+- most important flaw
+- strongest part of the implementation
+- most important next step
+
+============================================================
+2. SYSTEM BEHAVIOR AUDIT
+============================================================
+
+Explain whether the major application flows work correctly:
+
+User
+ ↓
+React
+ ↓
+hooks/services
+ ↓
+Express
+ ↓
+backend
+ ↓
+TMDB
+ ↓
+frontend
+
+Highlight mismatched assumptions.
+
+============================================================
+3. LOGIC CORRECTNESS
+============================================================
+
+Explain the most important business-logic findings.
+
+Cover:
+
+- watch status
+- personal ratings
+- history
+- discovery
+- library
+- network
+- recommendations
+- pagination
+- movie/TV separation
+
+============================================================
+4. RECOMMENDATION ALGORITHM
+============================================================
+
+Give a detailed evaluation.
+
+Cover:
+
+- positive feedback
+- negative feedback
+- rating interpretation
+- confidence
+- repeated evidence
+- connection strength
+- candidate generation
+- candidate filtering
+- known-title exclusion
+- scoring
+- ranking
+- diversity
+- exploration
+- movie/TV separation
+- popularity
+- TMDB rating
+- sparse history
+
+Explicitly discuss whether the recommendation algorithm is
+actually learning from negative feedback.
+
+============================================================
+5. RECOMMENDATION QUALITY EXPERIMENT
+============================================================
+
+Discuss the observation:
+
+27 recognized watched titles out of 100 recommendations.
+
+Explain:
+
+- what it suggests
+- what it does not prove
+- what information is missing
+- how to build a proper offline evaluation
+
+Include a realistic historical-replay methodology.
+
+============================================================
+6. DATA CONSISTENCY
+============================================================
+
+Audit:
+
+- status
+- type
+- ID
+- title/name
+- dates
+- personal rating
+- TMDB rating
+- genres
+- metadata
+- localStorage
+
+============================================================
+7. COMPLEXITY AND PERFORMANCE
+============================================================
+
+Identify meaningful complexity problems.
+
+Use:
 
 Current complexity:
 O(...)
@@ -447,288 +1011,109 @@ Recommended improvement:
 
 Do not optimize trivial operations.
 
-Focus on things that could matter as the watch history grows.
-
 ============================================================
-7. TMDB/API USAGE
+8. TMDB/API USAGE
 ============================================================
 
-Audit external API usage.
+Evaluate:
 
-Look for:
+100 titles
 
-- redundant requests
-- repeated requests for the same media
-- repeated failed requests
-- missing caching
-- inefficient endpoints
-- sequential requests
-- unnecessary enrichment
-- missing batching opportunities
-- rate-limit risks
-- error handling problems
-- retry problems
+500 titles
 
-Determine whether the current implementation will remain
-reasonable with:
+1,000 titles
 
-100 watched titles
+5,000 titles
 
-500 watched titles
+Discuss:
 
-1,000 watched titles
-
-5,000 watched titles
-
-Explain where it starts becoming problematic.
+- request count
+- caching
+- sequential calls
+- failures
+- rate limits
+- enrichment
 
 ============================================================
-8. CACHING
+9. FRONTEND STATE
 ============================================================
 
-Audit all caching.
-
-Determine:
-
-- what is cached
-- what is not cached
-- whether cache keys are correct
-- whether failed requests are cached
-- whether stale data is possible
-- whether cache lifetime is appropriate
-- whether caching is happening at the correct layer
-
-Explain whether the current in-memory cache is sufficient.
+Evaluate React state, effects, synchronization, pagination,
+expansion, and localStorage behavior.
 
 ============================================================
-9. FRONTEND STATE LOGIC
+10. BACKEND
 ============================================================
 
-Audit React state management.
-
-Look for:
-
-- stale closures
-- unnecessary state
-- derived state stored unnecessarily
-- synchronization problems
-- race conditions
-- effects doing too much
-- effects missing dependencies
-- event listener problems
-- component state becoming stale
-- incorrect loading states
-- incorrect error states
-- pagination edge cases
-- expansion state problems
-
-Pay particular attention to:
-
-Recommendations.jsx
-
-MovieCard.jsx
-
-ExpandedCard.jsx
-
-useWatchStatus.js
-
-useWatchRating.js
-
-useMediaDetails.js
-
-useDiscoverSearch.js
-
-============================================================
-10. BACKEND LOGIC
-============================================================
-
-Audit:
-
-- routes
-- services
-- recommendation services
-- metadata normalization
-- candidate generation
-- candidate filtering
-- scoring
-- network generation
-- error handling
-
-Determine whether responsibilities communicate correctly.
-
-Look for logic that produces valid-looking but incorrect data.
+Evaluate routes, services, normalization, recommendation
+services, graph construction, filtering and scoring.
 
 ============================================================
 11. EDGE CASES
 ============================================================
 
-Systematically test the logic mentally against cases such as:
-
-- empty history
-- one watched movie
-- one rated movie
-- only S ratings
-- only D ratings
-- no personal ratings
-- only unrated watched media
-- only to_watch media
-- only not_sure media
-- no movies
-- no TV
-- no franchises
-- no actors
-- no directors
-- missing TMDB metadata
-- deleted TMDB media
-- duplicate history entries
-- duplicate candidates
-- candidate already watched
-- candidate already in to_watch
-- candidate marked not_sure
-- missing poster
-- missing overview
-- missing release date
-- missing credits
-- TMDB API failure
-- TMDB rate limiting
-- large history
-- very large candidate pool
-
-For each meaningful failure explain the consequence.
+Summarize the meaningful edge cases discovered.
 
 ============================================================
 12. SECURITY AND ROBUSTNESS
 ============================================================
 
-Look for concrete issues involving:
-
-- untrusted input
-- API abuse
-- malformed requests
-- excessive request sizes
-- error leakage
-- localStorage corruption
-- unsafe assumptions
-- missing validation
-- denial-of-service risks
-- dependency risks
-
-Do not invent vulnerabilities.
-
-Only report issues that are actually plausible from the code.
+Only report concrete plausible issues.
 
 ============================================================
-13. PERFORMANCE
+13. IS THIS THE BEST REASONABLE APPROACH?
 ============================================================
 
-Analyze both frontend and backend performance.
+For every major subsystem:
 
-Consider:
+Current approach
 
-- network requests
-- TMDB calls
-- React rendering
-- Cytoscape rendering
-- localStorage operations
-- JSON serialization
-- recommendation calculation
-- metadata enrichment
-- caching
+Alternative
 
-Identify bottlenecks that are actually relevant.
+Advantages
+
+Disadvantages
+
+Should we change?
+
+Respect incremental development.
 
 ============================================================
-14. "IS THIS THE BEST WAY?"
+14. OVERENGINEERING AUDIT
 ============================================================
 
-For every major subsystem ask:
+Identify both:
 
-"Is this the best reasonable approach for THIS application?"
-
-Evaluate:
-
-- current approach
-- alternative approach
-- advantages
-- disadvantages
-- whether changing is actually worth it
-
-Do NOT recommend technologies merely because they are popular.
-
-Do NOT recommend:
-
-- Redux
-- Zustand
-- databases
-- machine learning
-- vector databases
-- microservices
-- TypeScript migration
-- complex recommendation frameworks
-
-unless the current implementation has a concrete problem
-that requires them.
-
-The application is intentionally being developed incrementally.
-
-Respect that constraint.
+- unnecessary complexity
+- dangerous oversimplification
 
 ============================================================
-15. OVERENGINEERING AUDIT
+15. FUTURE LEARNING SYSTEM
 ============================================================
 
-Identify places where the implementation may be more complex
-than necessary.
+Evaluate whether current architecture collects enough information
+for future learning.
 
-For each one ask:
+Discuss:
 
-Can this be simplified without losing capability?
-
-Also identify places where the implementation is TOO simple
-and will eventually become a problem.
-
-The goal is the correct level of complexity.
-
-============================================================
-16. FUTURE LEARNING SYSTEM
-============================================================
-
-The long-term goal is for the recommendation system to learn
-from the user's behavior.
-
-Current philosophy:
-
-History
- ↓
-Recommendations
- ↓
-User interacts with recommendations
- ↓
-New history / feedback
- ↓
-Improved model
-
-Evaluate whether the current architecture collects enough
-information to eventually support learning.
-
-Identify what future information would be valuable, such as:
-
-- recommendation exposure
-- clicked recommendations
-- watched recommendations
-- skipped recommendations
-- personal rating after recommendation
-- recommendation position
-- recommendation source
+- exposure
+- clicks
+- skips
+- watches
+- ratings
+- position
+- source
 - matched connections
-- timestamp
+- timestamps
 
-Explain what should be implemented NOW and what should wait.
+Separate:
 
-Do not build a machine-learning system prematurely.
+Implement now
+
+Implement later
 
 ============================================================
-17. POTENTIAL LOGIC BUG TABLE
+16. POTENTIAL LOGIC BUG TABLE
 ============================================================
 
 Create:
@@ -738,24 +1123,16 @@ Create:
 
 Priority:
 
-P0 = critical correctness problem
+P0 = critical
 
-P1 = important correctness problem
+P1 = important
 
 P2 = meaningful improvement
 
 P3 = minor improvement
 
-Confidence:
-
-High
-Medium
-Low
-
-Only assign P0/P1 when justified.
-
 ============================================================
-18. ALGORITHM IMPROVEMENT TABLE
+17. ALGORITHM IMPROVEMENT TABLE
 ============================================================
 
 Create:
@@ -763,33 +1140,23 @@ Create:
 | Area | Current behavior | Problem | Better approach | Worth doing now? |
 |------|------------------|---------|-----------------|------------------|
 
-Focus especially on the recommendation system.
-
 ============================================================
-19. WHAT IS ALREADY GOOD
+18. WHAT IS ALREADY GOOD
 ============================================================
 
-Identify logic that should NOT be changed.
-
-This is important.
-
-If something is correct, simple, and appropriate:
-
-Say so.
-
-Do not invent improvements merely to produce a longer report.
+Explicitly identify things that should NOT be changed.
 
 ============================================================
-20. FINAL VERDICT
+19. FINAL VERDICT
 ============================================================
 
-Finish with:
+Provide:
 
 A. Critical bugs
 
 B. Important logic flaws
 
-C. Recommendation algorithm weaknesses
+C. Recommendation weaknesses
 
 D. Performance problems
 
@@ -797,7 +1164,7 @@ E. API/TMDB problems
 
 F. Frontend state problems
 
-G. Things that are already well designed
+G. Things already well designed
 
 H. Things that should NOT be changed
 
@@ -805,7 +1172,7 @@ I. Things to fix immediately
 
 J. Things to postpone
 
-K. The single most valuable next improvement
+K. Single most valuable next improvement
 
 L. Overall assessment:
 
@@ -819,42 +1186,39 @@ L. Overall assessment:
 Explain the verdict.
 
 ============================================================
-21. RECOMMENDED TEST PLAN
+20. RECOMMENDED TEST PLAN
 ============================================================
 
-Create a practical test plan for the logic.
-
-Include:
+Create a practical test plan covering:
 
 - unit tests
 - integration tests
 - recommendation tests
-- edge-case tests
+- edge cases
 - regression tests
 
-Prioritize tests that would catch real bugs found during this
-audit.
+Prioritize tests that catch real bugs.
 
 ============================================================
-22. EXECUTIVE SUMMARY
+AUDIT REPORTS
 ============================================================
 
-Start the report with a concise executive summary containing:
-
-- overall assessment
-- number of high-confidence issues
-- most important flaw
-- strongest part of the implementation
-- most important next step
-
-Do not bury the important findings.
-
-============================================================
-SOURCE CODE
-============================================================
-
-{snapshot}
+{reports_text}
 """
+
+
+# ============================================================
+# Safety helpers
+# ============================================================
+
+def trim_for_synthesis(text, max_chars):
+    if len(text) <= max_chars:
+        return text
+
+    return (
+        text[:max_chars]
+        + "\n\n[REPORT TRUNCATED FOR FINAL SYNTHESIS]\n"
+    )
 
 
 # ============================================================
@@ -862,13 +1226,6 @@ SOURCE CODE
 # ============================================================
 
 def main():
-    api_key = os.getenv("GEMINI_API_KEY")
-
-    if not api_key:
-        raise RuntimeError(
-            "GEMINI_API_KEY environment variable is not set."
-        )
-
     print("Scanning project...")
 
     files = collect_files()
@@ -882,41 +1239,138 @@ def main():
             "No source files were found."
         )
 
-    print(
-        "Building project snapshot..."
-    )
+    print("Reading source files...")
 
-    snapshot = build_project_snapshot(files)
+    loaded_files = load_project_files(files)
 
     print(
-        f"Sending project to Gemini using {MODEL}..."
+        f"Loaded {len(loaded_files)} source files."
     )
 
-    client = genai.Client(
-        api_key=api_key
-    )
+    groups = build_groups(loaded_files)
 
-    response = client.models.generate_content(
-        model=MODEL,
-        contents=build_prompt(
-            snapshot,
-            len(files),
-        ),
-    )
+    reports = []
 
-    if not response.text:
-        raise RuntimeError(
-            "Gemini returned an empty response."
+    print()
+    print("=" * 70)
+    print("STARTING MULTI-PASS ANALYSIS")
+    print("=" * 70)
+
+    for group_name, group_files in groups.items():
+        if not group_files:
+            continue
+
+        title, prompt_builder = PASS_DEFINITIONS[
+            group_name
+        ]
+
+        chunks = split_large_group(
+            group_files
         )
 
+        print()
+        print(
+            f"[{title}] "
+            f"{len(group_files)} files "
+            f"across {len(chunks)} pass(es)"
+        )
+
+        for index, chunk in enumerate(
+            chunks,
+            start=1,
+        ):
+            snapshot = render_group(chunk)
+
+            print(
+                f"  Pass {index}/{len(chunks)}: "
+                f"{len(snapshot):,} characters"
+            )
+
+            if len(snapshot) > MAX_PASS_CHARS:
+                raise RuntimeError(
+                    f"{title} pass is still too large: "
+                    f"{len(snapshot):,} characters."
+                )
+
+            prompt = prompt_builder(
+                snapshot
+            )
+
+            print(
+                f"  Sending pass {index} to "
+                f"{MODEL}..."
+            )
+
+            analysis = analyze_with_ollama(
+                prompt
+            )
+
+            reports.append(
+                f"""
+# Specialized Audit: {title}
+
+## Pass {index}
+
+{analysis}
+"""
+            )
+
+            print(
+                f"  Completed pass {index}."
+            )
+
+    if not reports:
+        raise RuntimeError(
+            "No analysis passes were produced."
+        )
+
+    print()
+    print("=" * 70)
+    print("STARTING FINAL SYNTHESIS")
+    print("=" * 70)
+
+    synthesis_reports = []
+
+    for report in reports:
+        synthesis_reports.append(
+            trim_for_synthesis(
+                report,
+                MAX_SYNTHESIS_CHARS // max(
+                    len(reports),
+                    1,
+                ),
+            )
+        )
+
+    synthesis_prompt = build_synthesis_prompt(
+        synthesis_reports,
+        len(loaded_files),
+    )
+
+    print(
+        f"Synthesis input: "
+        f"{len(synthesis_prompt):,} characters"
+    )
+
+    print(
+        f"Sending synthesis to {MODEL}..."
+    )
+
+    final_analysis = analyze_with_ollama(
+        synthesis_prompt
+    )
+
     OUTPUT_FILE.write_text(
-        response.text,
+        final_analysis,
         encoding="utf-8",
     )
 
     print()
-    print("Logic analysis complete.")
-    print("Report saved to:")
+    print("=" * 70)
+    print("LOGIC ANALYSIS COMPLETE")
+    print("=" * 70)
+    print()
+    print("Final report saved to:")
     print(OUTPUT_FILE)
 
 

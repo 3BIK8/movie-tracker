@@ -1,73 +1,88 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import MovieCard from "../components/MovieCard";
 import Pagination from "../components/Pagination";
+import Select from "../components/Select";
 import { useDiscoverSearch } from "../hooks/useDiscoverSearch";
 
-function getUrlState() {
-  const params = new URLSearchParams(window.location.search);
+const MOVIE_GENRES = [
+  { value: "", label: "Any genre" },
+  { value: "28", label: "Action" },
+  { value: "12", label: "Adventure" },
+  { value: "16", label: "Animation" },
+  { value: "35", label: "Comedy" },
+  { value: "80", label: "Crime" },
+  { value: "99", label: "Documentary" },
+  { value: "18", label: "Drama" },
+  { value: "10751", label: "Family" },
+  { value: "14", label: "Fantasy" },
+  { value: "36", label: "History" },
+  { value: "27", label: "Horror" },
+  { value: "10402", label: "Music" },
+  { value: "9648", label: "Mystery" },
+  { value: "10749", label: "Romance" },
+  { value: "878", label: "Science Fiction" },
+  { value: "53", label: "Thriller" },
+  { value: "10752", label: "War" },
+  { value: "37", label: "Western" },
+];
 
-  const type = params.get("type");
-  const personId = params.get("person");
-  const role = params.get("role");
-  const personName = params.get("name");
-  const page = Number(params.get("page"));
+const TV_GENRES = [
+  { value: "", label: "Any genre" },
+  { value: "10759", label: "Action & Adventure" },
+  { value: "16", label: "Animation" },
+  { value: "35", label: "Comedy" },
+  { value: "80", label: "Crime" },
+  { value: "99", label: "Documentary" },
+  { value: "18", label: "Drama" },
+  { value: "10751", label: "Family" },
+  { value: "10762", label: "Kids" },
+  { value: "10765", label: "Sci-Fi & Fantasy" },
+  { value: "10766", label: "Soap" },
+  { value: "10768", label: "War & Politics" },
+  { value: "37", label: "Western" },
+];
 
-  return {
-    type: type === "tv" ? "tv" : "movie",
-    personFilter:
-      personId && ["actor", "director"].includes(role)
-        ? {
-            id: Number(personId),
-            name: personName || "Unknown",
-            role,
-          }
-        : null,
-    page: page > 0 ? page : 1,
-  };
-}
+const LANGUAGES = [
+  { value: "", label: "Any language" },
+  { value: "en", label: "English" },
+  { value: "fr", label: "French" },
+  { value: "ar", label: "Arabic" },
+  { value: "es", label: "Spanish" },
+  { value: "de", label: "German" },
+  { value: "it", label: "Italian" },
+  { value: "ja", label: "Japanese" },
+  { value: "ko", label: "Korean" },
+  { value: "zh", label: "Chinese" },
+];
 
-function updateUrl({ type, personFilter, page }) {
-  const params = new URLSearchParams(window.location.search);
+const SORT_OPTIONS = [
+  { value: "popularity", label: "Popularity" },
+  { value: "rating", label: "Rating" },
+  { value: "newest", label: "Newest" },
+  { value: "oldest", label: "Oldest" },
+];
 
-  params.set("type", type);
+function Discover() {
+  const [type, setType] = useState("movie");
 
-  if (personFilter) {
-    params.set("person", personFilter.id);
-    params.set("role", personFilter.role);
-    params.set("name", personFilter.name);
-  } else {
-    params.delete("person");
-    params.delete("role");
-    params.delete("name");
-  }
-
-  if (page > 1) {
-    params.set("page", page);
-  } else {
-    params.delete("page");
-  }
-
-  const query = params.toString();
-
-  window.history.replaceState(
-    null,
-    "",
-    query ? `?${query}` : window.location.pathname,
-  );
-}
-
-function DiscoverView() {
-  const initialState = getUrlState();
-
-  const [type, setType] = useState(initialState.type);
-  const [expandedId, setExpandedId] = useState(null);
-  const [personFilter, setPersonFilter] = useState(initialState.personFilter);
+  // Controls which expanded card is currently open.
+  const [expandedCard, setExpandedCard] = useState(null);
 
   const {
     query,
     setQuery,
     year,
     setYear,
+    genre,
+    setGenre,
+    language,
+    setLanguage,
+    minRating,
+    setMinRating,
+    maxRating,
+    setMaxRating,
+    sort,
+    setSort,
     page,
     setPage,
     pageInput,
@@ -80,49 +95,33 @@ function DiscoverView() {
     changeType,
   } = useDiscoverSearch({
     type,
-    personFilter,
-    initialPage: initialState.page,
   });
 
-  useEffect(() => {
-    updateUrl({
-      type,
-      personFilter,
-      page,
-    });
-  }, [type, personFilter, page]);
+  const genres = type === "movie" ? MOVIE_GENRES : TV_GENRES;
 
   function handleTypeChange(newType) {
     setType(newType);
-    setPersonFilter(null);
+    setExpandedCard(null);
     changeType(newType);
-    setExpandedId(null);
   }
 
-  function handlePersonClick(person) {
-    setPersonFilter({
-      id: person.id,
-      name: person.name,
-      role: person.role,
-    });
-
-    setPage(1);
-    setExpandedId(null);
+  function handleExpand(cardId) {
+    setExpandedCard((current) => (current === cardId ? null : cardId));
   }
 
-  function clearPersonFilter() {
-    setPersonFilter(null);
-    setPage(1);
-    setExpandedId(null);
+  function handlePageChange(newPage) {
+    setExpandedCard(null);
+    setPage(newPage);
   }
 
   return (
     <>
       <header>
-        <h1>My Watch History</h1>
+        <h1>Discover</h1>
 
-        <div className="type-buttons">
+        <div className="discover-type">
           <button
+            type="button"
             className={type === "movie" ? "active" : ""}
             onClick={() => handleTypeChange("movie")}
           >
@@ -130,6 +129,7 @@ function DiscoverView() {
           </button>
 
           <button
+            type="button"
             className={type === "tv" ? "active" : ""}
             onClick={() => handleTypeChange("tv")}
           >
@@ -137,78 +137,101 @@ function DiscoverView() {
           </button>
         </div>
 
-        {personFilter ? (
-          <div className="person-filter">
-            <span>
-              {personFilter.role === "director" ? "Director" : "Actor"}:{" "}
-              {personFilter.name}
-            </span>
+        <form className="discover-filters" onSubmit={handleSearch}>
+          <input
+            type="text"
+            placeholder={`Search ${
+              type === "movie" ? "movies" : "TV shows"
+            }...`}
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
 
-            <button type="button" onClick={clearPersonFilter}>
-              Clear
-            </button>
-          </div>
-        ) : (
-          <form onSubmit={handleSearch}>
-            <input
-              type="text"
-              placeholder={`Search ${
-                type === "movie" ? "movies" : "TV shows"
-              }...`}
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-            />
+          <input
+            type="number"
+            placeholder="Year"
+            min="1900"
+            max="2100"
+            value={year}
+            onChange={(event) => setYear(event.target.value)}
+          />
 
-            <input
-              type="number"
-              placeholder="Year"
-              min="1900"
-              max="2026"
-              value={year}
-              onChange={(event) => setYear(event.target.value)}
-            />
+          <Select
+            ariaLabel="Genre"
+            value={genre}
+            onChange={setGenre}
+            options={genres}
+          />
 
-            <button type="submit">Search</button>
-          </form>
-        )}
+          <Select
+            ariaLabel="Language"
+            value={language}
+            onChange={setLanguage}
+            options={LANGUAGES}
+          />
+
+          <input
+            type="number"
+            placeholder="Min rating"
+            min="0"
+            max="10"
+            step="0.1"
+            value={minRating}
+            onChange={(event) => setMinRating(event.target.value)}
+          />
+
+          <input
+            type="number"
+            placeholder="Max rating"
+            min="0"
+            max="10"
+            step="0.1"
+            value={maxRating}
+            onChange={(event) => setMaxRating(event.target.value)}
+          />
+
+          <Select
+            ariaLabel="Sort"
+            value={sort}
+            onChange={setSort}
+            options={SORT_OPTIONS}
+          />
+
+          <button type="submit">Search</button>
+        </form>
       </header>
 
-      {loading && <p className="status-message">Loading...</p>}
+      {loading && <div className="status-message">Loading...</div>}
 
-      {error && <p className="status-message error">{error}</p>}
+      {error && <div className="status-message error">{error}</div>}
 
-      {!loading && !error && (
+      {!loading && !error && items.length === 0 && (
+        <div className="status-message">No results found.</div>
+      )}
+
+      {!loading && !error && items.length > 0 && (
         <>
-          <section className="movie-grid">
-            {items
-              .filter((item) => item?.id != null)
-              .map((item) => {
-                const itemType = item.media_type || type;
+          <div className="movie-grid">
+            {items.map((item) => {
+              const cardId = `${type}-${item.id}`;
 
-                const id = `${itemType}-${item.id}`;
-
-                return (
-                  <MovieCard
-                    key={id}
-                    item={item}
-                    type={itemType}
-                    isExpanded={expandedId === id}
-                    onExpand={(newId) =>
-                      setExpandedId((current) =>
-                        current === newId ? null : newId,
-                      )
-                    }
-                    onPersonClick={handlePersonClick}
-                  />
-                );
-              })}
-          </section>
+              return (
+                <MovieCard
+                  key={cardId}
+                  item={item}
+                  type={type}
+                  isExpanded={expandedCard === cardId}
+                  onExpand={handleExpand}
+                />
+              );
+            })}
+          </div>
 
           <Pagination
             page={page}
             pageInput={pageInput}
             totalPages={totalPages}
-            onPageChange={setPage}
+            onPageChange={handlePageChange}
             onPageInputChange={setPageInput}
           />
         </>
@@ -217,4 +240,4 @@ function DiscoverView() {
   );
 }
 
-export default DiscoverView;
+export default Discover;

@@ -4,6 +4,7 @@ import {
   discoverPersonCredits,
 } from "../services/discoverService.js";
 import { sendTmdbError } from "../utils/tmdbErrorHandler.js";
+
 const router = express.Router();
 
 router.get("/person", async (req, res) => {
@@ -30,18 +31,39 @@ router.get("/person", async (req, res) => {
 
 router.get("/", async (req, res) => {
   try {
-    const { type = "movie", query = "", year = "", page = 1 } = req.query;
+    const {
+      type = "movie",
+      query = "",
+      year = "",
+      genre = "",
+      language = "",
+      minRating = "",
+      maxRating = "",
+      sort = "popularity",
+      page = 1,
+    } = req.query;
+
+    if (!["movie", "tv"].includes(type)) {
+      return res.status(400).json({
+        message: "Invalid media type.",
+      });
+    }
 
     const data = await discoverMedia({
       type,
       query,
       year,
+      genre,
+      language,
+      minRating,
+      maxRating,
+      sort,
       page: Math.max(Number(page) || 1, 1),
     });
 
     res.json(data);
   } catch (error) {
-    sendTmdbError(res, error, "Unable to load movies from TMDB.");
+    sendTmdbError(res, error, "Unable to load media from TMDB.");
   }
 });
 

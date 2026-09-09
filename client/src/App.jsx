@@ -42,7 +42,7 @@ function App() {
 
   return (
     <>
-      <nav>
+      <nav className="main-nav">
         <button
           className={view === "discover" ? "active" : ""}
           onClick={() => changeView("discover")}
