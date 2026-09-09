@@ -1,0 +1,30 @@
+.type-buttons,
+.library-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 20px 0;
+}
+
+form {
+  display: flex;
+  gap: 10px;
+}
+
+input[type="text"] {
+  flex: 1 1 240px;
+}
+
+input[type="number"] {
+  width: 100px;
+}
+
+@media (max-width: 600px) {
+  form {
+    flex-wrap: wrap;
+  }
+
+  form button {
+    flex: 1 0 auto;
+  }
+}

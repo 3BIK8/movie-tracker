@@ -1,0 +1,45 @@
+main,
+.main-nav {
+  width: min(var(--page-width), calc(100% - 48px));
+  margin-inline: auto;
+}
+
+main {
+  padding-block: 28px 48px;
+}
+
+.main-nav {
+  display: flex;
+  gap: 8px;
+  padding-top: 24px;
+}
+
+header {
+  margin-bottom: 30px;
+}
+
+h1 {
+  margin: 0;
+  font-size: clamp(1.6rem, 3vw, 2.25rem);
+}
+
+.status-message {
+  padding: 28px 0;
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.status-message.error {
+  color: #ff8585;
+}
+
+@media (max-width: 600px) {
+  main,
+  .main-nav {
+    width: min(100% - 32px, var(--page-width));
+  }
+
+  main {
+    padding-top: 22px;
+  }
+}

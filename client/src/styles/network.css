@@ -1,0 +1,1122 @@
+.network-page {
+  width: 100%;
+  color: var(--color-text);
+}
+
+/* ================================
+   Header
+   ================================ */
+
+.network-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.network-header h1 {
+  margin: 0;
+  color: var(--color-text);
+}
+
+.network-header p {
+  margin: 5px 0 0;
+  color: var(--color-text-muted);
+  font-size: 14px;
+}
+
+.network-reset {
+  padding: 8px 14px;
+}
+
+/* ================================
+   Main layout
+   ================================ */
+
+.network-layout {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr) 280px;
+  gap: 14px;
+
+  height: calc(100vh - 170px);
+  min-height: 600px;
+}
+
+/* ================================
+   Shared panels
+   ================================ */
+
+.network-controls,
+.network-details,
+.network-container {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+/* ================================
+   Left controls
+   ================================ */
+
+.network-controls {
+  min-width: 0;
+  padding: 16px;
+  overflow-y: auto;
+  background: var(--color-surface);
+}
+
+.network-controls h2 {
+  margin: 0 0 16px;
+
+  color: var(--color-text);
+
+  font-size: 15px;
+  font-weight: 600;
+}
+
+/* ================================
+   Filters
+   ================================ */
+
+.network-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  margin-bottom: 10px;
+
+  color: var(--color-text-muted);
+
+  font-size: 13px;
+
+  cursor: pointer;
+  user-select: none;
+}
+
+.network-filter:hover {
+  color: var(--color-text);
+}
+
+.network-filter input {
+  width: 14px;
+  height: 14px;
+
+  margin: 0;
+
+  accent-color: var(--color-accent);
+
+  cursor: pointer;
+}
+
+/* ================================
+   Connection colors
+   ================================ */
+
+.network-color-actor {
+  background: #f97316;
+}
+
+.network-color-director {
+  background: #8b5cf6;
+}
+
+.network-color-genre {
+  background: #22c55e;
+}
+
+.network-color-franchise {
+  background: #ef4444;
+}
+
+.network-color-decade {
+  background: #64748b;
+}
+
+.network-color-studio {
+  background: #14b8a6;
+}
+
+.network-color-language {
+  background: #eab308;
+}
+
+.network-color-keyword {
+  background: #ec4899;
+}
+
+.network-color-mediaType {
+  background: #06b6d4;
+}
+
+.network-filter .network-color {
+  width: 10px;
+  height: 10px;
+
+  flex-shrink: 0;
+
+  border-radius: 50%;
+}
+
+/* ================================
+   Help
+   ================================ */
+
+.network-help {
+  margin-top: 24px;
+  padding-top: 14px;
+
+  border-top: 1px solid var(--color-border);
+}
+
+.network-help p {
+  margin: 0 0 9px;
+
+  color: var(--color-text-muted);
+
+  font-size: 11px;
+  line-height: 1.45;
+}
+/* =========================================================
+   CONNECTION EXPLORER
+   ========================================================= */
+
+.network-explorer {
+  margin-top: 22px;
+  padding-top: 16px;
+
+  border-top: 1px solid var(--color-border);
+}
+
+.network-explorer h3 {
+  margin: 0 0 10px;
+
+  color: var(--color-text);
+
+  font-size: 11px;
+  font-weight: 600;
+
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.network-explorer input {
+  width: 100%;
+
+  padding: 8px 9px;
+
+  font-size: 12px;
+}
+
+.network-clear-focus {
+  width: 100%;
+
+  margin-top: 7px;
+
+  padding: 7px 9px;
+
+  font-size: 11px;
+}
+
+.network-connection-results {
+  display: flex;
+  flex-direction: column;
+
+  gap: 3px;
+
+  max-height: 260px;
+
+  margin-top: 8px;
+
+  overflow-y: auto;
+}
+
+.network-connection-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  width: 100%;
+
+  gap: 8px;
+
+  padding: 7px 8px;
+
+  border-color: transparent;
+
+  background: transparent;
+
+  text-align: left;
+}
+
+.network-connection-option:hover {
+  border-color: var(--color-border);
+}
+
+.network-connection-option.active {
+  border-color: var(--color-border);
+
+  background: var(--color-surface-raised);
+
+  color: var(--color-text);
+}
+
+.network-connection-option-main {
+  display: flex;
+  align-items: center;
+
+  min-width: 0;
+
+  gap: 7px;
+}
+
+.network-connection-option .network-color {
+  width: 8px;
+  height: 8px;
+
+  flex: 0 0 8px;
+
+  border-radius: 50%;
+}
+
+.network-connection-name {
+  min-width: 0;
+
+  overflow: hidden;
+
+  color: var(--color-text-muted);
+
+  font-size: 11px;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.network-connection-option.active .network-connection-name {
+  color: var(--color-text);
+}
+
+.network-connection-count {
+  flex: 0 0 auto;
+
+  color: var(--color-text-muted);
+
+  font-size: 10px;
+}
+
+.network-no-results {
+  margin: 6px 0;
+
+  color: var(--color-text-muted);
+
+  font-size: 10px;
+}
+
+/* =========================================================
+   FOCUS INDICATOR
+   ========================================================= */
+
+.network-focus-indicator {
+  position: absolute;
+
+  z-index: 20;
+
+  top: 12px;
+  left: 50%;
+
+  display: flex;
+  align-items: center;
+
+  gap: 7px;
+
+  transform: translateX(-50%);
+
+  padding: 7px 11px;
+
+  border: 1px solid var(--color-border);
+  border-radius: 7px;
+
+  background: var(--color-surface);
+
+  box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
+
+  white-space: nowrap;
+}
+
+.network-focus-indicator span {
+  color: var(--color-text-muted);
+
+  font-size: 10px;
+}
+
+.network-focus-indicator strong {
+  color: var(--color-text);
+
+  font-size: 11px;
+}
+/* ================================
+   Graph
+   ================================ */
+
+.network-container {
+  position: relative;
+
+  min-width: 0;
+  min-height: 0;
+
+  overflow: hidden;
+
+  background: var(--color-bg);
+}
+
+.network-graph {
+  width: 100%;
+  height: 100%;
+}
+
+/* ================================
+   Graph overlays
+   ================================ */
+
+.network-overlay {
+  position: absolute;
+
+  z-index: 10;
+
+  top: 50%;
+  left: 50%;
+
+  transform: translate(-50%, -50%);
+
+  max-width: 80%;
+
+  padding: 12px 18px;
+
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+
+  background: var(--color-surface-raised);
+
+  color: var(--color-text);
+
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
+
+  font-size: 14px;
+
+  text-align: center;
+}
+
+.network-overlay.error {
+  color: #f87171;
+}
+
+/* =========================================================
+   DETAILS PANEL
+   ========================================================= */
+
+.network-details {
+  min-width: 0;
+
+  overflow-y: auto;
+
+  background: var(--color-surface);
+}
+
+/* ================================
+   Empty state
+   ================================ */
+
+.network-details-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+
+  height: 100%;
+
+  padding: 30px;
+
+  text-align: center;
+}
+
+.network-details-empty-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 48px;
+  height: 48px;
+
+  margin-bottom: 16px;
+
+  border: 1px solid var(--color-border);
+  border-radius: 50%;
+
+  color: var(--color-text-muted);
+
+  font-size: 25px;
+}
+
+.network-details-empty h2 {
+  margin: 0 0 8px;
+
+  color: var(--color-text);
+
+  font-size: 16px;
+}
+
+.network-details-empty p {
+  max-width: 200px;
+
+  margin: 0;
+
+  color: var(--color-text-muted);
+
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* =========================================================
+   MOVIE DETAILS
+   ========================================================= */
+
+.network-details-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 8px;
+
+  padding: 14px 16px 0;
+}
+
+.network-details-type {
+  color: var(--color-text-muted);
+
+  font-size: 10px;
+  font-weight: 700;
+
+  letter-spacing: 0.1em;
+
+  text-transform: uppercase;
+}
+
+.network-status {
+  padding: 4px 7px;
+
+  border-radius: 5px;
+
+  font-size: 9px;
+  font-weight: 600;
+
+  text-transform: uppercase;
+}
+
+.network-status-watched {
+  color: var(--color-watched);
+
+  background: color-mix(in srgb, var(--color-watched) 12%, transparent);
+}
+
+.network-status-not_sure {
+  color: var(--color-not-sure);
+
+  background: color-mix(in srgb, var(--color-not-sure) 12%, transparent);
+}
+
+.network-status-to_watch {
+  color: var(--color-to-watch);
+
+  background: color-mix(in srgb, var(--color-to-watch) 12%, transparent);
+}
+
+/* ================================
+   Posters
+   ================================ */
+
+.network-details-poster {
+  display: block;
+
+  width: calc(100% - 32px);
+
+  aspect-ratio: 2 / 3;
+
+  max-height: 340px;
+
+  margin: 14px auto 16px;
+
+  object-fit: cover;
+
+  border-radius: 8px;
+
+  background: var(--color-surface-raised);
+}
+
+.network-details > h2 {
+  margin: 0;
+
+  padding: 0 16px;
+
+  color: var(--color-text);
+
+  font-size: 20px;
+
+  line-height: 1.25;
+}
+
+.network-details-year {
+  margin: 5px 16px 0;
+
+  color: var(--color-text-muted);
+
+  font-size: 13px;
+}
+
+.network-details-rating {
+  display: inline-flex;
+  align-items: center;
+
+  margin: 10px 16px 0;
+
+  padding: 5px 8px;
+
+  border: 1px solid var(--color-border);
+
+  border-radius: 6px;
+
+  color: var(--color-not-sure);
+
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* =========================================================
+   DETAILS SECTIONS
+   ========================================================= */
+
+.network-details-section {
+  margin: 18px 16px 0;
+
+  padding-top: 14px;
+
+  border-top: 1px solid var(--color-border);
+}
+
+.network-details-section h3 {
+  margin: 0 0 9px;
+
+  color: var(--color-text);
+
+  font-size: 11px;
+  font-weight: 600;
+
+  text-transform: uppercase;
+
+  letter-spacing: 0.07em;
+}
+
+.network-details-section p {
+  margin: 0 0 5px;
+
+  color: var(--color-text-muted);
+
+  font-size: 12px;
+
+  line-height: 1.45;
+}
+
+.network-details-section p:last-child {
+  margin-bottom: 0;
+}
+
+/* ================================
+   Tags
+   ================================ */
+
+.network-tags {
+  display: flex;
+  flex-wrap: wrap;
+
+  gap: 5px;
+}
+
+.network-tags span {
+  padding: 4px 7px;
+
+  border: 1px solid var(--color-border);
+
+  border-radius: 5px;
+
+  background: var(--color-surface-raised);
+
+  color: var(--color-text-muted);
+
+  font-size: 10px;
+}
+
+/* ================================
+   Overview
+   ================================ */
+
+.network-overview {
+  color: var(--color-text-muted);
+
+  line-height: 1.55 !important;
+}
+
+/* =========================================================
+   CONNECTION NODE DETAILS
+   ========================================================= */
+
+/* ================================
+   People
+   ================================ */
+
+.network-person {
+  display: flex;
+  align-items: center;
+
+  gap: 13px;
+
+  padding: 18px 16px 16px;
+}
+
+.network-person-image,
+.network-person-placeholder {
+  width: 58px;
+  height: 58px;
+
+  flex: 0 0 58px;
+
+  border: 1px solid var(--color-border);
+
+  border-radius: 50%;
+
+  background: var(--color-surface-raised);
+
+  object-fit: cover;
+}
+
+.network-person-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  color: var(--color-text-muted);
+
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.network-person-info {
+  min-width: 0;
+}
+
+.network-person-info h2 {
+  margin: 3px 0 4px;
+
+  color: var(--color-text);
+
+  font-size: 19px;
+  font-weight: 700;
+
+  line-height: 1.25;
+}
+
+.network-person-info p {
+  margin: 0;
+
+  color: var(--color-text-muted);
+
+  font-size: 12px;
+}
+
+/* =========================================================
+   Generic connection header
+   ========================================================= */
+
+.network-connection-heading {
+  display: flex;
+  align-items: center;
+
+  gap: 13px;
+
+  padding: 18px 16px 16px;
+}
+
+.network-connection-heading h2 {
+  margin: 3px 0 0;
+
+  color: var(--color-text);
+
+  font-size: 19px;
+  font-weight: 700;
+
+  line-height: 1.25;
+}
+
+.network-large-color {
+  width: 42px;
+  height: 42px;
+
+  flex: 0 0 42px;
+
+  border: 1px solid var(--color-border);
+}
+
+/* ================================
+   Connection shapes
+   ================================ */
+
+.network-connection-heading .network-color-genre {
+  border-radius: 9px;
+}
+
+.network-connection-heading .network-color-franchise {
+  clip-path: polygon(50% 0%, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%);
+}
+
+.network-connection-heading .network-color-studio {
+  border-radius: 8px;
+}
+
+.network-connection-heading .network-color-language,
+.network-connection-heading .network-color-keyword,
+.network-connection-heading .network-color-mediaType {
+  border-radius: 50%;
+}
+
+/* =========================================================
+   Connection statistics
+   ========================================================= */
+
+.network-stat {
+  display: flex;
+  align-items: baseline;
+
+  gap: 7px;
+
+  margin: 0 16px 16px;
+
+  padding: 10px 0;
+
+  border-top: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
+
+  background: transparent;
+}
+
+.network-stat-value {
+  color: var(--color-text);
+
+  font-size: 20px;
+  font-weight: 700;
+
+  line-height: 1;
+}
+
+.network-stat-label {
+  color: var(--color-text-muted);
+
+  font-size: 11px;
+}
+
+/* =========================================================
+   Studio / organization logo
+   ========================================================= */
+
+.network-studio-logo {
+  width: 58px;
+  height: 58px;
+
+  flex: 0 0 58px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 8px;
+
+  border: 1px solid var(--color-border);
+
+  border-radius: 9px;
+
+  background: #fff;
+}
+
+.network-studio-logo img {
+  max-width: 100%;
+  max-height: 100%;
+
+  object-fit: contain;
+}
+
+/* =========================================================
+   PEOPLE INSIDE MOVIE DETAILS
+   ========================================================= */
+
+.network-people-list {
+  display: flex;
+  flex-direction: column;
+
+  gap: 9px;
+}
+
+.network-small-person {
+  display: flex;
+  align-items: center;
+
+  gap: 10px;
+
+  min-width: 0;
+}
+
+.network-small-person img,
+.network-small-person-placeholder {
+  width: 36px;
+  height: 36px;
+
+  flex: 0 0 36px;
+
+  border: 1px solid var(--color-border);
+
+  border-radius: 50%;
+
+  background: var(--color-surface-raised);
+
+  object-fit: cover;
+}
+
+.network-small-person-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  color: var(--color-text-muted);
+
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.network-small-person span {
+  min-width: 0;
+
+  overflow: hidden;
+
+  color: var(--color-text-muted);
+
+  font-size: 12px;
+
+  text-overflow: ellipsis;
+
+  white-space: nowrap;
+}
+
+/* =========================================================
+   CONNECTED TITLES
+   ========================================================= */
+
+.network-connected-section {
+  margin-top: 0;
+
+  padding-top: 14px;
+}
+
+.network-connected-list {
+  display: flex;
+  flex-direction: column;
+
+  gap: 5px;
+
+  padding-bottom: 16px;
+}
+
+.network-connected-item {
+  display: flex;
+  align-items: center;
+
+  gap: 11px;
+
+  min-width: 0;
+
+  padding: 7px;
+
+  border: 1px solid transparent;
+
+  border-radius: 7px;
+
+  background: transparent;
+
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease;
+}
+
+.network-connected-item:hover {
+  border-color: var(--color-border);
+
+  background: var(--color-surface-raised);
+}
+
+.network-connected-item img,
+.network-connected-placeholder {
+  width: 44px;
+  height: 66px;
+
+  flex: 0 0 44px;
+
+  aspect-ratio: 2 / 3;
+
+  border-radius: 4px;
+
+  object-fit: cover;
+
+  background: var(--color-surface-raised);
+}
+
+.network-connected-placeholder {
+  border: 1px solid var(--color-border);
+}
+
+.network-connected-item > div {
+  min-width: 0;
+}
+
+.network-connected-item p {
+  overflow: hidden;
+
+  margin: 0 0 5px;
+
+  color: var(--color-text);
+
+  font-size: 12px;
+  font-weight: 600;
+
+  line-height: 1.3;
+
+  text-overflow: ellipsis;
+
+  white-space: nowrap;
+}
+
+.network-connected-meta {
+  display: flex;
+  align-items: center;
+
+  gap: 7px;
+
+  color: var(--color-text-muted);
+
+  font-size: 10px;
+}
+
+.network-connected-meta span {
+  color: var(--color-text-muted);
+}
+
+.network-connected-meta span + span::before {
+  content: "•";
+
+  margin-right: 7px;
+
+  color: var(--color-border);
+}
+
+/* ================================
+   No connected titles
+   ================================ */
+
+.network-muted {
+  color: var(--color-text-muted);
+
+  font-size: 12px;
+}
+
+/* =========================================================
+   Scrollbars
+   ========================================================= */
+
+.network-controls,
+.network-details {
+  scrollbar-width: thin;
+
+  scrollbar-color: var(--color-border) transparent;
+}
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+
+@media (max-width: 1050px) {
+  .network-layout {
+    grid-template-columns:
+      160px
+      minmax(0, 1fr)
+      250px;
+  }
+
+  .network-controls {
+    padding: 13px;
+  }
+}
+
+@media (max-width: 800px) {
+  .network-layout {
+    grid-template-columns:
+      150px
+      minmax(0, 1fr);
+
+    height: calc(100vh - 170px);
+  }
+
+  .network-details {
+    display: none;
+  }
+}
+
+@media (max-width: 600px) {
+  .network-header {
+    align-items: flex-start;
+  }
+
+  .network-header h1 {
+    font-size: 20px;
+  }
+
+  .network-header p {
+    font-size: 12px;
+  }
+
+  .network-layout {
+    grid-template-columns: 1fr;
+
+    height: auto;
+
+    min-height: 0;
+  }
+
+  .network-controls {
+    display: flex;
+    flex-wrap: wrap;
+
+    gap: 8px;
+  }
+
+  .network-controls h2 {
+    width: 100%;
+
+    margin-bottom: 4px;
+  }
+
+  .network-filter {
+    margin: 0;
+  }
+
+  .network-help {
+    display: none;
+  }
+
+  .network-container {
+    height: 65vh;
+
+    min-height: 500px;
+  }
+}

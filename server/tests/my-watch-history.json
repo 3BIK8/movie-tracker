@@ -1,0 +1,1132 @@
+{
+  "movie-122": {
+    "status": "watched",
+    "type": "movie",
+    "id": 122,
+    "title": "The Lord of the Rings: The Return of the King",
+    "date": "2003-12-17",
+    "poster_path": null,
+    "genres": ["Adventure", "Fantasy", "Action"],
+    "rating": null
+  },
+  "movie-12": {
+    "status": "watched",
+    "type": "movie",
+    "id": 12,
+    "title": "Finding Nemo",
+    "date": "2003-05-30",
+    "poster_path": null,
+    "genres": ["Animation", "Family", "Adventure"],
+    "rating": null
+  },
+  "movie-24": {
+    "status": "to_watch",
+    "type": "movie",
+    "id": 24,
+    "title": "Kill Bill: Vol. 1",
+    "date": "2003-10-10",
+    "poster_path": null,
+    "genres": ["Action", "Crime"],
+    "rating": null
+  },
+  "movie-22": {
+    "status": "watched",
+    "type": "movie",
+    "id": 22,
+    "title": "Pirates of the Caribbean: The Curse of the Black Pearl",
+    "date": "2003-07-09",
+    "poster_path": "/poHwCZeWzJCShH7tOjg8RIoyjcw.jpg",
+    "genres": ["Adventure", "Fantasy", "Action"],
+    "rating": "S"
+  },
+  "movie-1949": {
+    "status": "watched",
+    "type": "movie",
+    "id": 1949,
+    "title": "Zodiac",
+    "date": "2007-03-02",
+    "poster_path": "/6YmeO4pB7XTh8P8F960O1uA14JO.jpg",
+    "genres": ["Crime", "Mystery", "Thriller"]
+  },
+  "movie-980431": {
+    "status": "watched",
+    "type": "movie",
+    "id": 980431,
+    "title": "Avatar Aang: The Last Airbender",
+    "date": "2026-07-24",
+    "poster_path": "/3sgnSfNT27Bx5O5ukr7B26mhEQq.jpg",
+    "genres": ["Animation", "Adventure", "Fantasy", "Family"]
+  },
+  "movie-1314481": {
+    "status": "watched",
+    "type": "movie",
+    "id": 1314481,
+    "title": "The Devil Wears Prada 2",
+    "date": "2026-04-29",
+    "poster_path": "/xTI42pmsP5EDnvsNJPEDubwWBQO.jpg",
+    "genres": ["Comedy", "Drama"]
+  },
+  "movie-936075": {
+    "status": "watched",
+    "type": "movie",
+    "id": 936075,
+    "title": "Michael",
+    "date": "2026-04-22",
+    "poster_path": "/dueFqKLvjftnELZaGYwY7xinfaI.jpg",
+    "genres": ["Music", "Drama"]
+  },
+  "movie-1327819": {
+    "status": "watched",
+    "type": "movie",
+    "id": 1327819,
+    "title": "Hoppers",
+    "date": "2026-03-04",
+    "poster_path": "/xjtWQ2CL1mpmMNwuU5HeS4Iuwuu.jpg",
+    "genres": ["Adventure", "Animation", "Comedy", "Family", "Science Fiction"]
+  },
+  "movie-2109": {
+    "status": "watched",
+    "type": "movie",
+    "id": 2109,
+    "title": "Rush Hour",
+    "date": "1998-09-18",
+    "poster_path": "/nwPhAsfnb7f46bZkWLG7IRP5HXr.jpg",
+    "genres": ["Action", "Comedy", "Crime"],
+    "rating": "S"
+  },
+  "movie-5175": {
+    "status": "watched",
+    "type": "movie",
+    "id": 5175,
+    "title": "Rush Hour 2",
+    "date": "2001-08-03",
+    "poster_path": "/aBQf2vMiCINeVC9v6BGVYKXurTh.jpg",
+    "genres": ["Action", "Comedy", "Crime"],
+    "rating": "A"
+  },
+  "movie-5174": {
+    "status": "watched",
+    "type": "movie",
+    "id": 5174,
+    "title": "Rush Hour 3",
+    "date": "2007-08-08",
+    "poster_path": "/mp9CzKxLa2i7yblMXUrzVfGqsCo.jpg",
+    "genres": ["Action", "Comedy", "Crime"]
+  },
+  "movie-1288445": {
+    "status": "watched",
+    "type": "movie",
+    "id": 1288445,
+    "title": "Mutiny",
+    "date": "2026-08-19",
+    "poster_path": "/pu2VxGlpGwffOx292w18b1tv96j.jpg",
+    "genres": ["Action", "Thriller"]
+  },
+  "movie-350": {
+    "status": "watched",
+    "type": "movie",
+    "id": 350,
+    "title": "The Devil Wears Prada",
+    "date": "2006-06-29",
+    "poster_path": "/8912AsVuS7Sj915apArUFbv6F9L.jpg",
+    "genres": ["Drama", "Comedy"]
+  },
+  "movie-495764": {
+    "status": "watched",
+    "type": "movie",
+    "id": 495764,
+    "title": "Birds of Prey (and the Fantabulous Emancipation of One Harley Quinn)",
+    "date": "2020-02-05",
+    "poster_path": "/h4VB6m0RwcicVEZvzftYZyKXs6K.jpg",
+    "genres": ["Action", "Crime"]
+  },
+  "movie-68718": {
+    "status": "watched",
+    "type": "movie",
+    "id": 68718,
+    "title": "Django Unchained",
+    "date": "2012-12-25",
+    "poster_path": "/7oWY8VDWW7thTzWh3OKYRkWUlD5.jpg",
+    "genres": ["Drama", "Western"],
+    "rating": "S"
+  },
+  "movie-106646": {
+    "status": "watched",
+    "type": "movie",
+    "id": 106646,
+    "title": "The Wolf of Wall Street",
+    "date": "2013-12-25",
+    "poster_path": "/kW9LmvYHAaS9iA0tHmZVq8hQYoq.jpg",
+    "genres": ["Crime", "Drama", "Comedy"],
+    "rating": "S"
+  },
+  "movie-155": {
+    "status": "watched",
+    "type": "movie",
+    "id": 155,
+    "title": "The Dark Knight",
+    "date": "2008-07-16",
+    "poster_path": "/qJ2tW6WMUDux911r6m7haRef0WH.jpg",
+    "genres": ["Action", "Crime", "Thriller"]
+  },
+  "movie-49026": {
+    "status": "watched",
+    "type": "movie",
+    "id": 49026,
+    "title": "The Dark Knight Rises",
+    "date": "2012-07-17",
+    "poster_path": "/hr0L2aueqlP2BYUblTTjmtn0hw4.jpg",
+    "genres": ["Action", "Crime", "Drama", "Thriller"]
+  },
+  "movie-472027": {
+    "status": "watched",
+    "type": "movie",
+    "id": 472027,
+    "title": "Batman: The Dark Knight Returns",
+    "date": "2013-10-08",
+    "poster_path": "/o07IwF9s1Ch9EnyV7jqJHQ3BorU.jpg",
+    "genres": ["Animation", "Action", "Mystery", "Science Fiction"]
+  },
+  "movie-272": {
+    "status": "watched",
+    "type": "movie",
+    "id": 272,
+    "title": "Batman Begins",
+    "date": "2005-06-10",
+    "poster_path": "/sPX89Td70IDDjVr85jdSBb4rWGr.jpg",
+    "genres": ["Drama", "Crime", "Action"]
+  },
+  "movie-752": {
+    "status": "watched",
+    "type": "movie",
+    "id": 752,
+    "title": "V for Vendetta",
+    "date": "2006-02-23",
+    "poster_path": "/1avD1JeaRiJX5M4ahPdZPypGoGN.jpg",
+    "genres": ["Action", "Thriller", "Science Fiction"],
+    "rating": "S"
+  },
+  "tv-1396": {
+    "status": "watched",
+    "type": "tv",
+    "id": 1396,
+    "title": "Breaking Bad",
+    "date": "2008-01-20",
+    "poster_path": "/anFx9aTOOYqgS3v7x3R84Kz67ly.jpg",
+    "genres": ["Drama", "Crime"],
+    "rating": "A"
+  },
+  "tv-60059": {
+    "status": "watched",
+    "type": "tv",
+    "id": 60059,
+    "title": "Better Call Saul",
+    "date": "2015-02-08",
+    "poster_path": "/zjg4jpK1Wp2kiRvtt5ND0kznako.jpg",
+    "genres": ["Crime", "Drama"]
+  },
+  "tv-44217": {
+    "status": "watched",
+    "type": "tv",
+    "id": 44217,
+    "title": "Vikings",
+    "date": "2013-03-03",
+    "poster_path": "/bQLrHIRNEkE3PdIWQrZHynQZazu.jpg",
+    "genres": ["Action & Adventure", "Drama", "War & Politics"],
+    "rating": "S"
+  },
+  "tv-5920": {
+    "status": "watched",
+    "type": "tv",
+    "id": 5920,
+    "title": "The Mentalist",
+    "date": "2008-09-23",
+    "poster_path": "/acYXu4KaDj1NIkMgObnhe4C4a0T.jpg",
+    "genres": ["Crime", "Drama", "Mystery"],
+    "rating": "S"
+  },
+  "movie-969681": {
+    "status": "to_watch",
+    "type": "movie",
+    "id": 969681,
+    "title": "Spider-Man: Brand New Day",
+    "date": "2026-07-29",
+    "poster_path": "/bjiS5ipwxb9JFy3XRRN4OAilSeX.jpg",
+    "genres": ["Science Fiction", "Action", "Adventure"]
+  },
+  "movie-1368337": {
+    "status": "to_watch",
+    "type": "movie",
+    "id": 1368337,
+    "title": "The Odyssey",
+    "date": "2026-07-15",
+    "poster_path": "/5rhTDKUhPYvpdQIijFIs5VoWsON.jpg",
+    "genres": ["Adventure", "Action", "Fantasy"]
+  },
+  "movie-448119": {
+    "status": "watched",
+    "type": "movie",
+    "id": 448119,
+    "title": "Dolittle",
+    "date": "2020-01-02",
+    "poster_path": "/3Nt3v1uzUgfSuVARD1AnI9g9Zl9.jpg",
+    "genres": ["Family", "Comedy", "Fantasy", "Adventure"]
+  },
+  "movie-429617": {
+    "status": "watched",
+    "type": "movie",
+    "id": 429617,
+    "title": "Spider-Man: Far From Home",
+    "date": "2019-06-28",
+    "poster_path": "/4q2NNj4S5dG2RLF9CpXsej7yXl.jpg",
+    "genres": ["Action", "Adventure", "Science Fiction"]
+  },
+  "movie-299536": {
+    "status": "watched",
+    "type": "movie",
+    "id": 299536,
+    "title": "Avengers: Infinity War",
+    "date": "2018-04-25",
+    "poster_path": "/7WsyChQLEftFiDOVTGkv3hFpyyt.jpg",
+    "genres": ["Adventure", "Action", "Science Fiction"]
+  },
+  "movie-299534": {
+    "status": "watched",
+    "type": "movie",
+    "id": 299534,
+    "title": "Avengers: Endgame",
+    "date": "2019-04-24",
+    "poster_path": "/ulzhLuWrPK07P1YkdWQLZnQh1JL.jpg",
+    "genres": ["Adventure", "Science Fiction", "Action"]
+  },
+  "movie-315635": {
+    "status": "watched",
+    "type": "movie",
+    "id": 315635,
+    "title": "Spider-Man: Homecoming",
+    "date": "2017-07-05",
+    "poster_path": "/c24sv2weTHPsmDa7jEMN0m2P3RT.jpg",
+    "genres": ["Action", "Adventure", "Science Fiction"]
+  },
+  "movie-335787": {
+    "status": "watched",
+    "type": "movie",
+    "id": 335787,
+    "title": "Uncharted",
+    "date": "2022-02-10",
+    "poster_path": "/rJHC1RUORuUhtfNb4Npclx0xnOf.jpg",
+    "genres": ["Action", "Adventure", "Mystery"]
+  },
+  "movie-1084577": {
+    "status": "watched",
+    "type": "movie",
+    "id": 1084577,
+    "title": "Balls Up",
+    "date": "2026-04-15",
+    "poster_path": "/xwvJ3WzdJ1OCuDoY8LAxBUlQyig.jpg",
+    "genres": ["Comedy", "Action", "Adventure"]
+  },
+  "movie-1363123": {
+    "status": "watched",
+    "type": "movie",
+    "id": 1363123,
+    "title": "The Family Plan 2",
+    "date": "2025-11-11",
+    "poster_path": "/semFxuYx6HcrkZzslgAkBqfJvZk.jpg",
+    "genres": ["Action", "Comedy"]
+  },
+  "movie-941109": {
+    "status": "watched",
+    "type": "movie",
+    "id": 941109,
+    "title": "Play Dirty",
+    "date": "2025-09-30",
+    "poster_path": "/ovZ0zq0NwRghtWI1oLaM0lWuoEw.jpg",
+    "genres": ["Crime", "Action", "Thriller"]
+  },
+  "movie-1029575": {
+    "status": "watched",
+    "type": "movie",
+    "id": 1029575,
+    "title": "The Family Plan",
+    "date": "2023-12-14",
+    "poster_path": "/jLLtx3nTRSLGPAKl4RoIv1FbEBr.jpg",
+    "genres": ["Action", "Comedy", "Adventure"]
+  },
+  "movie-618588": {
+    "status": "watched",
+    "type": "movie",
+    "id": 618588,
+    "title": "Arthur the King",
+    "date": "2024-02-22",
+    "poster_path": "/zkKB3kOun5DKAkm61pHvLbrjxfa.jpg",
+    "genres": ["Adventure", "Drama"]
+  },
+  "movie-581600": {
+    "status": "watched",
+    "type": "movie",
+    "id": 581600,
+    "title": "Spenser Confidential",
+    "date": "2020-03-06",
+    "poster_path": "/fePczipv6ZzDO2uoww4vTAu2Sq3.jpg",
+    "genres": ["Comedy", "Action", "Thriller"]
+  },
+  "movie-385103": {
+    "status": "watched",
+    "type": "movie",
+    "id": 385103,
+    "title": "Scoob!",
+    "date": "2020-07-08",
+    "poster_path": "/jHo2M1OiH9Re33jYtUQdfzPeUkx.jpg",
+    "genres": ["Animation", "Comedy", "Family", "Mystery"]
+  },
+  "movie-214756": {
+    "status": "watched",
+    "type": "movie",
+    "id": 214756,
+    "title": "Ted 2",
+    "date": "2015-06-25",
+    "poster_path": "/38C91I7Xft0gyY7BITm8i4yvuRb.jpg",
+    "genres": ["Comedy", "Fantasy"]
+  },
+  "movie-72105": {
+    "status": "watched",
+    "type": "movie",
+    "id": 72105,
+    "title": "Ted",
+    "date": "2012-06-29",
+    "poster_path": "/1QVZXQQHCEIj8lyUhdBYd2qOYtq.jpg",
+    "genres": ["Comedy", "Fantasy"]
+  },
+  "movie-558449": {
+    "status": "watched",
+    "type": "movie",
+    "id": 558449,
+    "title": "Gladiator II",
+    "date": "2024-11-13",
+    "poster_path": "/2cxhvwyEwRlysAmRH4iodkvo0z5.jpg",
+    "genres": ["Action", "Adventure", "Drama"]
+  },
+  "movie-926393": {
+    "status": "watched",
+    "type": "movie",
+    "id": 926393,
+    "title": "The Equalizer 3",
+    "date": "2023-08-30",
+    "poster_path": "/b0Ej6fnXAP8fK75hlyi2jKqdhHz.jpg",
+    "genres": ["Action", "Thriller", "Crime"]
+  },
+  "movie-872585": {
+    "status": "watched",
+    "type": "movie",
+    "id": 872585,
+    "title": "Oppenheimer",
+    "date": "2023-07-19",
+    "poster_path": "/8Gxv8gSFCU0XGDykEGv7zR1n2ua.jpg",
+    "genres": ["Drama", "History"],
+    "rating": "A"
+  },
+  "movie-1214931": {
+    "status": "watched",
+    "type": "movie",
+    "id": 1214931,
+    "title": "Nuremberg",
+    "date": "2025-11-06",
+    "poster_path": "/xthXNYltOOm80vW5Kxjzxx5gvQ6.jpg",
+    "genres": ["History", "Drama"]
+  },
+  "tv-62560": {
+    "status": "watched",
+    "type": "tv",
+    "id": 62560,
+    "title": "Mr. Robot",
+    "date": "2015-06-24",
+    "poster_path": "/kv1nRqgebSsREnd7vdC2pSGjpLo.jpg",
+    "genres": ["Crime", "Drama"]
+  },
+  "movie-181533": {
+    "status": "watched",
+    "type": "movie",
+    "id": 181533,
+    "title": "Night at the Museum: Secret of the Tomb",
+    "date": "2014-12-17",
+    "poster_path": "/xwgy305K6qDs3D20xUO4OZu1HPY.jpg",
+    "genres": ["Adventure", "Comedy", "Fantasy", "Family"]
+  },
+  "tv-33880": {
+    "status": "watched",
+    "type": "tv",
+    "id": 33880,
+    "title": "The Legend of Korra",
+    "date": "2012-04-14",
+    "poster_path": "/dZgYvSfuh1YHDrJuILlVQ5oA2hF.jpg",
+    "genres": ["Animation", "Action & Adventure", "Sci-Fi & Fantasy"]
+  },
+  "tv-73586": {
+    "status": "watched",
+    "type": "tv",
+    "id": 73586,
+    "title": "Yellowstone",
+    "date": "2018-06-20",
+    "poster_path": "/peNC0eyc3TQJa6x4TdKcBPNP4t0.jpg",
+    "genres": ["Western", "Drama"]
+  },
+  "movie-58574": {
+    "status": "watched",
+    "type": "movie",
+    "id": 58574,
+    "title": "Sherlock Holmes: A Game of Shadows",
+    "date": "2011-11-22",
+    "poster_path": "/2HsHurlnTOyU6yUS14gY6BQCyRs.jpg",
+    "genres": ["Action", "Adventure", "Mystery"]
+  },
+  "movie-10528": {
+    "status": "watched",
+    "type": "movie",
+    "id": 10528,
+    "title": "Sherlock Holmes",
+    "date": "2009-12-23",
+    "poster_path": "/momkKuWburNTqKBF6ez7rvhYVhE.jpg",
+    "genres": ["Action", "Adventure", "Mystery"]
+  },
+  "movie-271110": {
+    "status": "watched",
+    "type": "movie",
+    "id": 271110,
+    "title": "Captain America: Civil War",
+    "date": "2016-04-27",
+    "poster_path": "/rAGiXaUfPzY7CDEyNKUofk3Kw2e.jpg",
+    "genres": ["Adventure", "Action", "Science Fiction"]
+  },
+  "movie-99861": {
+    "status": "watched",
+    "type": "movie",
+    "id": 99861,
+    "title": "Avengers: Age of Ultron",
+    "date": "2015-04-22",
+    "poster_path": "/4ssDuvEDkSArWEdyBl2X5EHvYKU.jpg",
+    "genres": ["Action", "Adventure", "Science Fiction"]
+  },
+  "movie-68721": {
+    "status": "watched",
+    "type": "movie",
+    "id": 68721,
+    "title": "Iron Man 3",
+    "date": "2013-04-18",
+    "poster_path": "/qhPtAc1TKbMPqNvcdXSOn9Bn7hZ.jpg",
+    "genres": ["Action", "Adventure", "Science Fiction"]
+  },
+  "movie-24428": {
+    "status": "watched",
+    "type": "movie",
+    "id": 24428,
+    "title": "The Avengers",
+    "date": "2012-04-25",
+    "poster_path": "/RYMX2wcKCBAr24UyPD7xwmjaTn.jpg",
+    "genres": ["Science Fiction", "Action", "Adventure"]
+  },
+  "movie-10138": {
+    "status": "watched",
+    "type": "movie",
+    "id": 10138,
+    "title": "Iron Man 2",
+    "date": "2010-04-28",
+    "poster_path": "/6WBeq4fCfn7AN0o21W9qNcRF2l9.jpg",
+    "genres": ["Adventure", "Action", "Science Fiction"]
+  },
+  "movie-482321": {
+    "status": "watched",
+    "type": "movie",
+    "id": 482321,
+    "title": "Ron's Gone Wrong",
+    "date": "2021-10-14",
+    "poster_path": "/plzgQAXIEHm4Y92ktxU6fedUc0x.jpg",
+    "genres": ["Animation", "Science Fiction", "Family", "Comedy"]
+  },
+  "movie-109439": {
+    "status": "watched",
+    "type": "movie",
+    "id": 109439,
+    "title": "The Hangover Part III",
+    "date": "2013-05-23",
+    "poster_path": "/vtxuPWkdllLNLVyGjKYa267ntuH.jpg",
+    "genres": ["Comedy"],
+    "rating": "A"
+  },
+  "movie-18785": {
+    "status": "watched",
+    "type": "movie",
+    "id": 18785,
+    "title": "The Hangover",
+    "date": "2009-06-02",
+    "poster_path": "/A0uS9rHR56FeBtpjVki16M5xxSW.jpg",
+    "genres": ["Comedy"],
+    "rating": "S"
+  },
+  "movie-50839": {
+    "status": "to_watch",
+    "type": "movie",
+    "id": 50839,
+    "title": "Margin Call",
+    "date": "2011-09-28",
+    "poster_path": "/xNXYXJ3XNC9o5wxDF2ImZ9b2es.jpg",
+    "genres": ["Thriller", "Drama"]
+  },
+  "movie-15363": {
+    "status": "to_watch",
+    "type": "movie",
+    "id": 15363,
+    "title": "Something New",
+    "date": "2006-01-29",
+    "poster_path": "/lcwB60GqQaWUgUw1CCE5gm5XHI1.jpg",
+    "genres": ["Romance", "Comedy", "Drama"]
+  },
+  "movie-1204680": {
+    "status": "to_watch",
+    "type": "movie",
+    "id": 1204680,
+    "title": "Coyote vs. Acme",
+    "date": "2026-08-20",
+    "poster_path": "/orkLtdgMGiO9rTVMqJ1kKwrnup1.jpg",
+    "genres": ["Comedy", "Adventure", "Family"]
+  },
+  "movie-1137844": {
+    "status": "to_watch",
+    "type": "movie",
+    "id": 1137844,
+    "title": "Mayday",
+    "date": "2026-09-03",
+    "poster_path": "/hVXjX1jLZ1ljFSNGXpjJfbTUOa7.jpg",
+    "genres": ["Action", "Comedy"]
+  },
+  "movie-1108427": {
+    "status": "to_watch",
+    "type": "movie",
+    "id": 1108427,
+    "title": "Moana",
+    "date": "2026-07-08",
+    "poster_path": "/zKVgiv5qHCvCLT4A2ymJi5QeXDH.jpg",
+    "genres": ["Family", "Fantasy", "Comedy", "Adventure"]
+  },
+  "movie-1315772": {
+    "status": "watched",
+    "type": "movie",
+    "id": 1315772,
+    "title": "Minions & Monsters",
+    "date": "2026-06-24",
+    "poster_path": "/4LwvU9SZc8QQzW1X1FAPhNbXnEU.jpg",
+    "genres": ["Adventure", "Animation", "Comedy", "Family", "Fantasy"]
+  },
+  "movie-687163": {
+    "status": "to_watch",
+    "type": "movie",
+    "id": 687163,
+    "title": "Project Hail Mary",
+    "date": "2026-03-15",
+    "poster_path": "/yihdXomYb5kTeSivtFndMy5iDmf.jpg",
+    "genres": ["Science Fiction", "Adventure"]
+  },
+  "movie-1480574": {
+    "status": "watched",
+    "type": "movie",
+    "id": 1480574,
+    "title": "Just Play Dead",
+    "date": "2026-08-28",
+    "poster_path": "/glALx6QaIgw1u4joXsnfHTjWi6D.jpg",
+    "genres": ["Thriller", "Crime"],
+    "rating": "C"
+  },
+  "movie-1439930": {
+    "status": "to_watch",
+    "type": "movie",
+    "id": 1439930,
+    "title": "The Punisher: One Last Kill",
+    "date": "2026-05-12",
+    "poster_path": "/qQclTgLMDvGBuUBFGHRipxkEwWR.jpg",
+    "genres": ["Action", "Drama", "Crime"]
+  },
+  "movie-870028": {
+    "status": "not_sure",
+    "type": "movie",
+    "id": 870028,
+    "title": "The Accountant²",
+    "date": "2025-04-23",
+    "poster_path": "/lUvfTcOZiK0sdcX0WNLPbMyKjGm.jpg",
+    "genres": ["Mystery", "Crime", "Thriller"]
+  },
+  "movie-1087891": {
+    "status": "not_sure",
+    "type": "movie",
+    "id": 1087891,
+    "title": "The Amateur",
+    "date": "2025-04-09",
+    "poster_path": "/SNEoUInCa5fAgwuEBMIMBGvkkh.jpg",
+    "genres": ["Thriller", "Action"]
+  },
+  "movie-359724": {
+    "status": "not_sure",
+    "type": "movie",
+    "id": 359724,
+    "title": "Ford v Ferrari",
+    "date": "2019-11-13",
+    "poster_path": "/dR1Ju50iudrOh3YgfwkAU1g2HZe.jpg",
+    "genres": ["Drama", "History", "Action"]
+  },
+  "tv-67178": {
+    "status": "watched",
+    "type": "tv",
+    "id": 67178,
+    "title": "Marvel's The Punisher",
+    "date": "2017-11-17",
+    "poster_path": "/tM6xqRKXoloH9UchaJEyyRE9O1w.jpg",
+    "genres": ["Action & Adventure", "Crime", "Drama"]
+  },
+  "tv-1402": {
+    "status": "watched",
+    "type": "tv",
+    "id": 1402,
+    "title": "The Walking Dead",
+    "date": "2010-10-31",
+    "poster_path": "/ng3cMtxYKt1OSQYqFlnKWnVsqNO.jpg",
+    "genres": ["Action & Adventure", "Drama", "Sci-Fi & Fantasy"]
+  },
+  "tv-194583": {
+    "status": "watched",
+    "type": "tv",
+    "id": 194583,
+    "title": "The Walking Dead: Dead City",
+    "date": "2023-06-18",
+    "poster_path": "/wq3vuQzQgbS83zX3malAFWMsSwX.jpg",
+    "genres": ["Action & Adventure", "Drama", "Sci-Fi & Fantasy"]
+  },
+  "tv-1409": {
+    "status": "watched",
+    "type": "tv",
+    "id": 1409,
+    "title": "Sons of Anarchy",
+    "date": "2008-09-03",
+    "poster_path": "/yPLkf4EiCkR0NOvMfmpHMA2zfN3.jpg",
+    "genres": ["Crime", "Drama"],
+    "rating": "S"
+  },
+  "movie-557946": {
+    "status": "to_watch",
+    "type": "movie",
+    "id": 557946,
+    "title": "Last Looks",
+    "date": "2022-01-27",
+    "poster_path": "/ud0XdA2xAghDR66j3I84DnNlC2g.jpg",
+    "genres": ["Action", "Crime", "Thriller"],
+    "rating": null
+  },
+  "movie-556501": {
+    "status": "to_watch",
+    "type": "movie",
+    "id": 556501,
+    "title": "Jungleland",
+    "date": "2020-11-06",
+    "poster_path": "/34jYoAAlkZnfyJiJWpjmrDc9zFR.jpg",
+    "genres": ["Drama"],
+    "rating": null
+  },
+  "movie-522627": {
+    "status": "watched",
+    "type": "movie",
+    "id": 522627,
+    "title": "The Gentlemen",
+    "date": "2020-01-01",
+    "poster_path": "/jtrhTYB7xSrJxR1vusu99nvnZ1g.jpg",
+    "genres": ["Action", "Comedy", "Crime"],
+    "rating": "S"
+  },
+  "tv-95341": {
+    "status": "watched",
+    "type": "tv",
+    "id": 95341,
+    "title": "Shantaram",
+    "date": "2022-10-13",
+    "poster_path": "/6FZCmmAdszkEFLAoibEuJPDhW40.jpg",
+    "genres": ["Crime", "Drama", "Action & Adventure"],
+    "rating": "A"
+  },
+  "movie-274857": {
+    "status": "watched",
+    "type": "movie",
+    "id": 274857,
+    "title": "King Arthur: Legend of the Sword",
+    "date": "2017-05-09",
+    "poster_path": "/9kKXH6eJpzoFGhCbTN3FVwSQK3n.jpg",
+    "genres": ["Action", "Drama", "Fantasy"],
+    "rating": "B"
+  },
+  "movie-433498": {
+    "status": "watched",
+    "type": "movie",
+    "id": 433498,
+    "title": "Papillon",
+    "date": "2017-09-07",
+    "poster_path": "/ahF5c6vyP8HWMqIwlhecbRALkjq.jpg",
+    "genres": ["Adventure", "Crime", "Drama"],
+    "rating": "S"
+  },
+  "movie-399361": {
+    "status": "to_watch",
+    "type": "movie",
+    "id": 399361,
+    "title": "Triple Frontier",
+    "date": "2019-03-06",
+    "poster_path": "/aBw8zYuAljVM1FeK5bZKITPH8ZD.jpg",
+    "genres": ["Action", "Thriller", "Crime", "Adventure"],
+    "rating": null
+  },
+  "tv-37680": {
+    "status": "watched",
+    "type": "tv",
+    "id": 37680,
+    "title": "Suits",
+    "date": "2011-06-23",
+    "poster_path": "/vQiryp6LioFxQThywxbC6TuoDjy.jpg",
+    "genres": ["Drama"],
+    "rating": "B"
+  },
+  "tv-63174": {
+    "status": "watched",
+    "type": "tv",
+    "id": 63174,
+    "title": "Lucifer",
+    "date": "2016-01-25",
+    "poster_path": "/ekZobS8isE6mA53RAiGDG93hBxL.jpg",
+    "genres": ["Crime", "Sci-Fi & Fantasy"],
+    "rating": null
+  },
+  "tv-94997": {
+    "status": "watched",
+    "type": "tv",
+    "id": 94997,
+    "title": "House of the Dragon",
+    "date": "2022-08-21",
+    "poster_path": "/7V0Ebks0GgpKvQ7QbLAIdX5dos4.jpg",
+    "genres": ["Sci-Fi & Fantasy", "Drama", "Action & Adventure"],
+    "rating": null
+  },
+  "tv-224372": {
+    "status": "watched",
+    "type": "tv",
+    "id": 224372,
+    "title": "A Knight of the Seven Kingdoms",
+    "date": "2026-01-18",
+    "poster_path": "/k8yARbD9iYn2nRX2HvsopfKDN2r.jpg",
+    "genres": ["Drama", "Sci-Fi & Fantasy", "Action & Adventure"],
+    "rating": null
+  },
+  "tv-1399": {
+    "status": "watched",
+    "type": "tv",
+    "id": 1399,
+    "title": "Game of Thrones",
+    "date": "2011-04-17",
+    "poster_path": "/1XS1oqL89opfnbLl8WnZY1O1uJx.jpg",
+    "genres": ["Sci-Fi & Fantasy", "Drama", "Action & Adventure"],
+    "rating": null
+  },
+  "tv-74823": {
+    "status": "watched",
+    "type": "tv",
+    "id": 74823,
+    "title": "The Pit",
+    "date": "2017-10-23",
+    "poster_path": "/fBXDSBDw5Zug6E2xTB265LzYVKz.jpg",
+    "genres": ["Crime", "Action & Adventure", "Drama"],
+    "rating": null
+  },
+  "tv-37854": {
+    "status": "watched",
+    "type": "tv",
+    "id": 37854,
+    "title": "One Piece",
+    "date": "1999-10-20",
+    "poster_path": "/dB4EDhre2dsC2kxYDavyKWqLQwi.jpg",
+    "genres": ["Action & Adventure", "Comedy", "Animation"],
+    "rating": "S"
+  },
+  "tv-241709": {
+    "status": "to_watch",
+    "type": "tv",
+    "id": 241709,
+    "title": "THE ONE PIECE",
+    "date": "",
+    "poster_path": "/tcBHXNxz62RaAiDRbkm6DEwiXbJ.jpg",
+    "genres": ["Animation", "Action & Adventure", "Sci-Fi & Fantasy"],
+    "rating": null
+  },
+  "tv-111110": {
+    "status": "watched",
+    "type": "tv",
+    "id": 111110,
+    "title": "ONE PIECE",
+    "date": "2023-08-31",
+    "poster_path": "/blWCPEqDGLBuLB9u89CxP9ORQP4.jpg",
+    "genres": ["Action & Adventure", "Sci-Fi & Fantasy"],
+    "rating": null
+  },
+  "tv-240125": {
+    "status": "watched",
+    "type": "tv",
+    "id": 240125,
+    "title": "TRILLION GAME",
+    "date": "2024-10-04",
+    "poster_path": "/pL4nFHx4lChRXLrJzRX0sAl8SfG.jpg",
+    "genres": ["Animation", "Drama"],
+    "rating": null
+  },
+  "tv-105009": {
+    "status": "watched",
+    "type": "tv",
+    "id": 105009,
+    "title": "Tokyo Revengers",
+    "date": "2021-04-11",
+    "poster_path": "/arB3L9pZZBSzUPSC8BEv8c3X0bF.jpg",
+    "genres": ["Animation", "Action & Adventure", "Crime", "Drama"],
+    "rating": null
+  },
+  "movie-228150": {
+    "status": "not_sure",
+    "type": "movie",
+    "id": 228150,
+    "title": "Fury",
+    "date": "2014-10-15",
+    "poster_path": "/pfte7wdMobMF4CVHuOxyu6oqeeA.jpg",
+    "genres": [],
+    "rating": null
+  },
+  "movie-102382": {
+    "status": "watched",
+    "type": "movie",
+    "id": 102382,
+    "title": "The Amazing Spider-Man 2",
+    "date": "2014-04-16",
+    "poster_path": "/bU7nTmvmy0h3VUP01v1T2imgH6N.jpg",
+    "genres": [],
+    "rating": null
+  },
+  "movie-122917": {
+    "status": "not_sure",
+    "type": "movie",
+    "id": 122917,
+    "title": "The Hobbit: The Battle of the Five Armies",
+    "date": "2014-12-10",
+    "poster_path": "/xT98tLqatZPQApyRmlPL12LtiWp.jpg",
+    "genres": [],
+    "rating": null
+  },
+  "movie-177572": {
+    "status": "watched",
+    "type": "movie",
+    "id": 177572,
+    "title": "Big Hero 6",
+    "date": "2014-10-24",
+    "poster_path": "/2mxS4wUimwlLmI1xp6QW6NSU361.jpg",
+    "genres": [],
+    "rating": null
+  },
+  "movie-244786": {
+    "status": "to_watch",
+    "type": "movie",
+    "id": 244786,
+    "title": "Whiplash",
+    "date": "2014-10-10",
+    "poster_path": "/7fn624j5lj3xTme2SgiLCeuedmO.jpg",
+    "genres": [],
+    "rating": null
+  },
+  "movie-156022": {
+    "status": "watched",
+    "type": "movie",
+    "id": 156022,
+    "title": "The Equalizer",
+    "date": "2014-09-24",
+    "poster_path": "/9u4yW7yPA0BQ2pv9XwiNzItwvp8.jpg",
+    "genres": [],
+    "rating": null
+  },
+  "movie-198663": {
+    "status": "watched",
+    "type": "movie",
+    "id": 198663,
+    "title": "The Maze Runner",
+    "date": "2014-09-10",
+    "poster_path": "/ode14q7WtDugFDp78fo9lCsmay9.jpg",
+    "genres": [],
+    "rating": null
+  },
+  "movie-127585": {
+    "status": "watched",
+    "type": "movie",
+    "id": 127585,
+    "title": "X-Men: Days of Future Past",
+    "date": "2014-05-15",
+    "poster_path": "/tYfijzolzgoMOtegh1Y7j2Enorg.jpg",
+    "genres": [],
+    "rating": null
+  },
+  "movie-245891": {
+    "status": "watched",
+    "type": "movie",
+    "id": 245891,
+    "title": "John Wick",
+    "date": "2014-10-16",
+    "poster_path": "/wXqWR7dHncNRbxoEGybEy7QTe9h.jpg",
+    "genres": [],
+    "rating": null
+  },
+  "movie-260346": {
+    "status": "not_sure",
+    "type": "movie",
+    "id": 260346,
+    "title": "Taken 3",
+    "date": "2014-12-16",
+    "poster_path": "/vzvMXMypMq7ieDofKThsxjHj9hn.jpg",
+    "genres": [],
+    "rating": null
+  },
+  "movie-270946": {
+    "status": "watched",
+    "type": "movie",
+    "id": 270946,
+    "title": "Penguins of Madagascar",
+    "date": "2014-11-22",
+    "poster_path": "/dXbpNrPDZDMEbujFoOxmMNQVMHa.jpg",
+    "genres": [],
+    "rating": null
+  },
+  "movie-82702": {
+    "status": "watched",
+    "type": "movie",
+    "id": 82702,
+    "title": "How to Train Your Dragon 2",
+    "date": "2014-06-05",
+    "poster_path": "/d13Uj86LdbDLrfDoHR5aDOFYyJC.jpg",
+    "genres": [],
+    "rating": null
+  },
+  "movie-102651": {
+    "status": "watched",
+    "type": "movie",
+    "id": 102651,
+    "title": "Maleficent",
+    "date": "2014-05-28",
+    "poster_path": "/ik8PugpL41s137RAWEGTAWu0dPo.jpg",
+    "genres": [],
+    "rating": null
+  },
+  "movie-98566": {
+    "status": "watched",
+    "type": "movie",
+    "id": 98566,
+    "title": "Teenage Mutant Ninja Turtles",
+    "date": "2014-08-07",
+    "poster_path": "/azL2ThbJMIkts3ZMt3j1YgBUeDB.jpg",
+    "genres": [],
+    "rating": null
+  },
+  "movie-91314": {
+    "status": "watched",
+    "type": "movie",
+    "id": 91314,
+    "title": "Transformers: Age of Extinction",
+    "date": "2014-06-25",
+    "poster_path": "/jyzrfx2WaeY60kYZpPYepSjGz4S.jpg",
+    "genres": [],
+    "rating": null
+  },
+  "movie-118340": {
+    "status": "watched",
+    "type": "movie",
+    "id": 118340,
+    "title": "Guardians of the Galaxy",
+    "date": "2014-07-30",
+    "poster_path": "/r7vmZjiyZw9rpJMQJdXpjgiCOk9.jpg",
+    "genres": [],
+    "rating": null
+  },
+  "movie-100402": {
+    "status": "watched",
+    "type": "movie",
+    "id": 100402,
+    "title": "Captain America: The Winter Soldier",
+    "date": "2014-03-20",
+    "poster_path": "/tVFRpFw3xTedgPGqxW0AOI8Qhh0.jpg",
+    "genres": [],
+    "rating": null
+  },
+  "movie-206487": {
+    "status": "watched",
+    "type": "movie",
+    "id": 206487,
+    "title": "Predestination",
+    "date": "2014-08-28",
+    "poster_path": "/38Xr1JnV1ZcLQ55zmdSp6n475cZ.jpg",
+    "genres": [],
+    "rating": "D"
+  },
+  "movie-138103": {
+    "status": "not_sure",
+    "type": "movie",
+    "id": 138103,
+    "title": "The Expendables 3",
+    "date": "2014-08-07",
+    "poster_path": "/utS5euWHlEdKBNnEFwjpZ2oGuhF.jpg",
+    "genres": [],
+    "rating": null
+  },
+  "movie-193893": {
+    "status": "watched",
+    "type": "movie",
+    "id": 193893,
+    "title": "Let's Be Cops",
+    "date": "2014-08-13",
+    "poster_path": "/pf4FoUr2phn5WyZjU7rLXSiW1Ve.jpg",
+    "genres": [],
+    "rating": null
+  },
+  "movie-100042": {
+    "status": "watched",
+    "type": "movie",
+    "id": 100042,
+    "title": "Dumb and Dumber To",
+    "date": "2014-11-12",
+    "poster_path": "/cvEi0xV7TUkabJGuzulhvbMjrHi.jpg",
+    "genres": [],
+    "rating": null
+  },
+  "movie-297222": {
+    "status": "watched",
+    "type": "movie",
+    "id": 297222,
+    "title": "PK",
+    "date": "2014-12-18",
+    "poster_path": "/z2x2Y4tncefsIU7h82gmUM5vnBJ.jpg",
+    "genres": [],
+    "rating": null
+  },
+  "movie-20453": {
+    "status": "watched",
+    "type": "movie",
+    "id": 20453,
+    "title": "3 Idiots",
+    "date": "2009-12-23",
+    "poster_path": "/66A9MqXOyVFCssoloscw79z8Tew.jpg",
+    "genres": [],
+    "rating": "S"
+  },
+  "tv-47665": {
+    "status": "watched",
+    "type": "tv",
+    "id": 47665,
+    "title": "Black Sails",
+    "date": "2014-01-25",
+    "poster_path": "/mZcSwrDdw6cdOVgXm496DgwrQcQ.jpg",
+    "genres": [],
+    "rating": null
+  }
+}

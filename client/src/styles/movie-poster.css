@@ -1,0 +1,82 @@
+.movie-poster {
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  cursor: pointer;
+}
+
+.poster-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  box-shadow: 0 2px 10px rgb(0 0 0 / 22%);
+}
+
+.poster-container img,
+.no-poster {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.poster-container img {
+  object-fit: cover;
+}
+
+.no-poster {
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.watch-actions {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  gap: 6px;
+  padding: 30px 10px 10px;
+  background: linear-gradient(transparent, rgb(0 0 0 / 88%));
+  opacity: 0;
+  transform: translateY(8px);
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease;
+}
+
+.poster-container:hover .watch-actions,
+.poster-container:focus-within .watch-actions {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.watch-actions button {
+  flex: 1;
+  min-width: 0;
+  padding: 7px;
+  border: 1px solid currentColor;
+  background: rgb(16 17 20 / 78%);
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.watch-actions button[data-status="watched"] {
+  color: var(--color-watched);
+}
+
+.watch-actions button[data-status="not_sure"] {
+  color: var(--color-not-sure);
+}
+
+.watch-actions button[data-status="to_watch"] {
+  color: var(--color-to-watch);
+}
+
+.watch-actions button.selected {
+  background: currentColor;
+}

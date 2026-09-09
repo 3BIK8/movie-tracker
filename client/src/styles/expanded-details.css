@@ -1,0 +1,253 @@
+.expanded-details {
+  position: fixed;
+  z-index: 20;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  box-shadow: 0 18px 42px rgb(0 0 0 / 44%);
+}
+
+.expanded-details::before {
+  position: absolute;
+  z-index: -1;
+  top: 8px;
+  bottom: 8px;
+  width: 12px;
+  content: "";
+  background: var(--color-surface);
+}
+
+.expanded-details[data-placement="right"]::before {
+  right: 100%;
+}
+
+.expanded-details[data-placement="left"]::before {
+  left: 100%;
+}
+
+.details-close {
+  position: absolute;
+  z-index: 1;
+  top: 8px;
+  right: 8px;
+  display: grid;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgb(0 0 0 / 30%);
+  font-size: 1.4rem;
+  line-height: 1;
+  place-items: center;
+}
+
+.details-inner {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
+  width: 100%;
+  height: 100%;
+}
+
+.details-main,
+.details-cast {
+  min-width: 0;
+  overflow: auto;
+  scrollbar-width: thin;
+}
+
+.details-main {
+  padding: 20px;
+}
+
+.details-main h2 {
+  margin: 0 34px 8px 0;
+  overflow: hidden;
+  font-size: 1.05rem;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.details-meta {
+  margin-bottom: 12px;
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+}
+
+.genre-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-height: 50px;
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+
+.genre-list span {
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: var(--color-surface-raised);
+  color: var(--color-text-muted);
+  font-size: 0.68rem;
+}
+
+.overview {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  color: #e1e2e6;
+  font-size: 0.82rem;
+  line-height: 1.55;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 7;
+}
+
+.details-cast {
+  padding: 20px;
+  border-left: 1px solid var(--color-border);
+}
+
+.details-cast h3 {
+  margin: 0 0 8px;
+  font-size: 0.78rem;
+}
+
+.cast-title {
+  margin-top: 18px !important;
+}
+
+.credit {
+  margin: 0;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cast-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cast-person {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+.cast-person img,
+.cast-placeholder {
+  flex: 0 0 34px;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.cast-placeholder {
+  display: grid;
+  place-items: center;
+  background: var(--color-surface-raised);
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+}
+
+.cast-person > div:last-child {
+  min-width: 0;
+}
+
+.cast-person strong,
+.cast-person span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cast-person strong {
+  font-size: 0.74rem;
+}
+
+.cast-person span {
+  margin-top: 2px;
+  color: var(--color-text-muted);
+  font-size: 0.66rem;
+}
+
+.details-loading {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  padding: 24px;
+  color: var(--color-text-muted);
+  place-items: center;
+  text-align: center;
+}
+
+@media (max-width: 900px) {
+  .details-inner {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .details-cast {
+    display: none;
+  }
+}
+
+@media (max-width: 600px) {
+  .details-main {
+    padding: 16px;
+  }
+
+  .overview {
+    -webkit-line-clamp: 6;
+  }
+}
+.personal-rating {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.personal-rating > span {
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+}
+
+.rating-actions {
+  display: flex;
+  gap: 5px;
+}
+
+.rating-actions button {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-surface-raised);
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.rating-actions button:hover {
+  color: var(--color-text);
+  border-color: var(--color-text-muted);
+}
+
+.rating-actions button.selected {
+  background: var(--color-text);
+  color: var(--color-bg);
+  border-color: var(--color-text);
+}
