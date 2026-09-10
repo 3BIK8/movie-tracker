@@ -14,7 +14,7 @@ const RECOMMENDATION_LIMIT = 100;
 const HISTORY_ENRICHMENT_CONCURRENCY = 6;
 const DIVERSITY_LAMBDA = 0.8;
 
-export async function analyzeWatchHistory(history) {
+export async function analyzeWatchHistory(history, feedback = null) {
   const canonicalHistory = normalizeWatchHistory(history);
 
   const enrichedResults = await mapWithConcurrency(
@@ -46,7 +46,7 @@ export async function analyzeWatchHistory(history) {
   );
 
   const enrichedHistory = enrichedResults.filter(Boolean);
-  const profile = analyzeHistory(enrichedHistory);
+  const profile = analyzeHistory(enrichedHistory, feedback);
   const movieExplorationRatio = calculateExplorationRatio(
     profile.movies.strength,
   );
