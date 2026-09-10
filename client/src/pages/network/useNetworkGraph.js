@@ -24,6 +24,7 @@ export function useNetworkGraph({ history, activeTypes, focusedConnection }) {
       networkDataRef.current = null;
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setNetworkData(null);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSelectedNode(null);
 
       return;
