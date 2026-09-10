@@ -4,8 +4,10 @@ import Pagination from "../components/Pagination";
 import { getRecommendations } from "../services/api";
 import { getWatchHistory, WATCH_HISTORY_UPDATED } from "../services/watchlist";
 import {
+  finalizeIgnoredRecommendations,
   recordRecommendationInteraction,
   recordRecommendationsShown,
+  recordRecommendationsSkipped,
 } from "../services/recommendationFeedback";
 
 const PAGE_SIZE = 20;
@@ -29,6 +31,8 @@ function RecommendationsView() {
     setError(null);
 
     try {
+      finalizeIgnoredRecommendations();
+
       const history = Object.values(getWatchHistory());
       const result = await getRecommendations(history);
       const nextRecommendations = result.recommendations || {
@@ -86,6 +90,7 @@ function RecommendationsView() {
   }, [visibleItems]);
 
   function changeType(type) {
+    recordRecommendationsSkipped(visibleItems);
     setActiveType(type);
     setPage(1);
     setPageInput("1");
@@ -93,6 +98,8 @@ function RecommendationsView() {
   }
 
   function changePage(newPage) {
+    recordRecommendationsSkipped(visibleItems);
+
     const target = Math.min(Math.max(newPage, 1), totalPages);
 
     setPage(target);
