@@ -2,6 +2,7 @@ import { tmdbFetch } from "../../utils/tmdbClient.js";
 import { isValidCandidate } from "./candidateFilter.js";
 import { getMediaMetadata } from "./mediaMetadataService.js";
 import { getMediaConnections } from "./connectionExtractor.js";
+import { mapWithConcurrency } from "../../utils/runWithConcurrency.js";
 
 const MAX_SOURCES_PER_TYPE = {
   franchises: 5,
@@ -13,13 +14,8 @@ const MAX_SOURCES_PER_TYPE = {
 
 const EXPLORATION_PAGES = 20;
 const EXPLORATION_BATCHES = 3;
+const CANDIDATE_ENRICHMENT_CONCURRENCY = 6;
 
-/*
- * Exploration is deliberately independent from taste.
- *
- * We sample across different eras instead of using popularity
- * as a proxy for quality or relevance.
- */
 const EXPLORATION_YEAR_RANGES = [
   [1950, 1969],
   [1970, 1979],
@@ -38,12 +34,6 @@ function createCandidateKey(type, id) {
   return `${type}-${id}`;
 }
 
-/*
- * Known means anything the user has already classified.
- *
- * We remove these candidates from BOTH channels because
- * exploration should search unknown space too.
- */
 function getKnownMediaIds(history) {
   return new Set(
     history
@@ -56,13 +46,6 @@ function getKnownMediaIds(history) {
   );
 }
 
-/*
- * Add a candidate while preserving where it came from.
- *
- * A candidate can be discovered through both channels.
- * If that happens, exploitation wins because the candidate
- * has actual taste evidence.
- */
 function addCandidate(candidates, media, source, mediaType) {
   if (!media?.id) {
     return;
@@ -84,33 +67,21 @@ function addCandidate(candidates, media, source, mediaType) {
     candidates.set(key, {
       id: media.id,
       type: mediaType,
-
       title: mediaType === "movie" ? media.title : media.name,
-
       releaseDate:
         mediaType === "movie"
           ? media.release_date || null
           : media.first_air_date || null,
-
       poster_path: media.poster_path || null,
       overview: media.overview || "",
       popularity: media.popularity ?? null,
-
-      /*
-       * Keep origin information throughout the pipeline.
-       */
       pool: isExploration ? "exploration" : "exploitation",
-
       sources: [],
     });
   }
 
   const existing = candidates.get(key);
 
-  /*
-   * If the candidate was discovered through an actual
-   * taste connection, it belongs to exploitation.
-   */
   if (!isExploration) {
     existing.pool = "exploitation";
   }
@@ -130,12 +101,6 @@ function addCandidate(candidates, media, source, mediaType) {
   }
 }
 
-/*
- * -----------------------------
- * EXPLOITATION CANDIDATES
- * -----------------------------
- */
-
 async function discoverMovieCredits(candidates, source) {
   const data = await tmdbFetch(`/person/${source.value}/movie_credits`);
 
@@ -144,18 +109,13 @@ async function discoverMovieCredits(candidates, source) {
   }
 
   for (const media of data.crew || []) {
-    if (media.job !== "Director") {
-      continue;
+    if (media.job === "Director") {
+      addCandidate(candidates, media, source, "movie");
     }
-
-    addCandidate(candidates, media, source, "movie");
   }
 }
 
 async function discoverTvCredits(candidates, source) {
-  /*
-   * TV actor connections are intentionally ignored.
-   */
   if (source.type === "actors") {
     return;
   }
@@ -167,11 +127,9 @@ async function discoverTvCredits(candidates, source) {
   }
 
   for (const media of data.crew || []) {
-    if (!["Director", "Creator"].includes(media.job)) {
-      continue;
+    if (["Director", "Creator"].includes(media.job)) {
+      addCandidate(candidates, media, source, "tv");
     }
-
-    addCandidate(candidates, media, source, "tv");
   }
 }
 
@@ -218,36 +176,22 @@ async function generateFromSource(candidates, source, mediaType) {
     case "directors":
       await discoverByPerson(candidates, source, mediaType);
       break;
-
     case "genres":
       await discoverByGenre(candidates, source, mediaType);
       break;
-
     case "studios":
       await discoverByStudio(candidates, source, mediaType);
       break;
-
     case "franchises":
       if (mediaType === "movie") {
         await discoverByFranchise(candidates, source);
       }
       break;
-
     default:
       break;
   }
 }
 
-/*
- * -----------------------------
- * EXPLORATION CANDIDATES
- * -----------------------------
- *
- * Exploration is intentionally unrelated to the taste model.
- *
- * For TV we must use first_air_date rather than
- * primary_release_date.
- */
 async function generateExplorationCandidates(candidates, mediaType) {
   const dateField =
     mediaType === "movie" ? "primary_release_date" : "first_air_date";
@@ -257,9 +201,7 @@ async function generateExplorationCandidates(candidates, mediaType) {
       EXPLORATION_YEAR_RANGES[
         randomInteger(0, EXPLORATION_YEAR_RANGES.length - 1)
       ];
-
     const page = randomInteger(1, EXPLORATION_PAGES);
-
     const endpoint =
       `/discover/${mediaType}` +
       `?${dateField}.gte=${minYear}-01-01` +
@@ -284,41 +226,26 @@ async function generateExplorationCandidates(candidates, mediaType) {
         );
       }
     } catch (error) {
-      console.warn(
-        `Exploration source failed for ${mediaType}:`,
-        error.message,
-      );
+      console.warn(`Exploration source failed for ${mediaType}:`, error.message);
     }
   }
 }
 
-/*
- * Only positive connections are used to generate
- * exploitation candidates.
- *
- * Negative connections are handled later by the scorer,
- * because they are suppression signals rather than
- * discovery signals.
- */
 function getStrongConnections(profile, limit = 20) {
   const connections = [];
 
   for (const type of Object.keys(MAX_SOURCES_PER_TYPE)) {
     const values = profile[type] || {};
-
     const sources = Object.entries(values)
       .filter(([, data]) => data.evidenceScore > 0)
       .map(([value, data]) => ({
         type,
         value,
-
         positiveScore: data.positiveScore,
         negativeScore: data.negativeScore,
-
         appearances: data.appearances,
         positiveAppearances: data.positiveAppearances,
         negativeAppearances: data.negativeAppearances,
-
         netScore: data.netScore,
         evidenceScore: data.evidenceScore,
         confidence: data.confidence,
@@ -327,7 +254,6 @@ function getStrongConnections(profile, limit = 20) {
         if (b.evidenceScore !== a.evidenceScore) {
           return b.evidenceScore - a.evidenceScore;
         }
-
         return b.appearances - a.appearances;
       })
       .slice(0, MAX_SOURCES_PER_TYPE[type]);
@@ -335,68 +261,53 @@ function getStrongConnections(profile, limit = 20) {
     connections.push(...sources);
   }
 
-  return connections
-    .sort((a, b) => b.evidenceScore - a.evidenceScore)
-    .slice(0, limit);
+  return connections.sort((a, b) => b.evidenceScore - a.evidenceScore).slice(0, limit);
 }
 
-/*
- * Candidate discovery results are intentionally NOT
- * globally sorted by popularity or source evidence.
- *
- * The scorer needs to see BOTH channels.
- */
 async function enrichCandidates(candidates) {
-  const enriched = [];
+  const enrichedResults = await mapWithConcurrency(
+    candidates,
+    async (candidate) => {
+      try {
+        const metadata = await getMediaMetadata(candidate.type, candidate.id);
 
-  for (const candidate of candidates) {
-    try {
-      const metadata = await getMediaMetadata(candidate.type, candidate.id);
+        if (!metadata) {
+          return null;
+        }
 
-      if (!metadata) {
-        continue;
+        const enrichedCandidate = {
+          ...candidate,
+          title: metadata.title,
+          year: metadata.year,
+          overview: metadata.overview,
+          poster_path: metadata.poster_path || candidate.poster_path || null,
+          backdrop_path: metadata.backdrop_path || null,
+          actors: metadata.actors,
+          directors: metadata.directors,
+          genres: metadata.genres,
+          keywords: metadata.keywords,
+          franchises: metadata.franchises,
+          studios: metadata.studios,
+          language: metadata.language,
+          rating: metadata.rating,
+          tmdbRating: metadata.rating,
+          popularity: metadata.popularity,
+          connections: getMediaConnections(metadata),
+        };
+
+        return isValidCandidate(enrichedCandidate) ? enrichedCandidate : null;
+      } catch (error) {
+        console.warn(
+          `Candidate enrichment failed for ${candidate.type}:${candidate.id}`,
+          error.message,
+        );
+        return null;
       }
+    },
+    CANDIDATE_ENRICHMENT_CONCURRENCY,
+  );
 
-      const enrichedCandidate = {
-        ...candidate,
-
-        title: metadata.title,
-        year: metadata.year,
-        overview: metadata.overview,
-
-        poster_path: metadata.poster_path || candidate.poster_path || null,
-
-        backdrop_path: metadata.backdrop_path || null,
-
-        actors: metadata.actors,
-        directors: metadata.directors,
-        genres: metadata.genres,
-        keywords: metadata.keywords,
-        franchises: metadata.franchises,
-        studios: metadata.studios,
-        language: metadata.language,
-
-        rating: metadata.rating,
-        tmdbRating: metadata.rating,
-        popularity: metadata.popularity,
-
-        connections: getMediaConnections(metadata),
-      };
-
-      if (!isValidCandidate(enrichedCandidate)) {
-        continue;
-      }
-
-      enriched.push(enrichedCandidate);
-    } catch (error) {
-      console.warn(
-        `Candidate enrichment failed for ${candidate.type}:${candidate.id}`,
-        error.message,
-      );
-    }
-  }
-
-  return enriched;
+  return enrichedResults.filter(Boolean);
 }
 
 export async function generateCandidates(
@@ -406,15 +317,9 @@ export async function generateCandidates(
   limit = 100,
 ) {
   const strongConnections = getStrongConnections(profile);
-
   const knownIds = getKnownMediaIds(history);
-
   const candidates = new Map();
 
-  /*
-   * CHANNEL A:
-   * Taste-driven exploitation.
-   */
   for (const source of strongConnections) {
     try {
       await generateFromSource(candidates, source, mediaType);
@@ -426,48 +331,16 @@ export async function generateCandidates(
     }
   }
 
-  /*
-   * CHANNEL B:
-   * Completely independent exploration.
-   */
   await generateExplorationCandidates(candidates, mediaType);
 
-  /*
-   * Remove known titles from BOTH channels.
-   */
   const discovered = [...candidates.values()].filter(
-    (candidate) =>
-      !knownIds.has(createCandidateKey(candidate.type, candidate.id)),
+    (candidate) => !knownIds.has(createCandidateKey(candidate.type, candidate.id)),
   );
 
   const enriched = await enrichCandidates(discovered);
-
-  /*
-   * Do NOT use popularity here.
-   *
-   * Do NOT globally slice here.
-   *
-   * The recommendation scorer needs access to
-   * both exploitation and exploration candidates.
-   */
-  const exploitation = enriched.filter(
-    (candidate) => candidate.pool === "exploitation",
-  );
-
-  const exploration = enriched.filter(
-    (candidate) => candidate.pool === "exploration",
-  );
-
-  /*
-   * We only cap the candidate pool after enrichment.
-   *
-   * The cap is based on generation evidence,
-   * never popularity.
-   *
-   * Exploration keeps its own quota.
-   */
+  const exploitation = enriched.filter((candidate) => candidate.pool === "exploitation");
+  const exploration = enriched.filter((candidate) => candidate.pool === "exploration");
   const explorationLimit = Math.min(Math.ceil(limit * 0.4), exploration.length);
-
   const exploitationLimit = Math.min(limit * 2, exploitation.length);
 
   const rankedExploitation = exploitation
@@ -480,11 +353,7 @@ export async function generateCandidates(
     .slice(0, exploitationLimit);
 
   const selectedExploration = exploration
-    .map((candidate) => ({
-      ...candidate,
-      sourceEvidence: 0,
-      sourceCount: 0,
-    }))
+    .map((candidate) => ({ ...candidate, sourceEvidence: 0, sourceCount: 0 }))
     .slice(0, explorationLimit);
 
   console.log("CANDIDATE COUNTS:", {
