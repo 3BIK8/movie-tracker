@@ -3,88 +3,108 @@ import assert from "node:assert/strict";
 import {
   analyzeHistory,
   calculateRecencyWeight,
+  FAVORITE_TEMPORAL_MULTIPLIER,
 } from "../services/recommendations/historyAnalyzer.js";
 
-function media(overrides = {}) {
+function createMedia({ rating, id = 1, type = "movie", overrides = {} } = {}) {
   return {
-    id: 1,
-    type: "movie",
+    id,
+    type,
+    title: `Test ${id}`,
     status: "watched",
-    rating: "S",
-    actors: [{ id: 10 }],
-    directors: [{ id: 20 }],
-    genres: [{ id: 30 }],
-    franchises: [{ id: 40 }],
-    studios: [{ id: 50 }],
-    keywords: [{ id: 60 }],
+    rating,
+    tmdbRating: 7.5,
     year: 2020,
+    actors: [{ id: 10, name: "Actor" }],
+    directors: [{ id: 20, name: "Director" }],
+    genres: [{ id: 30, name: "Drama" }],
+    franchises: [],
+    studios: [{ id: 40, name: "Studio" }],
+    keywords: [{ id: 50, name: "Time travel" }],
     language: "en",
-    popularity: 10,
+    popularity: 12,
     ...overrides,
   };
 }
 
 test("C ratings are neutral and do not create connection evidence", () => {
-  const profile = analyzeHistory([
-    media({ id: 1, rating: "C" }),
-    media({ id: 2, rating: "S" }),
-  ]);
+  const profile = analyzeHistory([createMedia({ rating: "C" })]);
+  const movieConnections = profile.movies.connections;
 
-  assert.equal(profile.movies.connections.actors["10"].appearances, 1);
+  assert.deepEqual(movieConnections.actors, {});
+  assert.deepEqual(movieConnections.directors, {});
+  assert.deepEqual(movieConnections.genres, {});
+  assert.deepEqual(movieConnections.studios, {});
+  assert.deepEqual(movieConnections.keywords, {});
+  assert.deepEqual(profile.movies.tmdbRatingProfile, {
+    buckets: {},
+    observations: 0,
+  });
 });
 
 test("C ratings do not dilute confidence for evidence-bearing ratings", () => {
-  const withoutC = analyzeHistory([media({ id: 1, rating: "A" })]);
-  const withC = analyzeHistory([
-    media({ id: 1, rating: "A" }),
-    media({ id: 2, rating: "C" }),
+  const profile = analyzeHistory([
+    createMedia({ rating: "A", id: 1 }),
+    createMedia({ rating: "C", id: 2 }),
   ]);
 
-  assert.equal(
-    withC.movies.connections.actors["10"].confidence,
-    withoutC.movies.connections.actors["10"].confidence,
-  );
+  const actorSignal = profile.movies.connections.actors["10"];
+
+  assert.equal(actorSignal.appearances, 1);
+  assert.equal(actorSignal.positiveAppearances, 1);
+  assert.equal(actorSignal.positiveScore, 0.7);
+  assert.equal(actorSignal.negativeScore, 0);
+  assert.equal(actorSignal.netScore, 0.7);
+  assert.equal(actorSignal.confidence, 0.5);
+  assert.equal(actorSignal.evidenceScore, 0.35);
+  assert.equal(profile.movies.tmdbRatingProfile.observations, 1);
 });
 
 test("D ratings remain negative evidence", () => {
-  const profile = analyzeHistory([media({ id: 1, rating: "D" })]);
-  const signal = profile.movies.connections.actors["10"];
+  const profile = analyzeHistory([createMedia({ rating: "D" })]);
+  const actorSignal = profile.movies.connections.actors["10"];
 
-  assert.equal(signal.positiveScore, 0);
-  assert.equal(signal.negativeScore, 1);
-  assert.equal(signal.netScore, -1);
+  assert.equal(actorSignal.appearances, 1);
+  assert.equal(actorSignal.positiveAppearances, 0);
+  assert.equal(actorSignal.negativeAppearances, 1);
+  assert.equal(actorSignal.netScore, -1);
+  assert.equal(actorSignal.evidenceScore, -0.5);
 });
 
 test("keyword signals become part of the preference profile", () => {
-  const profile = analyzeHistory([media({ keywords: [{ id: 99 }] })]);
-  assert.ok(profile.movies.connections.keywords["99"].evidenceScore > 0);
+  const profile = analyzeHistory([createMedia({ rating: "A" })]);
+  const keywordSignal = profile.movies.connections.keywords["50"];
+
+  assert.equal(keywordSignal.positiveScore, 0.7);
+  assert.equal(keywordSignal.evidenceScore, 0.35);
 });
 
 test("skipped and ignored recommendation feedback becomes negative profile evidence", () => {
-  const history = [media({ id: 1, rating: "S" })];
-  const feedback = {
-    exposures: [
-      {
-        type: "movie",
-        exposedAt: "2026-01-01T00:00:00.000Z",
-        connections: [{ type: "actor", value: 10 }],
-        interactions: [{ event: "skipped" }],
-      },
-      {
-        type: "movie",
-        exposedAt: "2026-01-01T00:00:00.000Z",
-        connections: [{ type: "actor", value: 10 }],
-        interactions: [{ event: "ignored" }],
-      },
-    ],
-  };
+  const profile = analyzeHistory(
+    [createMedia({ rating: "A" })],
+    {
+      exposures: [
+        {
+          type: "movie",
+          id: "2001",
+          exposedAt: new Date().toISOString(),
+          connections: [
+            { type: "genre", value: 30 },
+            { type: "keyword", value: 50 },
+          ],
+          interactions: [{ event: "skipped" }, { event: "ignored" }],
+        },
+      ],
+    },
+  );
 
-  const profile = analyzeHistory(history, feedback);
-  const signal = profile.movies.connections.actors["10"];
+  const genreSignal = profile.movies.connections.genres["30"];
+  const keywordSignal = profile.movies.connections.keywords["50"];
 
-  assert.ok(signal.implicitNegativeScore === undefined || signal.negativeScore > 0);
   assert.equal(profile.movies.feedback.skipped, 1);
   assert.equal(profile.movies.feedback.ignored, 1);
+  assert.ok(genreSignal.negativeScore > 0);
+  assert.ok(keywordSignal.negativeScore > 0);
 });
 
 test("recency uses a deterministic half-life", () => {
@@ -92,22 +112,25 @@ test("recency uses a deterministic half-life", () => {
   const halfLife = new Date(now - 180 * 86_400_000).toISOString();
   const old = new Date(now - 730 * 86_400_000).toISOString();
 
-  assert.ok(Math.abs(calculateRecencyWeight(halfLife, now) - 0.5) < 0.0000001);
+  assert.equal(calculateRecencyWeight(halfLife, now), 0.5);
   assert.ok(calculateRecencyWeight(old, now) < 0.1);
 });
 
 test("recent and favorite interactions produce stronger temporal evidence", () => {
+  const now = Date.now();
+  const recent = new Date(now - 7 * 86_400_000).toISOString();
+  const old = new Date(now - 365 * 86_400_000).toISOString();
+
   const profile = analyzeHistory([
-    media({
+    createMedia({
+      rating: "A",
       id: 1,
-      rating: "S",
-      lastInteractedAt: "2025-12-01T00:00:00.000Z",
+      overrides: { lastInteractedAt: recent, favorite: true },
     }),
-    media({
+    createMedia({
+      rating: "A",
       id: 2,
-      rating: "S",
-      favorite: true,
-      lastInteractedAt: "2025-12-20T00:00:00.000Z",
+      overrides: { lastInteractedAt: old, favorite: false },
     }),
   ]);
 
@@ -118,4 +141,5 @@ test("recent and favorite interactions produce stronger temporal evidence", () =
   assert.equal(profile.movies.temporal.observations, 2);
   assert.equal(profile.movies.temporal.favoriteObservations, 1);
   assert.ok(profile.movies.temporal.averageRecencyWeight < 1);
+  assert.ok(FAVORITE_TEMPORAL_MULTIPLIER > 1);
 });
