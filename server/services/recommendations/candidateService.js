@@ -14,6 +14,8 @@ const MAX_SOURCES_PER_TYPE = {
 };
 
 const EXPLORATION_BATCHES = 3;
+const SOURCE_DISCOVERY_CONCURRENCY = 6;
+const EXPLORATION_DISCOVERY_CONCURRENCY = 3;
 const CANDIDATE_ENRICHMENT_CONCURRENCY = 6;
 
 function stableHash(value) {
@@ -212,31 +214,35 @@ async function generateExplorationCandidates(
     createExplorationSeed(history, mediaType),
   );
 
-  for (const query of queries) {
-    try {
-      const data = await tmdbFetch(query.endpoint);
+  await mapWithConcurrency(
+    queries,
+    async (query) => {
+      try {
+        const data = await tmdbFetch(query.endpoint);
 
-      for (const media of data.results || []) {
-        addCandidate(
-          candidates,
-          media,
-          {
-            type: "exploration",
-            value: `${query.strategy}:${query.yearRange}`,
-            evidenceScore: 0,
-            confidence: 0,
-            appearances: 0,
-          },
-          mediaType,
+        for (const media of data.results || []) {
+          addCandidate(
+            candidates,
+            media,
+            {
+              type: "exploration",
+              value: `${query.strategy}:${query.yearRange}`,
+              evidenceScore: 0,
+              confidence: 0,
+              appearances: 0,
+            },
+            mediaType,
+          );
+        }
+      } catch (error) {
+        console.warn(
+          `Exploration source failed for ${mediaType}:${query.strategy}`,
+          error.message,
         );
       }
-    } catch (error) {
-      console.warn(
-        `Exploration source failed for ${mediaType}:${query.strategy}`,
-        error.message,
-      );
-    }
-  }
+    },
+    EXPLORATION_DISCOVERY_CONCURRENCY,
+  );
 }
 
 function getStrongConnections(profile, limit = 20) {
@@ -389,16 +395,20 @@ export async function generateCandidates(
   const knownIds = getKnownMediaIds(history);
   const candidates = new Map();
 
-  for (const source of strongConnections) {
-    try {
-      await generateFromSource(candidates, source, mediaType);
-    } catch (error) {
-      console.warn(
-        `Candidate source failed: ${source.type}:${source.value}`,
-        error.message,
-      );
-    }
-  }
+  await mapWithConcurrency(
+    strongConnections,
+    async (source) => {
+      try {
+        await generateFromSource(candidates, source, mediaType);
+      } catch (error) {
+        console.warn(
+          `Candidate source failed: ${source.type}:${source.value}`,
+          error.message,
+        );
+      }
+    },
+    SOURCE_DISCOVERY_CONCURRENCY,
+  );
 
   await generateExplorationCandidates(candidates, mediaType, profile, history);
 
