@@ -26,9 +26,8 @@ function RecommendationsView() {
 
     try {
       const history = Object.values(getWatchHistory());
-
       const result = await getRecommendations(history);
-      console.log("RECOMMENDATION API RESULT:", result);
+
       setRecommendations(
         result.recommendations || {
           movies: [],
@@ -47,20 +46,12 @@ function RecommendationsView() {
     }
   }, []);
 
-  /* Data-fetching effect: the state updates occur after the async request. */
-  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
+    // The effect intentionally starts an asynchronous external-system request.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadRecommendations();
   }, [loadRecommendations]);
 
-  /*
-   * When the user changes their watch history,
-   * recommendations become stale.
-   *
-   * We intentionally do NOT immediately regenerate
-   * on every click. The user may mark several things
-   * before wanting to refresh recommendations.
-   */
   useEffect(() => {
     const handleHistoryUpdate = () => {
       setExpandedId(null);
@@ -74,11 +65,8 @@ function RecommendationsView() {
   }, []);
 
   const recommendationKey = activeType === "movie" ? "movies" : "tv";
-
   const items = recommendations[recommendationKey] || [];
-
   const totalPages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
-
   const currentPage = Math.min(page, totalPages);
 
   const visibleItems = items.slice(
@@ -114,7 +102,6 @@ function RecommendationsView() {
       <header className="recommendations-header">
         <div>
           <h1>Recommendations</h1>
-
           <p>Recommendations based on what you have watched and rated.</p>
         </div>
 
@@ -156,7 +143,6 @@ function RecommendationsView() {
       {!isLoading && !error && visibleItems.length === 0 && (
         <div className="recommendations-empty">
           <p>No recommendations yet.</p>
-
           <p>
             Watch and rate more movies or series to give the system more
             information.
