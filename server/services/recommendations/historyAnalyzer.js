@@ -21,6 +21,10 @@ const CONNECTION_TYPES = [
 
 const TEMPORAL_HALF_LIFE_DAYS = 180;
 const FAVORITE_TEMPORAL_MULTIPLIER = 1.25;
+const FEEDBACK_WEIGHTS = {
+  skipped: -0.15,
+  ignored: -0.25,
+};
 
 function createSignal() {
   return {
@@ -246,6 +250,66 @@ function addMediaConnections(profile, media, ratingWeight, temporalWeight) {
   }
 }
 
+function getFeedbackConnectionTarget(type) {
+  return {
+    actor: "actors",
+    director: "directors",
+    genre: "genres",
+    franchise: "franchises",
+    studio: "studios",
+    keyword: "keywords",
+    decade: "years",
+    language: "languages",
+    mediaType: "mediaTypes",
+  }[type];
+}
+
+function applyFeedbackSignals(profile, feedback, mediaType, now) {
+  const summary = {
+    skipped: 0,
+    ignored: 0,
+    applied: 0,
+  };
+
+  for (const exposure of feedback?.exposures || []) {
+    if (exposure.type !== mediaType) {
+      continue;
+    }
+
+    for (const interaction of exposure.interactions || []) {
+      const ratingWeight = FEEDBACK_WEIGHTS[interaction.event];
+
+      if (ratingWeight === undefined) {
+        continue;
+      }
+
+      const temporalWeight =
+        ratingWeight * calculateRecencyWeight(exposure.exposedAt, now);
+
+      for (const connection of exposure.connections || []) {
+        const target = getFeedbackConnectionTarget(connection.type);
+
+        if (!target) {
+          continue;
+        }
+
+        addSignal(
+          profile,
+          target,
+          connection.value,
+          ratingWeight,
+          temporalWeight,
+        );
+        summary.applied += 1;
+      }
+
+      summary[interaction.event] += 1;
+    }
+  }
+
+  return summary;
+}
+
 function calculateProfileStrength(profile, temporal) {
   const evidenceSignals = CONNECTION_TYPES.reduce(
     (total, type) =>
@@ -270,7 +334,7 @@ function calculateProfileStrength(profile, temporal) {
   };
 }
 
-function analyzeMediaType(history) {
+function analyzeMediaType(history, feedback, mediaType) {
   const profile = createProfile();
   const tmdbRatingProfile = createTmdbRatingProfile();
   const temporal = createTemporalProfile();
@@ -316,6 +380,13 @@ function analyzeMediaType(history) {
     }
   }
 
+  const feedbackSummary = applyFeedbackSignals(
+    profile,
+    feedback,
+    mediaType,
+    now,
+  );
+
   if (temporal.observations > 0) {
     temporal.averageRecencyWeight /= temporal.observations;
   }
@@ -324,22 +395,24 @@ function analyzeMediaType(history) {
     connections: profile,
     tmdbRatingProfile,
     temporal,
+    feedback: feedbackSummary,
     strength: calculateProfileStrength(profile, temporal),
   };
 }
 
-export function analyzeHistory(history) {
+export function analyzeHistory(history, feedback = null) {
   const movies = history.filter((media) => media.type === "movie");
   const tv = history.filter((media) => media.type === "tv");
 
   return {
-    movies: analyzeMediaType(movies),
-    tv: analyzeMediaType(tv),
+    movies: analyzeMediaType(movies, feedback, "movie"),
+    tv: analyzeMediaType(tv, feedback, "tv"),
   };
 }
 
 export {
   FAVORITE_TEMPORAL_MULTIPLIER,
+  FEEDBACK_WEIGHTS,
   TEMPORAL_HALF_LIFE_DAYS,
   calculateRecencyWeight,
 };
