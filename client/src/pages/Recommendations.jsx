@@ -85,10 +85,6 @@ function RecommendationsView() {
     currentPage * PAGE_SIZE,
   );
 
-  useEffect(() => {
-    recordRecommendationsShown(visibleItems);
-  }, [visibleItems]);
-
   function changeType(type) {
     recordRecommendationsSkipped(visibleItems);
     setActiveType(type);
