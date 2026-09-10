@@ -87,7 +87,7 @@ export async function getWatchHistoryNetwork(history) {
   );
 }
 
-export async function getRecommendations(history) {
+export async function getRecommendations(history, feedback = null) {
   return request(
     `${API_URL}/recommendations/analyze`,
     "Unable to generate recommendations.",
@@ -98,6 +98,7 @@ export async function getRecommendations(history) {
       },
       body: JSON.stringify({
         history,
+        feedback,
       }),
     },
   );
