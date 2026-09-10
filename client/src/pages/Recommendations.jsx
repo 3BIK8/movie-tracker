@@ -5,6 +5,7 @@ import { getRecommendations } from "../services/api";
 import { getWatchHistory, WATCH_HISTORY_UPDATED } from "../services/watchlist";
 import {
   finalizeIgnoredRecommendations,
+  getRecommendationFeedback,
   recordRecommendationInteraction,
   recordRecommendationsShown,
   recordRecommendationsSkipped,
@@ -34,7 +35,8 @@ function RecommendationsView() {
       finalizeIgnoredRecommendations();
 
       const history = Object.values(getWatchHistory());
-      const result = await getRecommendations(history);
+      const feedback = getRecommendationFeedback();
+      const result = await getRecommendations(history, feedback);
       const nextRecommendations = result.recommendations || {
         movies: [],
         tv: [],
