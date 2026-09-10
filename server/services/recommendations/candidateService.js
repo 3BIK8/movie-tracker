@@ -6,6 +6,7 @@ import { mapWithConcurrency } from "../../utils/runWithConcurrency.js";
 import { buildExplorationQueries } from "./explorationStrategy.js";
 import { createMediaKey, normalizeMediaRef } from "../../utils/mediaIdentity.js";
 import { compareCandidatesByEvidence } from "./candidateOrdering.js";
+import { validateCandidateOutput } from "./candidateInvariants.js";
 
 const MAX_SOURCES_PER_TYPE = {
   franchises: 5,
@@ -362,6 +363,9 @@ export async function generateCandidates(profile, history, mediaType, limit = 10
     .slice(0, exploitationLimit);
 
   const selectedExploration = selectExplorationCandidates(exploration, explorationLimit);
+  const output = [...rankedExploitation, ...selectedExploration];
+
+  validateCandidateOutput(output, { mediaType, limit, knownIds });
 
   console.log("CANDIDATE COUNTS:", {
     mediaType,
@@ -373,7 +377,7 @@ export async function generateCandidates(profile, history, mediaType, limit = 10
     explorationPool: selectedExploration.length,
   });
 
-  return [...rankedExploitation, ...selectedExploration];
+  return output;
 }
 
 function calculateCandidateEvidence(candidate) {
