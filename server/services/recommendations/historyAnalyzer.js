@@ -241,6 +241,30 @@ function addMediaConnections(profile, media, ratingWeight, temporalWeight) {
   }
 }
 
+function calculateProfileStrength(profile, temporal) {
+  const evidenceSignals = CONNECTION_TYPES.reduce(
+    (total, type) =>
+      total +
+      Object.values(profile[type]).filter(
+        (signal) => signal.evidenceScore !== 0,
+      ).length,
+    0,
+  );
+
+  const coverage = Math.min(1, temporal.observations / 20);
+  const breadth = Math.min(1, evidenceSignals / 40);
+  const recency = temporal.averageRecencyWeight;
+  const score = 0.5 * coverage + 0.3 * breadth + 0.2 * recency;
+
+  return {
+    score,
+    coverage,
+    breadth,
+    recency,
+    evidenceSignals,
+  };
+}
+
 function analyzeMediaType(history) {
   const profile = createProfile();
   const tmdbRatingProfile = createTmdbRatingProfile();
@@ -295,6 +319,7 @@ function analyzeMediaType(history) {
     connections: profile,
     tmdbRatingProfile,
     temporal,
+    strength: calculateProfileStrength(profile, temporal),
   };
 }
 
