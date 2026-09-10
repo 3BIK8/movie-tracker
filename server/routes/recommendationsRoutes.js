@@ -4,6 +4,10 @@ import { buildNetwork } from "../services/recommendations/networkService.js";
 
 const router = express.Router();
 
+function isValidationError(error) {
+  return error instanceof TypeError || error?.name === "ValidationError";
+}
+
 router.post("/analyze", async (req, res) => {
   try {
     const result = await analyzeWatchHistory(req.body.history);
@@ -12,7 +16,13 @@ router.post("/analyze", async (req, res) => {
   } catch (error) {
     console.error(error);
 
-    res.status(500).json({
+    if (isValidationError(error)) {
+      return res.status(400).json({
+        message: error.message,
+      });
+    }
+
+    return res.status(500).json({
       message: "Failed to analyze watch history.",
     });
   }
@@ -26,7 +36,13 @@ router.post("/network", async (req, res) => {
   } catch (error) {
     console.error(error);
 
-    res.status(500).json({
+    if (isValidationError(error)) {
+      return res.status(400).json({
+        message: error.message,
+      });
+    }
+
+    return res.status(500).json({
       message: "Failed to build watch-history network.",
     });
   }
