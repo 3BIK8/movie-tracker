@@ -17,6 +17,34 @@ export class TmdbRequestError extends Error {
 const delay = (milliseconds) =>
   new Promise((resolve) => setTimeout(resolve, milliseconds));
 
+function getRetryAfterMilliseconds(response) {
+  const value = response.headers.get("retry-after");
+
+  if (!value) {
+    return null;
+  }
+
+  const seconds = Number(value);
+
+  if (Number.isFinite(seconds)) {
+    return Math.max(0, seconds * 1000);
+  }
+
+  const date = Date.parse(value);
+
+  if (!Number.isNaN(date)) {
+    return Math.max(0, date - Date.now());
+  }
+
+  return null;
+}
+
+function getBackoffMilliseconds(attempt) {
+  const base = 250 * 2 ** (attempt - 1);
+  const jitter = Math.floor(Math.random() * 100);
+  return base + jitter;
+}
+
 async function fetchWithTimeout(url, options) {
   const controller = new AbortController();
 
@@ -54,7 +82,9 @@ export async function tmdbFetch(endpoint) {
         return response.json();
       }
 
-      const retryable = response.status >= 500;
+      const retryable = response.status === 408 ||
+        response.status === 429 ||
+        response.status >= 500;
 
       lastError = new TmdbRequestError(
         `TMDB responded with ${response.status}`,
@@ -67,6 +97,15 @@ export async function tmdbFetch(endpoint) {
       if (!retryable) {
         throw lastError;
       }
+
+      const retryAfter =
+        response.status === 429
+          ? getRetryAfterMilliseconds(response)
+          : null;
+
+      if (attempt < TMDB_MAX_ATTEMPTS) {
+        await delay(retryAfter ?? getBackoffMilliseconds(attempt));
+      }
     } catch (error) {
       if (error instanceof TmdbRequestError && !error.retryable) {
         throw error;
@@ -76,10 +115,10 @@ export async function tmdbFetch(endpoint) {
         retryable: true,
         cause: error,
       });
-    }
 
-    if (attempt < TMDB_MAX_ATTEMPTS) {
-      await delay(300 * attempt);
+      if (attempt < TMDB_MAX_ATTEMPTS) {
+        await delay(getBackoffMilliseconds(attempt));
+      }
     }
   }
 
