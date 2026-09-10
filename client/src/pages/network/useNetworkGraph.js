@@ -4,6 +4,7 @@ import { getWatchHistoryNetwork } from "../../services/api";
 import { NETWORK_STYLES } from "./networkStyles";
 import { filterGraphElements } from "./filterGraphElements";
 import { attachGraphEventListeners } from "./cytoscapeEvents";
+
 export function useNetworkGraph({ history, activeTypes, focusedConnection }) {
   const containerRef = useRef(null);
   const cyRef = useRef(null);
@@ -14,6 +15,8 @@ export function useNetworkGraph({ history, activeTypes, focusedConnection }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  /* This effect synchronizes React state with the external Cytoscape graph and API. */
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
     const historyItems = Object.values(history);
 
@@ -22,7 +25,6 @@ export function useNetworkGraph({ history, activeTypes, focusedConnection }) {
       cyRef.current = null;
       networkDataRef.current = null;
       setNetworkData(null);
-
       setSelectedNode(null);
 
       return;
