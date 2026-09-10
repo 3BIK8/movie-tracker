@@ -68,8 +68,8 @@ export async function analyzeWatchHistory(history, feedback = null) {
   ]);
 
   const [scoredMovies, scoredTv] = [
-    scoreCandidates(movieCandidates, enrichedHistory),
-    scoreCandidates(tvCandidates, enrichedHistory),
+    scoreCandidates(movieCandidates, enrichedHistory, feedback),
+    scoreCandidates(tvCandidates, enrichedHistory, feedback),
   ];
 
   const rankRecommendationPools = (candidates) => {
