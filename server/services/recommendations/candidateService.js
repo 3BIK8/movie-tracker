@@ -3,6 +3,7 @@ import { isValidCandidate } from "./candidateFilter.js";
 import { getMediaMetadata } from "./mediaMetadataService.js";
 import { getMediaConnections } from "./connectionExtractor.js";
 import { mapWithConcurrency } from "../../utils/runWithConcurrency.js";
+import { buildExplorationQueries } from "./explorationStrategy.js";
 
 const MAX_SOURCES_PER_TYPE = {
   franchises: 5,
@@ -12,22 +13,18 @@ const MAX_SOURCES_PER_TYPE = {
   studios: 2,
 };
 
-const EXPLORATION_PAGES = 20;
 const EXPLORATION_BATCHES = 3;
 const CANDIDATE_ENRICHMENT_CONCURRENCY = 6;
 
-const EXPLORATION_YEAR_RANGES = [
-  [1950, 1969],
-  [1970, 1979],
-  [1980, 1989],
-  [1990, 1999],
-  [2000, 2009],
-  [2010, 2019],
-  [2020, 2026],
-];
+function stableHash(value) {
+  let hash = 2166136261;
 
-function randomInteger(min, max) {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
+  for (const character of String(value)) {
+    hash ^= character.charCodeAt(0);
+    hash = Math.imul(hash, 16777619);
+  }
+
+  return hash >>> 0;
 }
 
 function createCandidateKey(type, id) {
@@ -192,24 +189,16 @@ async function generateFromSource(candidates, source, mediaType) {
   }
 }
 
-async function generateExplorationCandidates(candidates, mediaType) {
-  const dateField =
-    mediaType === "movie" ? "primary_release_date" : "first_air_date";
+async function generateExplorationCandidates(candidates, mediaType, profile) {
+  const queries = buildExplorationQueries(
+    mediaType,
+    profile,
+    EXPLORATION_BATCHES,
+  );
 
-  for (let i = 0; i < EXPLORATION_BATCHES; i++) {
-    const [minYear, maxYear] =
-      EXPLORATION_YEAR_RANGES[
-        randomInteger(0, EXPLORATION_YEAR_RANGES.length - 1)
-      ];
-    const page = randomInteger(1, EXPLORATION_PAGES);
-    const endpoint =
-      `/discover/${mediaType}` +
-      `?${dateField}.gte=${minYear}-01-01` +
-      `&${dateField}.lte=${maxYear}-12-31` +
-      `&page=${page}`;
-
+  for (const query of queries) {
     try {
-      const data = await tmdbFetch(endpoint);
+      const data = await tmdbFetch(query.endpoint);
 
       for (const media of data.results || []) {
         addCandidate(
@@ -217,7 +206,7 @@ async function generateExplorationCandidates(candidates, mediaType) {
           media,
           {
             type: "exploration",
-            value: `${minYear}-${maxYear}`,
+            value: `${query.strategy}:${query.yearRange}`,
             evidenceScore: 0,
             confidence: 0,
             appearances: 0,
@@ -226,7 +215,10 @@ async function generateExplorationCandidates(candidates, mediaType) {
         );
       }
     } catch (error) {
-      console.warn(`Exploration source failed for ${mediaType}:`, error.message);
+      console.warn(
+        `Exploration source failed for ${mediaType}:${query.strategy}`,
+        error.message,
+      );
     }
   }
 }
@@ -261,7 +253,9 @@ function getStrongConnections(profile, limit = 20) {
     connections.push(...sources);
   }
 
-  return connections.sort((a, b) => b.evidenceScore - a.evidenceScore).slice(0, limit);
+  return connections
+    .sort((a, b) => b.evidenceScore - a.evidenceScore)
+    .slice(0, limit);
 }
 
 async function enrichCandidates(candidates) {
@@ -310,6 +304,65 @@ async function enrichCandidates(candidates) {
   return enrichedResults.filter(Boolean);
 }
 
+function selectExplorationCandidates(candidates, limit) {
+  const byStrategy = new Map();
+
+  for (const candidate of candidates) {
+    const strategies = candidate.sources
+      .filter((source) => source.type === "exploration")
+      .map((source) => source.value.split(":")[0]);
+
+    const strategy = strategies[0] || "unknown";
+
+    if (!byStrategy.has(strategy)) {
+      byStrategy.set(strategy, []);
+    }
+
+    byStrategy.get(strategy).push(candidate);
+  }
+
+  for (const group of byStrategy.values()) {
+    group.sort((a, b) => {
+      const hashDifference =
+        stableHash(createCandidateKey(a.type, a.id)) -
+        stableHash(createCandidateKey(b.type, b.id));
+
+      if (hashDifference !== 0) {
+        return hashDifference;
+      }
+
+      return String(a.title).localeCompare(String(b.title));
+    });
+  }
+
+  const groups = [...byStrategy.values()];
+  const selected = [];
+  let index = 0;
+
+  while (selected.length < limit && groups.length > 0) {
+    let added = false;
+
+    for (const group of groups) {
+      if (index < group.length && selected.length < limit) {
+        selected.push({
+          ...group[index],
+          sourceEvidence: 0,
+          sourceCount: 0,
+        });
+        added = true;
+      }
+    }
+
+    if (!added) {
+      break;
+    }
+
+    index += 1;
+  }
+
+  return selected;
+}
+
 export async function generateCandidates(
   profile,
   history,
@@ -331,7 +384,7 @@ export async function generateCandidates(
     }
   }
 
-  await generateExplorationCandidates(candidates, mediaType);
+  await generateExplorationCandidates(candidates, mediaType, profile);
 
   const discovered = [...candidates.values()].filter(
     (candidate) => !knownIds.has(createCandidateKey(candidate.type, candidate.id)),
@@ -352,9 +405,10 @@ export async function generateCandidates(
     .sort((a, b) => b.sourceEvidence - a.sourceEvidence)
     .slice(0, exploitationLimit);
 
-  const selectedExploration = exploration
-    .map((candidate) => ({ ...candidate, sourceEvidence: 0, sourceCount: 0 }))
-    .slice(0, explorationLimit);
+  const selectedExploration = selectExplorationCandidates(
+    exploration,
+    explorationLimit,
+  );
 
   console.log("CANDIDATE COUNTS:", {
     mediaType,
