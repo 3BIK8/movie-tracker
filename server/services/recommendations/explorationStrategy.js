@@ -41,23 +41,8 @@ function getTopProfileValue(values = {}) {
     })[0]?.[0] ?? null;
 }
 
-function getTopDecade(profile) {
-  const values = profile?.years || {};
-  const decades = Object.entries(values).filter(([value, data]) => {
-    const year = Number(value);
-    return year >= 1900 && year <= 2100 && year % 10 === 0 && data?.evidenceScore > 0;
-  });
-
-  return decades.sort((a, b) => b[1].evidenceScore - a[1].evidenceScore)[0]?.[0] ?? null;
-}
-
 function getDateField(mediaType) {
   return mediaType === "movie" ? "primary_release_date" : "first_air_date";
-}
-
-function getQualityParams(mediaType) {
-  const floor = QUALITY_FLOORS[mediaType];
-  return `vote_average.gte=${floor.voteAverage}&vote_count.gte=${floor.voteCount}`;
 }
 
 function getRandomPage(maxPage, random) {
@@ -72,9 +57,12 @@ function createQuery({ mediaType, strategy, yearRange, page, profile }) {
     include_video: "false",
     language: "en-US",
     page: String(page),
-    sort_by: strategy === "long_tail" || strategy === "profile_genre" || strategy === "profile_language"
-      ? "popularity.asc"
-      : "popularity.desc",
+    sort_by:
+      strategy === "long_tail" ||
+      strategy === "profile_genre" ||
+      strategy === "profile_language"
+        ? "popularity.asc"
+        : "popularity.desc",
     [dateField + ".gte"]: `${minYear}-01-01`,
     [dateField + ".lte"]: `${maxYear}-12-31`,
   });
@@ -119,15 +107,15 @@ export function buildExplorationQueries(
 
   for (let index = 0; index < batchCount; index += 1) {
     const strategyIndex = randomInteger(0, availableStrategies.length - 1, random);
-    const strategy = availableStrategies.splice(strategyIndex, 1)[0] ?? "long_tail";
+    const strategy =
+      availableStrategies.splice(strategyIndex, 1)[0] ?? "long_tail";
     const yearRange = pickYearRange(random);
-    const page = strategy === "long_tail"
-      ? getRandomPage(3, random)
-      : getRandomPage(20, random);
+    const page =
+      strategy === "long_tail"
+        ? getRandomPage(3, random)
+        : getRandomPage(20, random);
 
-    queries.push(
-      createQuery({ mediaType, strategy, yearRange, page, profile }),
-    );
+    queries.push(createQuery({ mediaType, strategy, yearRange, page, profile }));
   }
 
   return queries;
