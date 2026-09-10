@@ -13,17 +13,12 @@ export const NETWORK_STYLES = [
   },
   {
     selector: "node[type='media'][status='not_sure']",
-    style: {
-      "background-color": "#eab308",
-    },
+    style: { "background-color": "#eab308" },
   },
   {
     selector: "node[type='media'][status='to_watch']",
-    style: {
-      "background-color": "#22c55e",
-    },
+    style: { "background-color": "#22c55e" },
   },
-
   {
     selector: "node[connectionType='actor']",
     style: {
@@ -35,7 +30,6 @@ export const NETWORK_STYLES = [
       label: "",
     },
   },
-
   {
     selector: "node[connectionType='director']",
     style: {
@@ -47,7 +41,6 @@ export const NETWORK_STYLES = [
       label: "",
     },
   },
-
   {
     selector: "node[connectionType='genre']",
     style: {
@@ -60,7 +53,6 @@ export const NETWORK_STYLES = [
       label: "",
     },
   },
-
   {
     selector: "node[connectionType='franchise']",
     style: {
@@ -73,7 +65,6 @@ export const NETWORK_STYLES = [
       label: "",
     },
   },
-
   {
     selector: "node[connectionType='decade']",
     style: {
@@ -86,7 +77,6 @@ export const NETWORK_STYLES = [
       label: "",
     },
   },
-
   {
     selector: "node[connectionType='studio']",
     style: {
@@ -99,37 +89,18 @@ export const NETWORK_STYLES = [
       label: "",
     },
   },
-
   {
     selector: "node[connectionType='language']",
-    style: {
-      width: 16,
-      height: 16,
-      "background-color": "#eab308",
-      label: "",
-    },
+    style: { width: 16, height: 16, "background-color": "#eab308", label: "" },
   },
-
   {
     selector: "node[connectionType='keyword']",
-    style: {
-      width: 12,
-      height: 12,
-      "background-color": "#ec4899",
-      label: "",
-    },
+    style: { width: 12, height: 12, "background-color": "#ec4899", label: "" },
   },
-
   {
     selector: "node[connectionType='mediaType']",
-    style: {
-      width: 16,
-      height: 16,
-      "background-color": "#06b6d4",
-      label: "",
-    },
+    style: { width: 16, height: 16, "background-color": "#06b6d4", label: "" },
   },
-
   {
     selector: "edge",
     style: {
@@ -139,7 +110,6 @@ export const NETWORK_STYLES = [
       "curve-style": "bezier",
     },
   },
-
   {
     selector: "edge[type='relationship']",
     style: {
@@ -149,37 +119,26 @@ export const NETWORK_STYLES = [
       "curve-style": "bezier",
     },
   },
-
   {
     selector: "node:selected",
-    style: {
-      "border-width": 4,
-      "border-color": "#111827",
-    },
+    style: { "border-width": 4, "border-color": "#111827" },
   },
-
   {
     selector: ".highlighted",
-    style: {
-      opacity: 1,
-    },
+    style: { opacity: 1 },
   },
-
   {
     selector: ".dimmed",
-    style: {
-      opacity: 0.08,
-    },
+    style: { opacity: 0.08 },
   },
-
+  {
+    selector: ".filtered-out",
+    style: { display: "none" },
+  },
   {
     selector: "edge.highlighted",
-    style: {
-      width: 3,
-      opacity: 1,
-    },
+    style: { width: 3, opacity: 1 },
   },
-
   {
     selector: ".show-label",
     style: {
