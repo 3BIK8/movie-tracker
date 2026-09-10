@@ -4,7 +4,8 @@ import { analyzeHistory } from "./historyAnalyzer.js";
 import { generateCandidates } from "./candidateService.js";
 import { scoreCandidates } from "./recommendationScorer.js";
 import { diversifyRankedCandidates } from "./recommendationDiversifier.js";
-import { normalizeWatchHistory } from "../../utils/mediaIdentity.js";
+import { validateRecommendationOutput } from "./recommendationInvariants.js";
+import { createMediaKey, normalizeWatchHistory } from "../../utils/mediaIdentity.js";
 import { mapWithConcurrency } from "../../utils/runWithConcurrency.js";
 
 const RECOMMENDATION_LIMIT = 100;
@@ -76,6 +77,24 @@ export async function analyzeWatchHistory(history) {
     RECOMMENDATION_LIMIT,
     DIVERSITY_LAMBDA,
   );
+
+  const knownIds = new Set(
+    canonicalHistory
+      .filter((item) => ["watched", "to_watch", "not_sure"].includes(item.status))
+      .map((item) => createMediaKey(item.type, item.id)),
+  );
+
+  validateRecommendationOutput(diversifiedMovies, {
+    mediaType: "movie",
+    limit: RECOMMENDATION_LIMIT,
+    knownIds,
+  });
+
+  validateRecommendationOutput(diversifiedTv, {
+    mediaType: "tv",
+    limit: RECOMMENDATION_LIMIT,
+    knownIds,
+  });
 
   return {
     profile,
