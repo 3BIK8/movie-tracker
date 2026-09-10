@@ -18,6 +18,9 @@ const CONNECTION_TYPES = [
   "popularity",
 ];
 
+const TEMPORAL_HALF_LIFE_DAYS = 180;
+const FAVORITE_TEMPORAL_MULTIPLIER = 1.25;
+
 function createSignal() {
   return {
     positiveScore: 0,
@@ -28,6 +31,10 @@ function createSignal() {
     netScore: 0,
     evidenceScore: 0,
     confidence: 0,
+    temporalPositiveScore: 0,
+    temporalNegativeScore: 0,
+    temporalNetScore: 0,
+    temporalEvidenceScore: 0,
   };
 }
 
@@ -39,6 +46,15 @@ function createTmdbRatingProfile() {
   return {
     buckets: {},
     observations: 0,
+  };
+}
+
+function createTemporalProfile() {
+  return {
+    observations: 0,
+    recentObservations: 0,
+    favoriteObservations: 0,
+    averageRecencyWeight: 0,
   };
 }
 
@@ -106,7 +122,32 @@ function calculateEvidenceScore(netScore, confidence) {
   return netScore * confidence;
 }
 
-function addSignal(profile, type, value, ratingWeight) {
+function calculateRecencyWeight(timestamp, now = Date.now()) {
+  if (!timestamp) {
+    return 1;
+  }
+
+  const time = Date.parse(timestamp);
+
+  if (!Number.isFinite(time)) {
+    return 1;
+  }
+
+  const ageDays = Math.max(0, (now - time) / 86_400_000);
+  return Math.pow(0.5, ageDays / TEMPORAL_HALF_LIFE_DAYS);
+}
+
+function getInteractionTimestamp(media) {
+  return (
+    media.lastInteractedAt ||
+    media.ratingUpdatedAt ||
+    media.favoriteAt ||
+    media.statusChangedAt ||
+    null
+  );
+}
+
+function addSignal(profile, type, value, ratingWeight, temporalWeight = ratingWeight) {
   if (value === null || value === undefined || value === "") {
     return;
   }
@@ -123,35 +164,40 @@ function addSignal(profile, type, value, ratingWeight) {
 
   if (ratingWeight > 0) {
     signal.positiveScore += ratingWeight;
-
     signal.positiveAppearances += 1;
+    signal.temporalPositiveScore += temporalWeight;
   } else if (ratingWeight < 0) {
     signal.negativeScore += Math.abs(ratingWeight);
-
     signal.negativeAppearances += 1;
+    signal.temporalNegativeScore += Math.abs(temporalWeight);
   }
 
   signal.netScore = signal.positiveScore - signal.negativeScore;
-
   signal.confidence = calculateConfidence(signal.appearances);
-
   signal.evidenceScore = calculateEvidenceScore(
     signal.netScore,
     signal.confidence,
   );
+
+  signal.temporalNetScore =
+    signal.temporalPositiveScore - signal.temporalNegativeScore;
+  signal.temporalEvidenceScore = calculateEvidenceScore(
+    signal.temporalNetScore,
+    signal.confidence,
+  );
 }
 
-function addMediaConnections(profile, media, ratingWeight) {
+function addMediaConnections(profile, media, ratingWeight, temporalWeight) {
   for (const actor of media.actors || []) {
-    addSignal(profile, "actors", actor.id ?? actor.name, ratingWeight);
+    addSignal(profile, "actors", actor.id ?? actor.name, ratingWeight, temporalWeight);
   }
 
   for (const director of media.directors || []) {
-    addSignal(profile, "directors", director.id ?? director.name, ratingWeight);
+    addSignal(profile, "directors", director.id ?? director.name, ratingWeight, temporalWeight);
   }
 
   for (const genre of media.genres || []) {
-    addSignal(profile, "genres", genre.id ?? genre.name ?? genre, ratingWeight);
+    addSignal(profile, "genres", genre.id ?? genre.name ?? genre, ratingWeight, temporalWeight);
   }
 
   for (const franchise of media.franchises || []) {
@@ -160,38 +206,46 @@ function addMediaConnections(profile, media, ratingWeight) {
       "franchises",
       franchise.id ?? franchise.name,
       ratingWeight,
+      temporalWeight,
     );
   }
 
   for (const studio of media.studios || []) {
-    addSignal(profile, "studios", studio.id ?? studio.name, ratingWeight);
+    addSignal(profile, "studios", studio.id ?? studio.name, ratingWeight, temporalWeight);
   }
 
   if (media.year) {
-    addSignal(profile, "years", media.year, ratingWeight);
-
-    addSignal(profile, "years", Math.floor(media.year / 10) * 10, ratingWeight);
+    addSignal(profile, "years", media.year, ratingWeight, temporalWeight);
+    addSignal(
+      profile,
+      "years",
+      Math.floor(media.year / 10) * 10,
+      ratingWeight,
+      temporalWeight,
+    );
   }
 
   if (media.language) {
-    addSignal(profile, "languages", media.language, ratingWeight);
+    addSignal(profile, "languages", media.language, ratingWeight, temporalWeight);
   }
 
   if (media.type) {
-    addSignal(profile, "mediaTypes", media.type, ratingWeight);
+    addSignal(profile, "mediaTypes", media.type, ratingWeight, temporalWeight);
   }
 
   if (typeof media.popularity === "number") {
     const popularityBucket =
       media.popularity < 10 ? "low" : media.popularity < 50 ? "medium" : "high";
 
-    addSignal(profile, "popularity", popularityBucket, ratingWeight);
+    addSignal(profile, "popularity", popularityBucket, ratingWeight, temporalWeight);
   }
 }
 
 function analyzeMediaType(history) {
   const profile = createProfile();
   const tmdbRatingProfile = createTmdbRatingProfile();
+  const temporal = createTemporalProfile();
+  const now = Date.now();
 
   for (const media of history) {
     if (
@@ -209,20 +263,43 @@ function analyzeMediaType(history) {
       continue;
     }
 
-    addMediaConnections(profile, media, ratingWeight);
+    const recencyWeight = calculateRecencyWeight(
+      getInteractionTimestamp(media),
+      now,
+    );
+    const favoriteMultiplier = media.favorite
+      ? FAVORITE_TEMPORAL_MULTIPLIER
+      : 1;
+    const temporalWeight = ratingWeight * recencyWeight * favoriteMultiplier;
 
+    addMediaConnections(profile, media, ratingWeight, temporalWeight);
     addTmdbRatingSignal(tmdbRatingProfile, media.tmdbRating, media.rating);
+
+    temporal.observations += 1;
+    temporal.averageRecencyWeight += recencyWeight;
+
+    if (recencyWeight >= 0.5) {
+      temporal.recentObservations += 1;
+    }
+
+    if (media.favorite === true) {
+      temporal.favoriteObservations += 1;
+    }
+  }
+
+  if (temporal.observations > 0) {
+    temporal.averageRecencyWeight /= temporal.observations;
   }
 
   return {
     connections: profile,
     tmdbRatingProfile,
+    temporal,
   };
 }
 
 export function analyzeHistory(history) {
   const movies = history.filter((media) => media.type === "movie");
-
   const tv = history.filter((media) => media.type === "tv");
 
   return {
@@ -230,3 +307,9 @@ export function analyzeHistory(history) {
     tv: analyzeMediaType(tv),
   };
 }
+
+export {
+  FAVORITE_TEMPORAL_MULTIPLIER,
+  TEMPORAL_HALF_LIFE_DAYS,
+  calculateRecencyWeight,
+};
