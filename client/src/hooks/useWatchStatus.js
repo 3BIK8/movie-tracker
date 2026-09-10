@@ -6,9 +6,9 @@ import {
 } from "../services/watchlist";
 
 /**
- * Custom hook for managing watch status
+ * Custom hook for managing watch status and persisting enriched media metadata.
  */
-export function useWatchStatus(item, type) {
+export function useWatchStatus(item, type, metadata = null) {
   const key = `${type}-${item.id}`;
   const readStatus = useCallback(
     () => getWatchHistory()[key]?.status || null,
@@ -24,9 +24,9 @@ export function useWatchStatus(item, type) {
 
   const updateStatus = useCallback(
     (newStatus) => {
-      setWatchStatusService(item, type, newStatus);
+      setWatchStatusService(item, type, newStatus, metadata || {});
     },
-    [item, type],
+    [item, type, metadata],
   );
 
   return { status, setStatus: updateStatus };
