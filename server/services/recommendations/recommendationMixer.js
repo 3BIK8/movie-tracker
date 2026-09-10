@@ -28,7 +28,8 @@ export function mixRecommendationPools(
 
   while (
     output.length < limit &&
-    exploitationIndex < selectedExploitation.length
+    (exploitationIndex < selectedExploitation.length ||
+      explorationIndex < selectedExploration.length)
   ) {
     for (let count = 0; count < 4 && output.length < limit; count += 1) {
       if (exploitationIndex >= selectedExploitation.length) break;
