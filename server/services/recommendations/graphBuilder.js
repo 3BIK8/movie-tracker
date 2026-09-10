@@ -1,3 +1,7 @@
+const MAX_CONNECTION_NODES = 400;
+const MAX_MEDIA_PER_CONNECTION = 30;
+const MAX_EDGES = 4000;
+
 function getConnectionId(type, value) {
   return `connection-${type}-${value}`;
 }
@@ -9,6 +13,10 @@ function addNode(nodes, node) {
 }
 
 function addEdge(edges, source, target, extra = {}) {
+  if (edges.size >= MAX_EDGES) {
+    return false;
+  }
+
   const id = `${source}->${target}`;
 
   if (!edges.has(id)) {
@@ -19,9 +27,25 @@ function addEdge(edges, source, target, extra = {}) {
       ...extra,
     });
   }
+
+  return true;
 }
 
-function buildSharedConnections(nodes, edges, mediaRecords) {
+function compareConnections(a, b) {
+  if (b.mediaIds.length !== a.mediaIds.length) {
+    return b.mediaIds.length - a.mediaIds.length;
+  }
+
+  const typeCompare = a.type.localeCompare(b.type);
+
+  if (typeCompare !== 0) {
+    return typeCompare;
+  }
+
+  return String(a.value).localeCompare(String(b.value));
+}
+
+function buildConnectionMap(mediaRecords) {
   const connectionMap = new Map();
 
   for (const record of mediaRecords) {
@@ -29,7 +53,14 @@ function buildSharedConnections(nodes, edges, mediaRecords) {
     const seen = new Set();
 
     for (const connection of record.connections) {
-      const key = `${connection.type}-${connection.value}`;
+      const type = String(connection.type || "").trim();
+      const value = String(connection.value ?? "").trim();
+
+      if (!type || !value) {
+        continue;
+      }
+
+      const key = `${type}:${value}`;
 
       if (seen.has(key)) {
         continue;
@@ -39,9 +70,9 @@ function buildSharedConnections(nodes, edges, mediaRecords) {
 
       if (!connectionMap.has(key)) {
         connectionMap.set(key, {
-          type: connection.type,
-          value: connection.value,
-          label: connection.label,
+          type,
+          value,
+          label: connection.label || value,
           metadata: connection.metadata || {},
           mediaIds: [],
         });
@@ -51,8 +82,29 @@ function buildSharedConnections(nodes, edges, mediaRecords) {
     }
   }
 
-  for (const connection of connectionMap.values()) {
-    if (connection.mediaIds.length < 2) {
+  return [...connectionMap.values()]
+    .filter((connection) => connection.mediaIds.length >= 2)
+    .map((connection) => ({
+      ...connection,
+      mediaIds: [...new Set(connection.mediaIds)].sort(),
+    }))
+    .sort(compareConnections)
+    .slice(0, MAX_CONNECTION_NODES);
+}
+
+export function buildGraph(mediaRecords) {
+  const nodes = new Map();
+  const edges = new Map();
+  const connections = buildConnectionMap(mediaRecords);
+
+  for (const record of mediaRecords) {
+    addNode(nodes, record.mediaNode);
+  }
+
+  for (const connection of connections) {
+    const mediaIds = connection.mediaIds.slice(0, MAX_MEDIA_PER_CONNECTION);
+
+    if (mediaIds.length < 2) {
       continue;
     }
 
@@ -63,66 +115,30 @@ function buildSharedConnections(nodes, edges, mediaRecords) {
       type: "connection",
       connectionType: connection.type,
       label: connection.label,
-      count: connection.mediaIds.length,
-      connectedMediaIds: connection.mediaIds,
+      count: mediaIds.length,
+      connectedMediaIds: mediaIds,
       ...connection.metadata,
     });
 
-    for (const mediaId of connection.mediaIds) {
-      addEdge(edges, mediaId, connectionId);
-    }
-  }
-}
-
-function buildMediaRelationships(nodes, edges) {
-  const connections = [...nodes.values()].filter(
-    (node) => node.type === "connection",
-  );
-
-  const relationshipTypes = new Set(["actor", "director", "franchise"]);
-
-  for (const connection of connections) {
-    if (!relationshipTypes.has(connection.connectionType)) {
-      continue;
-    }
-
-    const mediaIds = connection.connectedMediaIds;
-
-    for (let i = 0; i < mediaIds.length; i += 1) {
-      for (let j = i + 1; j < mediaIds.length; j += 1) {
-        const source = mediaIds[i];
-        const target = mediaIds[j];
-
-        const id = `relationship-${connection.id}-${source}-${target}`;
-
-        if (!edges.has(id)) {
-          edges.set(id, {
-            id,
-            source,
-            target,
-            type: "relationship",
-            relationshipType: connection.connectionType,
-            relationshipLabel: connection.label,
-          });
-        }
+    for (const mediaId of mediaIds) {
+      if (!addEdge(edges, mediaId, connectionId)) {
+        break;
       }
     }
+
+    if (edges.size >= MAX_EDGES) {
+      break;
+    }
   }
-}
-
-export function buildGraph(mediaRecords) {
-  const nodes = new Map();
-  const edges = new Map();
-
-  for (const record of mediaRecords) {
-    addNode(nodes, record.mediaNode);
-  }
-
-  buildSharedConnections(nodes, edges, mediaRecords);
-  buildMediaRelationships(nodes, edges);
 
   return {
     nodes: [...nodes.values()],
     edges: [...edges.values()],
   };
 }
+
+export const NETWORK_GRAPH_LIMITS = Object.freeze({
+  maxConnectionNodes: MAX_CONNECTION_NODES,
+  maxMediaPerConnection: MAX_MEDIA_PER_CONNECTION,
+  maxEdges: MAX_EDGES,
+});
