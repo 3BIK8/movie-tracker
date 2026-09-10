@@ -130,7 +130,7 @@ export function useDiscoverSearch({ type, personFilter, initialPage = 1 }) {
     setReloadKey((current) => current + 1);
   }
 
-  function changeType(newType) {
+  function changeType() {
     setQuery("");
     setYear("");
     setGenre("");
