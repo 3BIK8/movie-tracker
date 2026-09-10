@@ -84,3 +84,14 @@ test("candidate invariants enforce the exploration quota", () => {
     /Candidate exploration quota exceeded: 3 > 2/,
   );
 });
+
+test("candidate invariants reject exploration for limits below three", () => {
+  assert.throws(
+    () =>
+      validateCandidateOutput(
+        [{ type: "movie", id: "1", pool: "exploration" }],
+        { mediaType: "movie", limit: 2 },
+      ),
+    /Candidate exploration quota exceeded: 1 > 0/,
+  );
+});
