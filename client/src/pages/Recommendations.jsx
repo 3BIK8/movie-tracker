@@ -3,6 +3,10 @@ import MovieCard from "../components/MovieCard";
 import Pagination from "../components/Pagination";
 import { getRecommendations } from "../services/api";
 import { getWatchHistory, WATCH_HISTORY_UPDATED } from "../services/watchlist";
+import {
+  recordRecommendationInteraction,
+  recordRecommendationsShown,
+} from "../services/recommendationFeedback";
 
 const PAGE_SIZE = 20;
 
@@ -27,13 +31,16 @@ function RecommendationsView() {
     try {
       const history = Object.values(getWatchHistory());
       const result = await getRecommendations(history);
+      const nextRecommendations = result.recommendations || {
+        movies: [],
+        tv: [],
+      };
 
-      setRecommendations(
-        result.recommendations || {
-          movies: [],
-          tv: [],
-        },
-      );
+      setRecommendations(nextRecommendations);
+      recordRecommendationsShown([
+        ...(nextRecommendations.movies || []),
+        ...(nextRecommendations.tv || []),
+      ]);
 
       setPage(1);
       setPageInput("1");
@@ -74,6 +81,10 @@ function RecommendationsView() {
     currentPage * PAGE_SIZE,
   );
 
+  useEffect(() => {
+    recordRecommendationsShown(visibleItems);
+  }, [visibleItems]);
+
   function changeType(type) {
     setActiveType(type);
     setPage(1);
@@ -94,7 +105,16 @@ function RecommendationsView() {
   }
 
   function handleExpand(id) {
+    const isOpening = expandedId !== id;
+
     setExpandedId((current) => (current === id ? null : id));
+
+    if (isOpening) {
+      const separatorIndex = id.indexOf("-");
+      const type = id.slice(0, separatorIndex);
+      const mediaId = id.slice(separatorIndex + 1);
+      recordRecommendationInteraction(type, mediaId, "opened");
+    }
   }
 
   return (
