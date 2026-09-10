@@ -52,6 +52,12 @@ export function recordRecommendationsShown(recommendations) {
       recommendationScore: recommendation.recommendationScore ?? null,
       diversityScore: recommendation.diversityScore ?? null,
       sourceCount: recommendation.sourceCount ?? null,
+      year: recommendation.year ?? null,
+      popularity: recommendation.popularity ?? null,
+      language: recommendation.language ?? null,
+      connections: Array.isArray(recommendation.connections)
+        ? recommendation.connections
+        : [],
       generationId: recommendation.generationId || timestamp,
       exposedAt: timestamp,
       interactions: [],
