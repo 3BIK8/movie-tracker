@@ -47,9 +47,8 @@ function RecommendationsView() {
     }
   }, []);
 
-  /*
-   * Generate recommendations when the page opens.
-   */
+  /* Data-fetching effect: the state updates occur after the async request. */
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
     void loadRecommendations();
   }, [loadRecommendations]);
