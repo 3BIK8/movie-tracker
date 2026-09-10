@@ -20,6 +20,7 @@ function createMedia({ rating, id = 1, type = "movie", overrides = {} } = {}) {
     genres: [{ id: 30, name: "Drama" }],
     franchises: [],
     studios: [{ id: 40, name: "Studio" }],
+    keywords: [{ id: 50, name: "Time travel" }],
     language: "en",
     popularity: 12,
     ...overrides,
@@ -34,6 +35,7 @@ test("C ratings are neutral and do not create connection evidence", () => {
   assert.deepEqual(movieConnections.directors, {});
   assert.deepEqual(movieConnections.genres, {});
   assert.deepEqual(movieConnections.studios, {});
+  assert.deepEqual(movieConnections.keywords, {});
   assert.deepEqual(profile.movies.tmdbRatingProfile, {
     buckets: {},
     observations: 0,
@@ -67,6 +69,14 @@ test("D ratings remain negative evidence", () => {
   assert.equal(actorSignal.negativeAppearances, 1);
   assert.equal(actorSignal.netScore, -1);
   assert.equal(actorSignal.evidenceScore, -0.5);
+});
+
+test("keyword signals become part of the preference profile", () => {
+  const profile = analyzeHistory([createMedia({ rating: "A" })]);
+  const keywordSignal = profile.movies.connections.keywords["50"];
+
+  assert.equal(keywordSignal.positiveScore, 0.7);
+  assert.equal(keywordSignal.evidenceScore, 0.35);
 });
 
 test("recency uses a deterministic half-life", () => {
