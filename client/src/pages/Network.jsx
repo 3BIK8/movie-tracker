@@ -35,15 +35,17 @@ function NetworkView() {
   const { connectionSearch, setConnectionSearch, filteredConnections } =
     useConnectionSearch(networkData, activeTypes);
 
-  const mediaNodes = useMemo(
-    () => networkData?.nodes?.filter((node) => node.type === "media") || [],
-    [networkData],
-  );
-
   const connectionNodes = useMemo(
     () =>
       networkData?.nodes?.filter((node) => node.type === "connection") || [],
     [networkData],
+  );
+
+  const visibleConnectionCount = useMemo(
+    () =>
+      connectionNodes.filter((node) => activeTypes.has(node.connectionType))
+        .length,
+    [connectionNodes, activeTypes],
   );
 
   function toggleType(type) {
@@ -177,11 +179,15 @@ function NetworkView() {
             </div>
           )}
 
-          {historyCount > 0 && !loading && !error && networkData && !connectionCount && (
-            <div className="network-overlay">
-              No shared connections match the current filters.
-            </div>
-          )}
+          {historyCount > 0 &&
+            !loading &&
+            !error &&
+            networkData &&
+            !visibleConnectionCount && (
+              <div className="network-overlay">
+                No shared connections match the current filters.
+              </div>
+            )}
 
           {visibleFocusedConnection && !loading && (
             <div className="network-focus-indicator">
