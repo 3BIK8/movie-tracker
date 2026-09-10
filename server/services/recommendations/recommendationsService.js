@@ -131,6 +131,14 @@ export async function analyzeWatchHistory(history) {
     explorationRatio: tvExplorationRatio,
   });
 
+  const generationId = new Date().toISOString();
+
+  const attachGenerationId = (recommendations) =>
+    recommendations.map((recommendation) => ({
+      ...recommendation,
+      generationId,
+    }));
+
   return {
     profile,
     explorationPolicy: {
@@ -144,8 +152,8 @@ export async function analyzeWatchHistory(history) {
       },
     },
     recommendations: {
-      movies: diversifiedMovies,
-      tv: diversifiedTv,
+      movies: attachGenerationId(diversifiedMovies),
+      tv: attachGenerationId(diversifiedTv),
     },
   };
 }
