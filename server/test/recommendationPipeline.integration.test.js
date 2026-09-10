@@ -47,7 +47,8 @@ function mediaDetails(id, type, overrides = {}) {
 
 function buildFetchMock() {
   return async (url) => {
-    const endpoint = new URL(url).pathname.replace(/^\/3/, "");
+    const parsedUrl = new URL(url);
+    const endpoint = parsedUrl.pathname.replace(/^\/3/, "");
 
     if (endpoint === "/movie/1001") return tmdbResponse(mediaDetails(1001, "movie"));
     if (endpoint === "/movie/1002") {
@@ -56,6 +57,7 @@ function buildFetchMock() {
       }));
     }
     if (endpoint === "/movie/2001") return tmdbResponse(mediaDetails(2001, "movie"));
+    if (endpoint === "/movie/2002") return tmdbResponse(mediaDetails(2002, "movie"));
     if (endpoint === "/movie/3001") {
       return tmdbResponse(mediaDetails(3001, "movie", {
         credits: { cast: [], crew: [] },
@@ -87,12 +89,18 @@ function buildFetchMock() {
     }
 
     if (endpoint.startsWith("/discover/movie")) {
+      const hasProfileFilter =
+        parsedUrl.searchParams.has("with_genres") ||
+        parsedUrl.searchParams.has("with_companies");
+
       return tmdbResponse({ results: [{
-        id: 3001,
-        title: "Movie 3001",
+        id: hasProfileFilter ? 2002 : 3001,
+        title: hasProfileFilter ? "Movie 2002" : "Movie 3001",
         release_date: "2019-01-01",
         genre_ids: [18],
-        overview: "Exploration candidate",
+        overview: hasProfileFilter
+          ? "Exploitation candidate"
+          : "Exploration candidate",
         poster_path: null,
         popularity: 8,
       }] });
