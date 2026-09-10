@@ -19,8 +19,6 @@ export function useNetworkGraph({ history, activeTypes, focusedConnection }) {
     const historyItems = Object.values(history);
 
     if (!historyItems.length) {
-      cyRef.current?.destroy();
-      cyRef.current = null;
       networkDataRef.current = null;
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setNetworkData(null);
@@ -40,59 +38,12 @@ export function useNetworkGraph({ history, activeTypes, focusedConnection }) {
 
         const data = await getWatchHistoryNetwork(historyItems);
 
-        if (cancelled || !containerRef.current) {
+        if (cancelled) {
           return;
         }
 
         networkDataRef.current = data;
         setNetworkData(data);
-
-        cyRef.current?.destroy();
-
-        const { nodes: filteredNodes, edges: filteredEdges } =
-          filterGraphElements(data, activeTypes, focusedConnection);
-
-        const elements = [
-          ...filteredNodes.map((node) => ({
-            data: node,
-          })),
-          ...filteredEdges.map((edge) => ({
-            data: edge,
-          })),
-        ];
-
-        const cy = cytoscape({
-          container: containerRef.current,
-          elements,
-
-          layout: {
-            name: "cose",
-            animate: true,
-            animationDuration: 700,
-            fit: true,
-            padding: 80,
-
-            nodeRepulsion: 16000,
-            idealEdgeLength: focusedConnection ? 110 : 85,
-            edgeElasticity: 140,
-            nestingFactor: 1.2,
-            gravity: 1.5,
-            gravityRange: 3.5,
-          },
-
-          minZoom: 0.2,
-          maxZoom: 4,
-
-          style: NETWORK_STYLES,
-        });
-
-        const detachGraphEventListeners = attachGraphEventListeners(cy, {
-          networkDataRef,
-          setSelectedNode,
-          focusedConnection,
-        });
-        cy.on("destroy", detachGraphEventListeners);
-        cyRef.current = cy;
       } catch (err) {
         console.error(err);
 
@@ -110,11 +61,69 @@ export function useNetworkGraph({ history, activeTypes, focusedConnection }) {
 
     return () => {
       cancelled = true;
+    };
+  }, [history]);
 
-      cyRef.current?.destroy();
+  useEffect(() => {
+    if (!networkData || !containerRef.current) {
+      return undefined;
+    }
+
+    cyRef.current?.destroy();
+
+    const { nodes: filteredNodes, edges: filteredEdges } = filterGraphElements(
+      networkData,
+      activeTypes,
+      focusedConnection,
+    );
+
+    const elements = [
+      ...filteredNodes.map((node) => ({
+        data: node,
+      })),
+      ...filteredEdges.map((edge) => ({
+        data: edge,
+      })),
+    ];
+
+    const cy = cytoscape({
+      container: containerRef.current,
+      elements,
+
+      layout: {
+        name: "cose",
+        animate: true,
+        animationDuration: 700,
+        fit: true,
+        padding: 80,
+
+        nodeRepulsion: 16000,
+        idealEdgeLength: focusedConnection ? 110 : 85,
+        edgeElasticity: 140,
+        nestingFactor: 1.2,
+        gravity: 1.5,
+        gravityRange: 3.5,
+      },
+
+      minZoom: 0.2,
+      maxZoom: 4,
+
+      style: NETWORK_STYLES,
+    });
+
+    const detachGraphEventListeners = attachGraphEventListeners(cy, {
+      networkDataRef,
+      setSelectedNode,
+      focusedConnection,
+    });
+    cy.on("destroy", detachGraphEventListeners);
+    cyRef.current = cy;
+
+    return () => {
+      cy.destroy();
       cyRef.current = null;
     };
-  }, [history, activeTypes, focusedConnection]);
+  }, [networkData, activeTypes, focusedConnection]);
 
   function resetNetwork() {
     setSelectedNode(null);

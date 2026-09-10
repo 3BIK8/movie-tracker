@@ -1,3 +1,4 @@
+import { compactNetworkHistory } from "./networkRequestPayload";
 import { compactRecommendationFeedback } from "./recommendationFeedbackPayload";
 import { compactRecommendationHistory } from "./recommendationRequestPayload";
 
@@ -75,6 +76,8 @@ export async function getMediaDetails(type, id) {
 }
 
 export async function getWatchHistoryNetwork(history) {
+  const compactHistory = compactNetworkHistory(history);
+
   return request(
     `${API_URL}/recommendations/network`,
     "Unable to load watch-history network.",
@@ -84,7 +87,7 @@ export async function getWatchHistoryNetwork(history) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        history,
+        history: compactHistory,
       }),
     },
   );
