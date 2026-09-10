@@ -114,13 +114,14 @@ export function compactRecommendationHistory(
   const compacted = [];
 
   for (const item of items.slice(0, MAX_HISTORY_ITEMS)) {
-    const candidate = [compactHistoryItem(item), ...compacted];
+    const compactedItem = compactHistoryItem(item);
+    const candidate = [compactedItem, ...compacted];
 
     if (byteLength(candidate) > maxBytes) {
       break;
     }
 
-    compacted.unshift(compactHistoryItem(item));
+    compacted.unshift(compactedItem);
   }
 
   return compacted;
