@@ -107,14 +107,16 @@ export function useNetworkGraph({ history, activeTypes, focusedConnection }) {
     });
 
     cy.one("layoutstop", () => {
+      if (cyRef.current !== cy) {
+        return;
+      }
+
       layoutActiveRef.current = false;
 
       const pendingFit = pendingFitRef.current;
       pendingFitRef.current = null;
 
-      if (pendingFit && !cy.destroyed()) {
-        pendingFit();
-      }
+      pendingFit?.();
     });
 
     const detachGraphEventListeners = attachGraphEventListeners(cy, {
@@ -126,10 +128,14 @@ export function useNetworkGraph({ history, activeTypes, focusedConnection }) {
     cyRef.current = cy;
 
     return () => {
-      pendingFitRef.current = null;
-      layoutActiveRef.current = false;
+      if (cyRef.current === cy) {
+        pendingFitRef.current = null;
+        layoutActiveRef.current = false;
+      }
+
       cy.stop();
       cy.destroy();
+
       if (cyRef.current === cy) {
         cyRef.current = null;
       }
@@ -163,7 +169,7 @@ export function useNetworkGraph({ history, activeTypes, focusedConnection }) {
     });
 
     const fitVisibleElements = () => {
-      if (cy.destroyed() || cyRef.current !== cy) {
+      if (cyRef.current !== cy) {
         return;
       }
 
@@ -184,14 +190,30 @@ export function useNetworkGraph({ history, activeTypes, focusedConnection }) {
   function resetNetwork() {
     setSelectedNode(null);
 
-    cyRef.current
-      ?.elements()
+    const cy = cyRef.current;
+    if (!cy) {
+      return;
+    }
+
+    cy.elements()
       .removeClass("dimmed")
       .removeClass("highlighted")
       .removeClass("show-label")
       .removeClass("filtered-out");
 
-    cyRef.current?.fit(undefined, 80);
+    const fitAllElements = () => {
+      if (cyRef.current !== cy) {
+        return;
+      }
+
+      cy.fit(undefined, 80);
+    };
+
+    if (layoutActiveRef.current) {
+      pendingFitRef.current = fitAllElements;
+    } else {
+      fitAllElements();
+    }
   }
 
   return {
