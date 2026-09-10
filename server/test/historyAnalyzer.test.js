@@ -79,6 +79,34 @@ test("keyword signals become part of the preference profile", () => {
   assert.equal(keywordSignal.evidenceScore, 0.35);
 });
 
+test("skipped and ignored recommendation feedback becomes negative profile evidence", () => {
+  const profile = analyzeHistory(
+    [createMedia({ rating: "A" })],
+    {
+      exposures: [
+        {
+          type: "movie",
+          id: "2001",
+          exposedAt: new Date().toISOString(),
+          connections: [
+            { type: "genre", value: 30 },
+            { type: "keyword", value: 50 },
+          ],
+          interactions: [{ event: "skipped" }, { event: "ignored" }],
+        },
+      ],
+    },
+  );
+
+  const genreSignal = profile.movies.connections.genres["30"];
+  const keywordSignal = profile.movies.connections.keywords["50"];
+
+  assert.equal(profile.movies.feedback.skipped, 1);
+  assert.equal(profile.movies.feedback.ignored, 1);
+  assert.ok(genreSignal.negativeScore > 0);
+  assert.ok(keywordSignal.negativeScore > 0);
+});
+
 test("recency uses a deterministic half-life", () => {
   const now = Date.parse("2026-01-01T00:00:00.000Z");
   const halfLife = Date.parse("2025-07-05T00:00:00.000Z");
