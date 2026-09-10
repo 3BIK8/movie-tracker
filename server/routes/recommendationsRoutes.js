@@ -10,7 +10,10 @@ function isValidationError(error) {
 
 router.post("/analyze", async (req, res) => {
   try {
-    const result = await analyzeWatchHistory(req.body.history);
+    const result = await analyzeWatchHistory(
+      req.body.history,
+      req.body.feedback || null,
+    );
 
     res.json(result);
   } catch (error) {
