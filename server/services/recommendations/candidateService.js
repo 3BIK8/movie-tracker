@@ -43,6 +43,15 @@ function getKnownMediaIds(history) {
   );
 }
 
+function createExplorationSeed(history, mediaType) {
+  const historyFingerprint = history
+    .map((item) => `${item.type}:${item.id}:${item.rating ?? ""}:${item.status ?? ""}`)
+    .sort()
+    .join("|");
+
+  return `${mediaType}:${historyFingerprint}`;
+}
+
 function addCandidate(candidates, media, source, mediaType) {
   if (!media?.id) {
     return;
@@ -189,11 +198,18 @@ async function generateFromSource(candidates, source, mediaType) {
   }
 }
 
-async function generateExplorationCandidates(candidates, mediaType, profile) {
+async function generateExplorationCandidates(
+  candidates,
+  mediaType,
+  profile,
+  history,
+) {
   const queries = buildExplorationQueries(
     mediaType,
     profile,
     EXPLORATION_BATCHES,
+    null,
+    createExplorationSeed(history, mediaType),
   );
 
   for (const query of queries) {
@@ -384,7 +400,7 @@ export async function generateCandidates(
     }
   }
 
-  await generateExplorationCandidates(candidates, mediaType, profile);
+  await generateExplorationCandidates(candidates, mediaType, profile, history);
 
   const discovered = [...candidates.values()].filter(
     (candidate) => !knownIds.has(createCandidateKey(candidate.type, candidate.id)),

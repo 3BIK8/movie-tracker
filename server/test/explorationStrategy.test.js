@@ -58,6 +58,23 @@ test("exploration queries are bounded, profile-aware, and deterministic with inj
   }
 });
 
+test("default exploration generation is deterministic for the same seed", () => {
+  const first = buildExplorationQueries("movie", profile, 3, null, "history-seed");
+  const second = buildExplorationQueries("movie", profile, 3, null, "history-seed");
+
+  assert.deepEqual(second, first);
+});
+
+test("profile strategies are omitted when the profile has no usable evidence", () => {
+  const queries = buildExplorationQueries("tv", {}, 4, deterministicRandom);
+
+  assert.ok(
+    queries.every(
+      (query) => !["profile_genre", "profile_language"].includes(query.strategy),
+    ),
+  );
+});
+
 test("exploration rejects unsupported media types", () => {
   assert.throws(
     () => buildExplorationQueries("person", profile),
