@@ -8,7 +8,7 @@ import {
 /**
  * Custom hook for managing watch status
  */
-export function useWatchStatus(item, type, details) {
+export function useWatchStatus(item, type) {
   const key = `${type}-${item.id}`;
   const readStatus = useCallback(
     () => getWatchHistory()[key]?.status || null,
