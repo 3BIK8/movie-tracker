@@ -1,5 +1,6 @@
 const STORAGE_KEY = "recommendation-feedback";
 const MAX_EXPOSURES = 2000;
+const DEFAULT_IGNORE_AFTER_DAYS = 7;
 
 function normalizeKey(type, id) {
   return `${String(type || "").trim().toLowerCase()}:${String(id ?? "").trim()}`;
@@ -20,6 +21,12 @@ function writeLedger(ledger) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(ledger));
 }
 
+function hasMeaningfulInteraction(exposure) {
+  return (exposure.interactions || []).some((interaction) =>
+    ["opened", "status", "rating", "favorite"].includes(interaction.event),
+  );
+}
+
 export function recordRecommendationsShown(recommendations) {
   const ledger = readLedger();
   const timestamp = new Date().toISOString();
@@ -27,7 +34,9 @@ export function recordRecommendationsShown(recommendations) {
   for (const recommendation of recommendations || []) {
     const key = normalizeKey(recommendation.type, recommendation.id);
     const existing = ledger.exposures.find(
-      (exposure) => exposure.key === key && exposure.generationId === recommendation.generationId,
+      (exposure) =>
+        exposure.key === key &&
+        exposure.generationId === recommendation.generationId,
     );
 
     if (existing) {
@@ -73,6 +82,66 @@ export function recordRecommendationInteraction(type, id, event, metadata = {}) 
   }
 }
 
+export function recordRecommendationsSkipped(recommendations) {
+  const ledger = readLedger();
+  const timestamp = new Date().toISOString();
+
+  for (const recommendation of recommendations || []) {
+    const key = normalizeKey(recommendation.type, recommendation.id);
+    const exposure = [...ledger.exposures]
+      .reverse()
+      .find(
+        (candidate) =>
+          candidate.key === key &&
+          candidate.generationId === recommendation.generationId,
+      );
+
+    if (!exposure || hasMeaningfulInteraction(exposure)) {
+      continue;
+    }
+
+    exposure.interactions.push({
+      event: "skipped",
+      timestamp,
+    });
+  }
+
+  writeLedger(ledger);
+}
+
+export function finalizeIgnoredRecommendations(
+  now = Date.now(),
+  ignoreAfterDays = DEFAULT_IGNORE_AFTER_DAYS,
+) {
+  const ledger = readLedger();
+  const threshold = now - ignoreAfterDays * 86_400_000;
+
+  for (const exposure of ledger.exposures) {
+    const exposedAt = Date.parse(exposure.exposedAt);
+
+    if (
+      !Number.isFinite(exposedAt) ||
+      exposedAt > threshold ||
+      hasMeaningfulInteraction(exposure) ||
+      (exposure.interactions || []).some(
+        (interaction) => interaction.event === "ignored",
+      )
+    ) {
+      continue;
+    }
+
+    exposure.interactions.push({
+      event: "ignored",
+      timestamp: new Date(now).toISOString(),
+    });
+  }
+
+  writeLedger(ledger);
+  return ledger;
+}
+
 export function getRecommendationFeedback() {
   return readLedger();
 }
+
+export { DEFAULT_IGNORE_AFTER_DAYS };
