@@ -1,6 +1,7 @@
 import { getMediaMetadata } from "./mediaMetadataService.js";
 import { getMediaConnections } from "./connectionExtractor.js";
 import { analyzeHistory } from "./historyAnalyzer.js";
+import { calculateExplorationRatio } from "./explorationPolicy.js";
 import { generateCandidates } from "./candidateService.js";
 import { scoreCandidates } from "./recommendationScorer.js";
 import { diversifyRankedCandidates } from "./recommendationDiversifier.js";
@@ -12,9 +13,8 @@ import { mapWithConcurrency } from "../../utils/runWithConcurrency.js";
 const RECOMMENDATION_LIMIT = 100;
 const HISTORY_ENRICHMENT_CONCURRENCY = 6;
 const DIVERSITY_LAMBDA = 0.8;
-const EXPLORATION_RATIO = 0.2;
 
-export async function analyzeWatchHistory(history) {
+export async function analyzeWatchHistory(history, feedback = null) {
   const canonicalHistory = normalizeWatchHistory(history);
 
   const enrichedResults = await mapWithConcurrency(
@@ -46,7 +46,11 @@ export async function analyzeWatchHistory(history) {
   );
 
   const enrichedHistory = enrichedResults.filter(Boolean);
-  const profile = analyzeHistory(enrichedHistory);
+  const profile = analyzeHistory(enrichedHistory, feedback);
+  const movieExplorationRatio = calculateExplorationRatio(
+    profile.movies.strength,
+  );
+  const tvExplorationRatio = calculateExplorationRatio(profile.tv.strength);
 
   const [movieCandidates, tvCandidates] = await Promise.all([
     generateCandidates(
@@ -64,8 +68,8 @@ export async function analyzeWatchHistory(history) {
   ]);
 
   const [scoredMovies, scoredTv] = [
-    scoreCandidates(movieCandidates, enrichedHistory),
-    scoreCandidates(tvCandidates, enrichedHistory),
+    scoreCandidates(movieCandidates, enrichedHistory, feedback),
+    scoreCandidates(tvCandidates, enrichedHistory, feedback),
   ];
 
   const rankRecommendationPools = (candidates) => {
@@ -97,14 +101,14 @@ export async function analyzeWatchHistory(history) {
     moviePools.exploitation,
     moviePools.exploration,
     RECOMMENDATION_LIMIT,
-    EXPLORATION_RATIO,
+    movieExplorationRatio,
   );
 
   const diversifiedTv = mixRecommendationPools(
     tvPools.exploitation,
     tvPools.exploration,
     RECOMMENDATION_LIMIT,
-    EXPLORATION_RATIO,
+    tvExplorationRatio,
   );
 
   const knownIds = new Set(
@@ -117,19 +121,39 @@ export async function analyzeWatchHistory(history) {
     mediaType: "movie",
     limit: RECOMMENDATION_LIMIT,
     knownIds,
+    explorationRatio: movieExplorationRatio,
   });
 
   validateRecommendationOutput(diversifiedTv, {
     mediaType: "tv",
     limit: RECOMMENDATION_LIMIT,
     knownIds,
+    explorationRatio: tvExplorationRatio,
   });
+
+  const generationId = new Date().toISOString();
+
+  const attachGenerationId = (recommendations) =>
+    recommendations.map((recommendation) => ({
+      ...recommendation,
+      generationId,
+    }));
 
   return {
     profile,
+    explorationPolicy: {
+      movies: {
+        ratio: movieExplorationRatio,
+        strength: profile.movies.strength,
+      },
+      tv: {
+        ratio: tvExplorationRatio,
+        strength: profile.tv.strength,
+      },
+    },
     recommendations: {
-      movies: diversifiedMovies,
-      tv: diversifiedTv,
+      movies: attachGenerationId(diversifiedMovies),
+      tv: attachGenerationId(diversifiedTv),
     },
   };
 }

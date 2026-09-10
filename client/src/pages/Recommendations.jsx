@@ -3,6 +3,13 @@ import MovieCard from "../components/MovieCard";
 import Pagination from "../components/Pagination";
 import { getRecommendations } from "../services/api";
 import { getWatchHistory, WATCH_HISTORY_UPDATED } from "../services/watchlist";
+import {
+  finalizeIgnoredRecommendations,
+  getRecommendationFeedback,
+  recordRecommendationInteraction,
+  recordRecommendationsShown,
+  recordRecommendationsSkipped,
+} from "../services/recommendationFeedback";
 
 const PAGE_SIZE = 20;
 
@@ -25,15 +32,21 @@ function RecommendationsView() {
     setError(null);
 
     try {
-      const history = Object.values(getWatchHistory());
-      const result = await getRecommendations(history);
+      finalizeIgnoredRecommendations();
 
-      setRecommendations(
-        result.recommendations || {
-          movies: [],
-          tv: [],
-        },
-      );
+      const history = Object.values(getWatchHistory());
+      const feedback = getRecommendationFeedback();
+      const result = await getRecommendations(history, feedback);
+      const nextRecommendations = result.recommendations || {
+        movies: [],
+        tv: [],
+      };
+
+      setRecommendations(nextRecommendations);
+      recordRecommendationsShown([
+        ...(nextRecommendations.movies || []),
+        ...(nextRecommendations.tv || []),
+      ]);
 
       setPage(1);
       setPageInput("1");
@@ -75,6 +88,7 @@ function RecommendationsView() {
   );
 
   function changeType(type) {
+    recordRecommendationsSkipped(visibleItems);
     setActiveType(type);
     setPage(1);
     setPageInput("1");
@@ -82,6 +96,8 @@ function RecommendationsView() {
   }
 
   function changePage(newPage) {
+    recordRecommendationsSkipped(visibleItems);
+
     const target = Math.min(Math.max(newPage, 1), totalPages);
 
     setPage(target);
@@ -94,7 +110,16 @@ function RecommendationsView() {
   }
 
   function handleExpand(id) {
+    const isOpening = expandedId !== id;
+
     setExpandedId((current) => (current === id ? null : id));
+
+    if (isOpening) {
+      const separatorIndex = id.indexOf("-");
+      const type = id.slice(0, separatorIndex);
+      const mediaId = id.slice(separatorIndex + 1);
+      recordRecommendationInteraction(type, mediaId, "opened");
+    }
   }
 
   return (

@@ -6,6 +6,11 @@ const RATING_WEIGHTS = {
   D: -1.0,
 };
 
+const FEEDBACK_WEIGHTS = {
+  skipped: -0.15,
+  ignored: -0.25,
+};
+
 /*
  * Recommendation hierarchy
  *
@@ -111,9 +116,10 @@ function diminishingReturns(count) {
  * Build learned preference for each connection.
  *
  * C-rated items are neutral and therefore contribute nothing.
- * D-rated items create negative preference.
+ * D-rated items create explicit negative preference.
+ * Recommendation skips/ignores create weaker implicit negative preference.
  */
-function buildConnectionModel(ratedHistory) {
+function buildConnectionModel(ratedHistory, feedback = null, mediaType = null) {
   const model = new Map();
 
   for (const item of ratedHistory) {
@@ -137,6 +143,8 @@ function buildConnectionModel(ratedHistory) {
         appearances: 0,
         positiveScore: 0,
         negativeScore: 0,
+        explicitNegativeScore: 0,
+        implicitNegativeScore: 0,
       };
 
       existing.totalScore += ratingWeight;
@@ -146,15 +154,54 @@ function buildConnectionModel(ratedHistory) {
         existing.positiveScore += ratingWeight;
       } else {
         existing.negativeScore += Math.abs(ratingWeight);
+        existing.explicitNegativeScore += Math.abs(ratingWeight);
       }
 
       model.set(key, existing);
     }
   }
 
+  for (const exposure of feedback?.exposures || []) {
+    if (mediaType && exposure.type !== mediaType) {
+      continue;
+    }
+
+    for (const interaction of exposure.interactions || []) {
+      const feedbackWeight = FEEDBACK_WEIGHTS[interaction.event];
+
+      if (feedbackWeight === undefined) {
+        continue;
+      }
+
+      for (const connection of exposure.connections || []) {
+        if (isIgnoredConnection(connection.type, exposure.type)) {
+          continue;
+        }
+
+        const key = getConnectionKey(connection);
+        const existing = model.get(key) || {
+          type: connection.type,
+          value: connection.value,
+          totalScore: 0,
+          appearances: 0,
+          positiveScore: 0,
+          negativeScore: 0,
+          explicitNegativeScore: 0,
+          implicitNegativeScore: 0,
+        };
+
+        existing.totalScore += feedbackWeight;
+        existing.appearances += 1;
+        existing.negativeScore += Math.abs(feedbackWeight);
+        existing.implicitNegativeScore += Math.abs(feedbackWeight);
+
+        model.set(key, existing);
+      }
+    }
+  }
+
   for (const data of model.values()) {
     const average = data.totalScore / data.appearances;
-
     const confidence = data.appearances / (data.appearances + 2);
 
     data.preference = average * confidence;
@@ -188,13 +235,6 @@ function getConnectionScore(connectionModel, connection) {
   };
 }
 
-/*
- * Genre evidence is supporting evidence.
- *
- * We deliberately do not simply add every genre at full strength.
- * A candidate matching five generic genres should not beat another
- * candidate with one genuinely meaningful actor/franchise connection.
- */
 function aggregateGenreEvidence(evidence) {
   const positive = evidence
     .filter((item) => item.score > 0)
@@ -229,16 +269,10 @@ function aggregateGenreEvidence(evidence) {
 
   return {
     positiveScore: Math.min(positiveScore, MAX_GENRE_SCORE),
-
     negativeScore: Math.min(negativeScore, MAX_GENRE_SCORE),
   };
 }
 
-/*
- * Context should never become a recommendation by itself.
- *
- * Without positive strong/supporting evidence, context is ignored.
- */
 function aggregateContextEvidence(evidence) {
   const positive = evidence
     .filter((item) => item.score > 0)
@@ -250,18 +284,10 @@ function aggregateContextEvidence(evidence) {
 
   return {
     positiveScore: Math.min(positive, MAX_CONTEXT_SCORE),
-
     negativeScore: Math.min(negative, MAX_CONTEXT_SCORE),
   };
 }
 
-/*
- * Find the strongest historical relationships for a candidate.
- *
- * Only strong connections are allowed to form a history anchor.
- * Genre/context overlap belongs to supporting evidence, not personal
- * relationship evidence.
- */
 function calculateHistoryAnchor(candidate, ratedHistory) {
   const anchors = [];
 
@@ -348,17 +374,6 @@ function calculateHistoryAnchor(candidate, ratedHistory) {
   };
 }
 
-/*
- * A hard negative is a repeatedly disliked strong relationship.
- *
- * We require:
- *   - at least two observations
- *   - reasonable confidence
- *   - negative evidence >= positive evidence
- *
- * This prevents one bad experience from eliminating an entire
- * actor/franchise/studio/director connection.
- */
 function hasHardNegative(candidate, connectionModel) {
   for (const connection of candidate.connections || []) {
     if (!isStrongConnection(connection.type)) {
@@ -380,7 +395,7 @@ function hasHardNegative(candidate, connectionModel) {
       continue;
     }
 
-    if (data.negativeScore <= data.positiveScore) {
+    if (data.explicitNegativeScore <= data.positiveScore) {
       continue;
     }
 
@@ -418,13 +433,6 @@ function calculateMatchStrength(connections) {
   return "weak";
 }
 
-/*
- * Build human-readable diagnostic history matches.
- *
- * Strong relationships are considered meaningful.
- * Genre/context matches are retained as supporting diagnostics,
- * but they are never presented as equivalent to a strong relationship.
- */
 function buildMatchedHistory(
   candidate,
   ratedHistory,
@@ -432,7 +440,6 @@ function buildMatchedHistory(
   historyAnchor,
 ) {
   const historyMap = new Map();
-
   const positiveEvidence = connectionEvidence.filter(
     (evidence) => evidence.score > 0,
   );
@@ -472,15 +479,12 @@ function buildMatchedHistory(
     }
 
     const key = `${historyItem.type}:${historyItem.id}`;
-
     const strongConnections = matchedConnections.filter(
       (connection) => connection.strength === "strong",
     );
-
     const supportConnections = matchedConnections.filter(
       (connection) => connection.strength === "support",
     );
-
     const contextConnections = matchedConnections.filter(
       (connection) => connection.strength === "context",
     );
@@ -507,10 +511,6 @@ function buildMatchedHistory(
     });
   }
 
-  /*
-   * History anchors are more important than generic diagnostics.
-   * Make sure their details are explicitly represented.
-   */
   for (const anchor of historyAnchor.anchors) {
     const historyItem = anchor.historyItem;
     const key = `${historyItem.type}:${historyItem.id}`;
@@ -548,12 +548,10 @@ function buildMatchedHistory(
       };
 
       existing.connections.push(diagnosticConnection);
-
       existing.strongConnections.push(diagnosticConnection);
     }
 
     existing.matchStrength = "strong";
-
     historyMap.set(key, existing);
   }
 
@@ -577,12 +575,6 @@ function buildMatchedHistory(
 }
 
 export function scoreCandidate(candidate, ratedHistory, connectionModel) {
-  /*
-   * Defensive media-type isolation.
-   *
-   * The recommendation pipeline already separates movies and TV,
-   * but enforcing it here prevents accidental cross-contamination.
-   */
   const relevantHistory = ratedHistory.filter(
     (item) =>
       item.type === candidate.type &&
@@ -596,7 +588,6 @@ export function scoreCandidate(candidate, ratedHistory, connectionModel) {
   const strongEvidence = [];
   const genreEvidence = [];
   const contextEvidence = [];
-
   const connectionEvidence = [];
   const seenConnections = new Set();
 
@@ -620,7 +611,6 @@ export function scoreCandidate(candidate, ratedHistory, connectionModel) {
     }
 
     const evidenceClass = getEvidenceClass(connection.type);
-
     const diagnosticEvidence = {
       type: connection.type,
       value: connection.value,
@@ -643,11 +633,6 @@ export function scoreCandidate(candidate, ratedHistory, connectionModel) {
     }
   }
 
-  /*
-   * Strong relationships are intentionally not capped globally.
-   * Their learned strength is what should distinguish a genuine
-   * recommendation from a generic genre match.
-   */
   let positiveStrongScore = strongEvidence
     .filter((evidence) => evidence.score > 0)
     .reduce((sum, evidence) => sum + evidence.score, 0);
@@ -656,19 +641,9 @@ export function scoreCandidate(candidate, ratedHistory, connectionModel) {
     .filter((evidence) => evidence.score < 0)
     .reduce((sum, evidence) => sum + Math.abs(evidence.score), 0);
 
-  /*
-   * Genre evidence is aggregated rather than summed directly.
-   */
   const genreScore = aggregateGenreEvidence(genreEvidence);
-
-  /*
-   * Context is deliberately tiny.
-   */
   const contextScore = aggregateContextEvidence(contextEvidence);
 
-  /*
-   * Context should never create a recommendation on its own.
-   */
   if (positiveStrongScore <= 0 && genreScore.positiveScore <= 0) {
     contextScore.positiveScore = 0;
   }
@@ -677,9 +652,6 @@ export function scoreCandidate(candidate, ratedHistory, connectionModel) {
     contextScore.negativeScore = 0;
   }
 
-  /*
-   * History anchors are personal relationships with highly rated media.
-   */
   const historyAnchor = calculateHistoryAnchor(candidate, relevantHistory);
 
   const positiveScore =
@@ -692,23 +664,11 @@ export function scoreCandidate(candidate, ratedHistory, connectionModel) {
     negativeStrongScore + genreScore.negativeScore + contextScore.negativeScore;
 
   const recommendationScore = positiveScore - negativeScore;
-
   const hardNegative = hasHardNegative(candidate, relevantConnectionModel);
-
-  /*
-   * Hard negatives are not merely a small penalty.
-   * They prevent a candidate from surviving because of unrelated
-   * positive genre/context evidence.
-   */
   const finalScore = hardNegative
     ? Math.min(recommendationScore, -Math.max(negativeScore, 1))
     : recommendationScore;
 
-  /*
-   * A candidate with no meaningful positive evidence should remain
-   * possible, because exploration exists elsewhere in the pipeline,
-   * but it should not receive artificial baseline points.
-   */
   const meaningfulPositiveEvidence =
     positiveStrongScore > 0 || genreScore.positiveScore > 0;
 
@@ -727,55 +687,33 @@ export function scoreCandidate(candidate, ratedHistory, connectionModel) {
 
   return {
     ...candidate,
-
     recommendationScore: finalScore,
-
     positiveScore,
     negativeScore,
-
     strongScore: positiveStrongScore - negativeStrongScore,
-
     genreScore: genreScore.positiveScore - genreScore.negativeScore,
-
     contextScore: contextScore.positiveScore - contextScore.negativeScore,
-
     historyAnchorScore: historyAnchor.score,
-
     hardNegative,
-
     sourceEvidence: connectionEvidence.reduce(
       (sum, evidence) => sum + Math.abs(evidence.score),
       0,
     ),
-
     sourceCount: connectionEvidence.length,
-
     matchedHistory,
-
     connectionEvidence,
-
     scoreBreakdown: {
       strong: positiveStrongScore - negativeStrongScore,
-
       genres: genreScore.positiveScore - genreScore.negativeScore,
-
       context: contextScore.positiveScore - contextScore.negativeScore,
-
       historyAnchor: historyAnchor.score,
-
       negative: negativeScore,
-
       final: finalScore,
     },
   };
 }
 
-export function rankCandidates(candidates, ratedHistory) {
-  /*
-   * Enforce media separation here as well.
-   *
-   * Each call only learns from the same media type as the candidates.
-   */
+export function rankCandidates(candidates, ratedHistory, feedback = null) {
   const mediaTypes = new Set(
     candidates.map((candidate) => candidate.type).filter(Boolean),
   );
@@ -787,15 +725,18 @@ export function rankCandidates(candidates, ratedHistory) {
       RATING_WEIGHTS[item.rating] !== undefined,
   );
 
-  const connectionModel = buildConnectionModel(isolatedHistory);
-
   return candidates
-    .map((candidate) =>
-      scoreCandidate(candidate, isolatedHistory, connectionModel),
-    )
+    .map((candidate) => {
+      const connectionModel = buildConnectionModel(
+        isolatedHistory,
+        feedback,
+        candidate.type,
+      );
+      return scoreCandidate(candidate, isolatedHistory, connectionModel);
+    })
     .sort((a, b) => b.recommendationScore - a.recommendationScore);
 }
 
-export function scoreCandidates(candidates, ratedHistory) {
-  return rankCandidates(candidates, ratedHistory);
+export function scoreCandidates(candidates, ratedHistory, feedback = null) {
+  return rankCandidates(candidates, ratedHistory, feedback);
 }

@@ -17,6 +17,7 @@ const MAX_SOURCES_PER_TYPE = {
   actors: 6,
   genres: 3,
   studios: 2,
+  keywords: 5,
 };
 
 const EXPLORATION_BATCHES = 3;
@@ -152,6 +153,14 @@ async function discoverByStudio(candidates, source, mediaType) {
     addCandidate(candidates, media, source, mediaType);
 }
 
+async function discoverByKeyword(candidates, source, mediaType) {
+  const data = await tmdbFetch(
+    `/discover/${mediaType}?with_keywords=${source.value}&page=1`,
+  );
+  for (const media of data.results || [])
+    addCandidate(candidates, media, source, mediaType);
+}
+
 async function discoverByFranchise(candidates, source) {
   const data = await tmdbFetch(`/collection/${source.value}`);
   for (const media of data.parts || [])
@@ -169,6 +178,9 @@ async function generateFromSource(candidates, source, mediaType) {
       break;
     case "studios":
       await discoverByStudio(candidates, source, mediaType);
+      break;
+    case "keywords":
+      await discoverByKeyword(candidates, source, mediaType);
       break;
     case "franchises":
       if (mediaType === "movie") await discoverByFranchise(candidates, source);
@@ -429,7 +441,7 @@ export async function generateCandidates(
 
 function calculateCandidateEvidence(candidate) {
   return candidate.sources.reduce(
-    (total, source) => total + (source.evidenceScore || 0),
+    (sum, source) => sum + source.evidenceScore,
     0,
   );
 }

@@ -4,8 +4,13 @@ const actions = [
   { status: "to_watch", icon: "+", label: "Add to watch list" },
 ];
 
-/** Status buttons shown over a poster on hover or keyboard focus. */
-function WatchActions({ status, onStatusChange }) {
+/** Status and preference buttons shown over a poster. */
+function WatchActions({
+  status,
+  favorite,
+  onStatusChange,
+  onFavoriteChange,
+}) {
   const handleClick = (e, newStatus) => {
     e.stopPropagation();
     onStatusChange(newStatus);
@@ -26,6 +31,20 @@ function WatchActions({ status, onStatusChange }) {
           {action.icon}
         </button>
       ))}
+
+      <button
+        type="button"
+        data-status="favorite"
+        className={favorite ? "selected" : ""}
+        onClick={(event) => {
+          event.stopPropagation();
+          onFavoriteChange();
+        }}
+        aria-label={favorite ? "Remove from favorites" : "Add to favorites"}
+        title={favorite ? "Remove from favorites" : "Add to favorites"}
+      >
+        {favorite ? "♥" : "♡"}
+      </button>
     </div>
   );
 }

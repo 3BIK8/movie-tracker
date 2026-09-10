@@ -91,7 +91,8 @@ function buildFetchMock() {
     if (endpoint.startsWith("/discover/movie")) {
       const hasProfileFilter =
         parsedUrl.searchParams.has("with_genres") ||
-        parsedUrl.searchParams.has("with_companies");
+        parsedUrl.searchParams.has("with_companies") ||
+        parsedUrl.searchParams.has("with_keywords");
 
       return tmdbResponse({ results: [{
         id: hasProfileFilter ? 2002 : 3001,
@@ -158,8 +159,21 @@ test("recommendation pipeline preserves identity, provenance, diversity, and exp
     assert.ok(movies.every((item) => item.type === "movie"));
     assert.ok(tv.every((item) => item.type === "tv"));
 
-    assert.ok(movies.filter((item) => item.pool === "exploration").length <= 20);
-    assert.ok(tv.filter((item) => item.pool === "exploration").length <= 20);
+    const movieExplorationLimit = Math.floor(
+      100 * first.explorationPolicy.movies.ratio,
+    );
+    const tvExplorationLimit = Math.floor(
+      100 * first.explorationPolicy.tv.ratio,
+    );
+
+    assert.ok(
+      movies.filter((item) => item.pool === "exploration").length <=
+        movieExplorationLimit,
+    );
+    assert.ok(
+      tv.filter((item) => item.pool === "exploration").length <=
+        tvExplorationLimit,
+    );
 
     assert.ok(movies.every((item) => Number.isFinite(item.recommendationScore)));
     assert.ok(movies.every((item) => Number.isFinite(item.diversityScore)));

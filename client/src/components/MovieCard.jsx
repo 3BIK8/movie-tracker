@@ -3,6 +3,7 @@ import MoviePoster from "./MoviePoster";
 import ExpandedCard from "./ExpandedCard";
 import { useMediaDetails } from "../hooks/useMediaDetails";
 import { useWatchStatus } from "../hooks/useWatchStatus";
+import { useWatchFavorite } from "../hooks/useWatchFavorite";
 
 /** A fixed-size grid item whose expanded content is rendered outside the grid. */
 function MovieCard({ item, type, onExpand, isExpanded, onPersonClick }) {
@@ -13,6 +14,7 @@ function MovieCard({ item, type, onExpand, isExpanded, onPersonClick }) {
   );
 
   const { status, setStatus } = useWatchStatus(item, type, details);
+  const { favorite, toggleFavorite } = useWatchFavorite(item, type, details);
 
   const [anchor, setAnchor] = useState(null);
 
@@ -35,9 +37,11 @@ function MovieCard({ item, type, onExpand, isExpanded, onPersonClick }) {
         item={item}
         type={type}
         status={status}
+        favorite={favorite}
         isExpanded={isExpanded}
         onClick={handleExpand}
         onStatusChange={handleStatusChange}
+        onFavoriteChange={toggleFavorite}
       />
 
       <ExpandedCard
