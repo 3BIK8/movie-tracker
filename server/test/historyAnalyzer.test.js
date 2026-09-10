@@ -109,11 +109,11 @@ test("skipped and ignored recommendation feedback becomes negative profile evide
 
 test("recency uses a deterministic half-life", () => {
   const now = Date.parse("2026-01-01T00:00:00.000Z");
-  const halfLife = Date.parse("2025-07-05T00:00:00.000Z");
-  const old = Date.parse("2024-01-07T00:00:00.000Z");
+  const halfLife = now - 180 * 86_400_000;
+  const old = now - 730 * 86_400_000;
 
-  assert.ok(Math.abs(calculateRecencyWeight(halfLife, now) - 0.5) < 0.01);
-  assert.ok(calculateRecencyWeight(old, now) < 0.2);
+  assert.equal(calculateRecencyWeight(halfLife, now), 0.5);
+  assert.ok(calculateRecencyWeight(old, now) < 0.1);
 });
 
 test("recent and favorite interactions produce stronger temporal evidence", () => {
@@ -136,8 +136,8 @@ test("recent and favorite interactions produce stronger temporal evidence", () =
 
   const actorSignal = profile.movies.connections.actors["10"];
 
-  assert.ok(actorSignal.temporalPositiveScore > actorSignal.positiveScore * 0.9);
-  assert.ok(actorSignal.temporalPositiveScore > 0.7);
+  assert.ok(actorSignal.temporalPositiveScore > 1);
+  assert.ok(actorSignal.temporalPositiveScore < actorSignal.positiveScore);
   assert.equal(profile.movies.temporal.observations, 2);
   assert.equal(profile.movies.temporal.favoriteObservations, 1);
   assert.ok(profile.movies.temporal.averageRecencyWeight < 1);
