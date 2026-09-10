@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useWatchHistory } from "../hooks/useWatchHistory";
 import { useConnectionSearch } from "./network/useConnectionSearch";
 import { useNetworkGraph } from "./network/useNetworkGraph";
