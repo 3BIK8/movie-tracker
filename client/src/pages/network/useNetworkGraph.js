@@ -15,8 +15,6 @@ export function useNetworkGraph({ history, activeTypes, focusedConnection }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  /* This effect synchronizes React state with the external Cytoscape graph and API. */
-  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
     const historyItems = Object.values(history);
 
@@ -24,6 +22,7 @@ export function useNetworkGraph({ history, activeTypes, focusedConnection }) {
       cyRef.current?.destroy();
       cyRef.current = null;
       networkDataRef.current = null;
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setNetworkData(null);
       setSelectedNode(null);
 
@@ -85,6 +84,7 @@ export function useNetworkGraph({ history, activeTypes, focusedConnection }) {
 
           style: NETWORK_STYLES,
         });
+
         const detachGraphEventListeners = attachGraphEventListeners(cy, {
           networkDataRef,
           setSelectedNode,
