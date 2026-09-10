@@ -1,4 +1,5 @@
 import { compactRecommendationFeedback } from "./recommendationFeedbackPayload";
+import { compactRecommendationHistory } from "./recommendationRequestPayload";
 
 const API_URL = "http://localhost:5000/api";
 
@@ -90,6 +91,7 @@ export async function getWatchHistoryNetwork(history) {
 }
 
 export async function getRecommendations(history, feedback = null) {
+  const compactHistory = compactRecommendationHistory(history);
   const compactFeedback = compactRecommendationFeedback(feedback);
 
   return request(
@@ -101,7 +103,7 @@ export async function getRecommendations(history, feedback = null) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        history,
+        history: compactHistory,
         feedback: compactFeedback,
       }),
     },
