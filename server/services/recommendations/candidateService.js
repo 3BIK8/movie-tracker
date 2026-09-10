@@ -350,7 +350,7 @@ export async function generateCandidates(profile, history, mediaType, limit = 10
   const enriched = await enrichCandidates(discovered);
   const exploitation = enriched.filter((candidate) => candidate.pool === "exploitation");
   const exploration = enriched.filter((candidate) => candidate.pool === "exploration");
-  const explorationLimit = Math.min(Math.ceil(limit * 0.4), exploration.length);
+  const explorationLimit = Math.min(Math.floor(limit * 0.4), exploration.length);
   const exploitationLimit = Math.min(limit * 2, exploitation.length);
 
   const rankedExploitation = exploitation
