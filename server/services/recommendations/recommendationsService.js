@@ -4,6 +4,7 @@ import { analyzeHistory } from "./historyAnalyzer.js";
 import { generateCandidates } from "./candidateService.js";
 import { scoreCandidates } from "./recommendationScorer.js";
 import { diversifyRankedCandidates } from "./recommendationDiversifier.js";
+import { mixRecommendationPools } from "./recommendationMixer.js";
 import { validateRecommendationOutput } from "./recommendationInvariants.js";
 import { createMediaKey, normalizeWatchHistory } from "../../utils/mediaIdentity.js";
 import { mapWithConcurrency } from "../../utils/runWithConcurrency.js";
@@ -11,6 +12,7 @@ import { mapWithConcurrency } from "../../utils/runWithConcurrency.js";
 const RECOMMENDATION_LIMIT = 100;
 const HISTORY_ENRICHMENT_CONCURRENCY = 6;
 const DIVERSITY_LAMBDA = 0.8;
+const EXPLORATION_RATIO = 0.2;
 
 export async function analyzeWatchHistory(history) {
   const canonicalHistory = normalizeWatchHistory(history);
@@ -66,16 +68,43 @@ export async function analyzeWatchHistory(history) {
     scoreCandidates(tvCandidates, enrichedHistory),
   ];
 
-  const diversifiedMovies = diversifyRankedCandidates(
-    scoredMovies,
+  const rankRecommendationPools = (candidates) => {
+    const exploitation = candidates.filter(
+      (candidate) => candidate.pool === "exploitation",
+    );
+    const exploration = candidates.filter(
+      (candidate) => candidate.pool === "exploration",
+    );
+
+    return {
+      exploitation: diversifyRankedCandidates(
+        exploitation,
+        exploitation.length || 1,
+        DIVERSITY_LAMBDA,
+      ),
+      exploration: diversifyRankedCandidates(
+        exploration,
+        exploration.length || 1,
+        DIVERSITY_LAMBDA,
+      ),
+    };
+  };
+
+  const moviePools = rankRecommendationPools(scoredMovies);
+  const tvPools = rankRecommendationPools(scoredTv);
+
+  const diversifiedMovies = mixRecommendationPools(
+    moviePools.exploitation,
+    moviePools.exploration,
     RECOMMENDATION_LIMIT,
-    DIVERSITY_LAMBDA,
+    EXPLORATION_RATIO,
   );
 
-  const diversifiedTv = diversifyRankedCandidates(
-    scoredTv,
+  const diversifiedTv = mixRecommendationPools(
+    tvPools.exploitation,
+    tvPools.exploration,
     RECOMMENDATION_LIMIT,
-    DIVERSITY_LAMBDA,
+    EXPLORATION_RATIO,
   );
 
   const knownIds = new Set(
