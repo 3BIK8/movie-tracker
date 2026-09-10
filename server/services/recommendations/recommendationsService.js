@@ -1,7 +1,10 @@
 import { getMediaMetadata } from "./mediaMetadataService.js";
+import { getMediaConnections } from "./connectionExtractor.js";
 import { analyzeHistory } from "./historyAnalyzer.js";
 import { generateCandidates } from "./candidateService.js";
 import { scoreCandidates } from "./recommendationScorer.js";
+
+const RECOMMENDATION_LIMIT = 100;
 
 export async function analyzeWatchHistory(history) {
   if (!Array.isArray(history)) {
@@ -26,11 +29,11 @@ export async function analyzeWatchHistory(history) {
         ...historyItem,
         ...metadata,
 
-        // Preserve the user's personal rating.
         rating: historyItem.rating,
 
-        // Preserve TMDB's rating separately.
         tmdbRating: metadata.rating,
+
+        connections: getMediaConnections(metadata),
       });
     } catch (error) {
       console.warn(
@@ -43,38 +46,31 @@ export async function analyzeWatchHistory(history) {
   const profile = analyzeHistory(enrichedHistory);
 
   /*
-   * Generate movie candidates from the
-   * movie-specific taste profile.
+   * Movies use the movie taste profile.
    */
   const movieCandidates = await generateCandidates(
     profile.movies.connections,
     enrichedHistory,
     "movie",
+    RECOMMENDATION_LIMIT,
   );
 
   /*
-   * Generate TV candidates from the
-   * TV-specific taste profile.
+   * TV uses the TV taste profile.
    */
   const tvCandidates = await generateCandidates(
     profile.tv.connections,
     enrichedHistory,
     "tv",
+    RECOMMENDATION_LIMIT,
   );
 
   /*
-   * Score each media type independently.
-   *
-   * This is important because movie and TV
-   * discovery behavior are different.
+   * Score movies independently.
    */
-  const scoredMovies = scoreCandidates(
-    movieCandidates,
-    enrichedHistory,
-    "movie",
-  );
+  const scoredMovies = scoreCandidates(movieCandidates, enrichedHistory);
 
-  const scoredTv = scoreCandidates(tvCandidates, enrichedHistory, "tv");
+  const scoredTv = scoreCandidates(tvCandidates, enrichedHistory);
 
   return {
     profile,
