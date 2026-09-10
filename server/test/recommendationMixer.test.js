@@ -28,7 +28,7 @@ test("recommendation mix enforces the 80/20 exploitation-exploration policy", ()
   );
 });
 
-test("recommendation mix never exceeds the configured exploration ceiling", () => {
+test("recommendation mix uses exploration when exploitation is sparse without exceeding the ceiling", () => {
   const exploitation = [item(1, "exploitation"), item(2, "exploitation")];
   const exploration = Array.from({ length: 10 }, (_, index) =>
     item(index + 101, "exploration"),
@@ -36,14 +36,18 @@ test("recommendation mix never exceeds the configured exploration ceiling", () =
 
   const result = mixRecommendationPools(exploitation, exploration, 10, 0.2);
 
-  assert.equal(result.length, 2);
+  assert.equal(result.length, 4);
   assert.equal(
     result.filter((candidate) => candidate.pool === "exploration").length,
-    0,
+    2,
+  );
+  assert.deepEqual(
+    result.map((candidate) => candidate.id),
+    ["1", "2", "101", "102"],
   );
 });
 
-test("recommendation mix does not exceed the exploration ceiling when exploitation is insufficient", () => {
+test("recommendation mix fills the configured exploration allocation when exploitation is insufficient", () => {
   const exploitation = Array.from({ length: 6 }, (_, index) =>
     item(index + 1, "exploitation"),
   );
@@ -51,10 +55,14 @@ test("recommendation mix does not exceed the exploration ceiling when exploitati
 
   const result = mixRecommendationPools(exploitation, exploration, 8, 0.25);
 
-  assert.equal(result.length, 7);
+  assert.equal(result.length, 8);
+  assert.equal(
+    result.filter((candidate) => candidate.pool === "exploration").length,
+    2,
+  );
   assert.deepEqual(
     result.map((candidate) => candidate.id),
-    ["1", "2", "3", "4", "101", "5", "6"],
+    ["1", "2", "3", "4", "101", "5", "6", "102"],
   );
 });
 
