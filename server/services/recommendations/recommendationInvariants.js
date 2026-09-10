@@ -1,8 +1,15 @@
 import { createMediaKey, normalizeMediaRef } from "../../utils/mediaIdentity.js";
 
+const DEFAULT_EXPLORATION_RATIO = 0.2;
+
 export function validateRecommendationOutput(
   recommendations,
-  { mediaType, limit, knownIds = new Set() } = {},
+  {
+    mediaType,
+    limit,
+    knownIds = new Set(),
+    explorationRatio = DEFAULT_EXPLORATION_RATIO,
+  } = {},
 ) {
   if (!Array.isArray(recommendations)) {
     throw new TypeError("Recommendation output must be an array.");
@@ -10,6 +17,10 @@ export function validateRecommendationOutput(
 
   if (!Number.isInteger(limit) || limit < 1) {
     throw new RangeError("Recommendation output limit must be a positive integer.");
+  }
+
+  if (explorationRatio < 0 || explorationRatio > 1) {
+    throw new RangeError("Exploration ratio must be between 0 and 1.");
   }
 
   const normalizedMediaType = mediaType
@@ -52,5 +63,18 @@ export function validateRecommendationOutput(
     seen.add(key);
   }
 
+  const explorationLimit = Math.floor(limit * explorationRatio);
+  const explorationCount = recommendations.filter(
+    (recommendation) => recommendation.pool === "exploration",
+  ).length;
+
+  if (explorationCount > explorationLimit) {
+    throw new Error(
+      `Recommendation exploration quota exceeded: ${explorationCount} > ${explorationLimit}`,
+    );
+  }
+
   return recommendations;
 }
+
+export { DEFAULT_EXPLORATION_RATIO };
