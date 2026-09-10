@@ -1,3 +1,5 @@
+import { normalizeMediaType } from "../../utils/mediaIdentity.js";
+
 function getYear(data, type) {
   const date = type === "movie" ? data.release_date : data.first_air_date;
 
@@ -5,6 +7,7 @@ function getYear(data, type) {
 }
 
 export function normalizeMedia(data, type) {
+  const normalizedType = normalizeMediaType(type);
   const cast = (data.credits?.cast || []).slice(0, 10).map((person) => ({
     id: person.id,
     name: person.name,
@@ -12,7 +15,7 @@ export function normalizeMedia(data, type) {
   }));
 
   const directors =
-    type === "movie"
+    normalizedType === "movie"
       ? (data.credits?.crew || [])
           .filter((person) => person.job === "Director")
           .map((person) => ({
@@ -27,17 +30,17 @@ export function normalizeMedia(data, type) {
         }));
 
   const keywords =
-    type === "movie"
+    normalizedType === "movie"
       ? data.keywords?.keywords || []
       : data.keywords?.results || [];
 
   return {
-    id: data.id,
-    type,
+    id: String(data.id),
+    type: normalizedType,
 
-    title: type === "movie" ? data.title : data.name,
+    title: normalizedType === "movie" ? data.title : data.name,
 
-    year: getYear(data, type),
+    year: getYear(data, normalizedType),
 
     overview: data.overview || "",
 

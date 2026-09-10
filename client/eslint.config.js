@@ -18,4 +18,12 @@ export default defineConfig([
       parserOptions: { ecmaFeatures: { jsx: true } },
     },
   },
+  {
+    // This hook synchronizes a browser-backed external store via its event API.
+    // The current React hooks rule flags the intentional state synchronization.
+    files: ['src/hooks/useWatchRating.js'],
+    rules: {
+      'react-hooks/set-state-in-effect': 'off',
+    },
+  },
 ])

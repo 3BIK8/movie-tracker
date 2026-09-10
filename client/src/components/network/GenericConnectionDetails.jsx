@@ -1,22 +1,6 @@
 import { CONNECTION_LABELS } from "../../constants/connectionTypes";
 import MediaList from "./MediaList";
 
-function getConnectionLabel(type) {
-  const labels = {
-    actor: "Actor",
-    director: "Director",
-    genre: "Genre",
-    franchise: "Franchise",
-    decade: "Decade",
-    studio: "Studio",
-    language: "Language",
-    keyword: "Keyword",
-    mediaType: "Media Type",
-  };
-
-  return labels[type] || type;
-}
-
 function GenericConnectionDetails({ node, connectedMedia }) {
   const count = connectedMedia?.length || 0;
 

@@ -4,9 +4,51 @@ const STORAGE_KEY = "my-watch-history";
 
 export const WATCH_HISTORY_UPDATED = "watch-history-updated";
 
+function normalizeMediaType(type) {
+  return typeof type === "string" ? type.trim().toLowerCase() : "";
+}
+
+function normalizeMediaId(id) {
+  const value = String(id ?? "").trim();
+  return /^\d+$/.test(value) ? value.replace(/^0+/, "") || "0" : "";
+}
+
+function normalizeHistory(history) {
+  if (!history || typeof history !== "object" || Array.isArray(history)) {
+    return {};
+  }
+
+  const normalized = {};
+
+  for (const [key, item] of Object.entries(history)) {
+    if (!item || typeof item !== "object") {
+      normalized[key] = item;
+      continue;
+    }
+
+    const type = normalizeMediaType(item.type);
+    const id = normalizeMediaId(item.id);
+
+    if (!type || !id) {
+      normalized[key] = item;
+      continue;
+    }
+
+    normalized[`${type}-${id}`] = {
+      ...item,
+      type,
+      id,
+    };
+  }
+
+  return normalized;
+}
+
 export function getWatchHistory() {
   try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+    return normalizeHistory(
+      JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}"),
+    );
   } catch {
     return {};
   }
@@ -14,7 +56,13 @@ export function getWatchHistory() {
 
 export function setWatchStatus(item, type, status, metadata = {}) {
   const history = getWatchHistory();
-  const key = `${type}-${item.id}`;
+  const normalizedType = normalizeMediaType(type);
+  const normalizedId = normalizeMediaId(item.id);
+  const key = `${normalizedType}-${normalizedId}`;
+
+  if (!normalizedType || !normalizedId) {
+    return;
+  }
 
   // Clicking the same status again clears it.
   if (history[key]?.status === status) {
@@ -30,10 +78,11 @@ export function setWatchStatus(item, type, status, metadata = {}) {
 
     history[key] = {
       status,
-      type,
-      id: item.id,
-      title: type === "movie" ? item.title : item.name,
-      date: type === "movie" ? item.release_date : item.first_air_date,
+      type: normalizedType,
+      id: normalizedId,
+      title: normalizedType === "movie" ? item.title : item.name,
+      date:
+        normalizedType === "movie" ? item.release_date : item.first_air_date,
       poster_path: item.poster_path,
       genres,
 
@@ -67,7 +116,7 @@ export async function migrateWatchHistoryGenres() {
     history[key] = {
       status: value,
       type,
-      id: Number(id),
+      id,
       title: "",
       date: "",
       poster_path: null,
@@ -120,8 +169,9 @@ export async function migrateWatchHistoryGenres() {
 
 export function getWatchRating(type, id) {
   const history = getWatchHistory();
-
-  const item = history[`${type}-${id}`];
+  const normalizedType = normalizeMediaType(type);
+  const normalizedId = normalizeMediaId(id);
+  const item = history[`${normalizedType}-${normalizedId}`];
 
   if (item?.status !== "watched") {
     return null;
@@ -132,7 +182,9 @@ export function getWatchRating(type, id) {
 
 export function setWatchRating(type, id, rating) {
   const history = getWatchHistory();
-  const key = `${type}-${id}`;
+  const normalizedType = normalizeMediaType(type);
+  const normalizedId = normalizeMediaId(id);
+  const key = `${normalizedType}-${normalizedId}`;
 
   if (!history[key] || history[key].status !== "watched") {
     return;

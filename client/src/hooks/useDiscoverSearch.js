@@ -12,7 +12,7 @@ export function useDiscoverSearch({ type, personFilter, initialPage = 1 }) {
 
   const [page, setPage] = useState(initialPage);
   const [reloadKey, setReloadKey] = useState(0);
-  const [pageInput, setPageInput] = useState("1");
+  const [pageInput, setPageInput] = useState(String(initialPage));
 
   const searchRef = useRef({
     query: "",
@@ -91,10 +91,6 @@ export function useDiscoverSearch({ type, personFilter, initialPage = 1 }) {
   }, []);
 
   useEffect(() => {
-    setPageInput(String(page));
-  }, [page]);
-
-  useEffect(() => {
     const timer = window.setTimeout(() => {
       if (personFilter) {
         void loadPersonCredits({
@@ -130,10 +126,11 @@ export function useDiscoverSearch({ type, personFilter, initialPage = 1 }) {
     };
 
     setPage(1);
+    setPageInput("1");
     setReloadKey((current) => current + 1);
   }
 
-  function changeType(newType) {
+  function changeType() {
     setQuery("");
     setYear("");
     setGenre("");
@@ -153,6 +150,12 @@ export function useDiscoverSearch({ type, personFilter, initialPage = 1 }) {
     };
 
     setPage(1);
+    setPageInput("1");
+  }
+
+  function changePage(nextPage) {
+    setPage(nextPage);
+    setPageInput(String(nextPage));
   }
 
   return {
@@ -178,7 +181,7 @@ export function useDiscoverSearch({ type, personFilter, initialPage = 1 }) {
     setSort,
 
     page,
-    setPage,
+    setPage: changePage,
 
     pageInput,
     setPageInput,

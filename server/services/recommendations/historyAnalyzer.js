@@ -203,6 +203,12 @@ function analyzeMediaType(history) {
 
     const ratingWeight = RATING_WEIGHTS[media.rating];
 
+    // C is explicitly neutral: it must not create observations, confidence,
+    // or evidence that can influence the taste profile.
+    if (ratingWeight === 0) {
+      continue;
+    }
+
     addMediaConnections(profile, media, ratingWeight);
 
     addTmdbRatingSignal(tmdbRatingProfile, media.tmdbRating, media.rating);

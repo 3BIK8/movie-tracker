@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useWatchHistory } from "../hooks/useWatchHistory";
 import { useConnectionSearch } from "./network/useConnectionSearch";
 import { useNetworkGraph } from "./network/useNetworkGraph";
@@ -34,12 +34,6 @@ function NetworkView() {
 
   const { connectionSearch, setConnectionSearch, filteredConnections } =
     useConnectionSearch(networkData, activeTypes);
-
-  useEffect(() => {
-    if (!Object.keys(history).length) {
-      setFocusedConnection(null);
-    }
-  }, [history]);
 
   function toggleType(type) {
     setActiveTypes((current) => {
@@ -84,6 +78,7 @@ function NetworkView() {
   }
 
   const historyCount = Object.keys(history).length;
+  const visibleFocusedConnection = historyCount ? focusedConnection : null;
 
   return (
     <section className="network-page">
@@ -123,7 +118,7 @@ function NetworkView() {
             connectionSearch={connectionSearch}
             setConnectionSearch={setConnectionSearch}
             filteredConnections={filteredConnections}
-            focusedConnection={focusedConnection}
+            focusedConnection={visibleFocusedConnection}
             onFocusConnection={focusConnection}
             onClearFocus={clearConnectionFocus}
           />
@@ -150,14 +145,14 @@ function NetworkView() {
             </div>
           )}
 
-          {focusedConnection && !loading && (
+          {visibleFocusedConnection && !loading && (
             <div className="network-focus-indicator">
               <span>Focused on</span>
 
               <strong>
-                {CONNECTION_LABELS[focusedConnection.connectionType] ||
-                  focusedConnection.connectionType}
-                : {focusedConnection.label}
+                {CONNECTION_LABELS[visibleFocusedConnection.connectionType] ||
+                  visibleFocusedConnection.connectionType}
+                : {visibleFocusedConnection.label}
               </strong>
             </div>
           )}

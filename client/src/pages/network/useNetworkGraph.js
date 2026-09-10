@@ -4,6 +4,7 @@ import { getWatchHistoryNetwork } from "../../services/api";
 import { NETWORK_STYLES } from "./networkStyles";
 import { filterGraphElements } from "./filterGraphElements";
 import { attachGraphEventListeners } from "./cytoscapeEvents";
+
 export function useNetworkGraph({ history, activeTypes, focusedConnection }) {
   const containerRef = useRef(null);
   const cyRef = useRef(null);
@@ -21,8 +22,9 @@ export function useNetworkGraph({ history, activeTypes, focusedConnection }) {
       cyRef.current?.destroy();
       cyRef.current = null;
       networkDataRef.current = null;
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setNetworkData(null);
-
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSelectedNode(null);
 
       return;
@@ -83,6 +85,7 @@ export function useNetworkGraph({ history, activeTypes, focusedConnection }) {
 
           style: NETWORK_STYLES,
         });
+
         const detachGraphEventListeners = attachGraphEventListeners(cy, {
           networkDataRef,
           setSelectedNode,
