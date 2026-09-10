@@ -8,7 +8,16 @@ import { getTmdbImageUrl } from "../constants/tmdb";
  * to reduce bandwidth without changing the UI.
  */
 const MoviePoster = forwardRef(function MoviePoster(
-  { item, type, status, isExpanded, onClick, onStatusChange },
+  {
+    item,
+    type,
+    status,
+    favorite,
+    isExpanded,
+    onClick,
+    onStatusChange,
+    onFavoriteChange,
+  },
   ref,
 ) {
   const title = type === "movie" ? item.title : item.name;
@@ -39,7 +48,12 @@ const MoviePoster = forwardRef(function MoviePoster(
           <div className="no-poster">No Poster</div>
         )}
 
-        <WatchActions status={status} onStatusChange={onStatusChange} />
+        <WatchActions
+          status={status}
+          favorite={favorite}
+          onStatusChange={onStatusChange}
+          onFavoriteChange={onFavoriteChange}
+        />
       </div>
     </div>
   );
