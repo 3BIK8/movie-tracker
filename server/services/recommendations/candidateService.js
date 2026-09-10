@@ -4,7 +4,10 @@ import { getMediaMetadata } from "./mediaMetadataService.js";
 import { getMediaConnections } from "./connectionExtractor.js";
 import { mapWithConcurrency } from "../../utils/runWithConcurrency.js";
 import { buildExplorationQueries } from "./explorationStrategy.js";
-import { createMediaKey, normalizeMediaRef } from "../../utils/mediaIdentity.js";
+import {
+  createMediaKey,
+  normalizeMediaRef,
+} from "../../utils/mediaIdentity.js";
 import { compareCandidatesByEvidence } from "./candidateOrdering.js";
 import { validateCandidateOutput } from "./candidateInvariants.js";
 
@@ -48,7 +51,10 @@ function getKnownMediaIds(history) {
 
 function createExplorationSeed(history, mediaType) {
   const historyFingerprint = history
-    .map((item) => `${item.type}:${item.id}:${item.rating ?? ""}:${item.status ?? ""}`)
+    .map(
+      (item) =>
+        `${item.type}:${item.id}:${item.rating ?? ""}:${item.status ?? ""}`,
+    )
     .sort()
     .join("|");
   return `${mediaType}:${historyFingerprint}`;
@@ -102,16 +108,19 @@ function addCandidate(candidates, media, source, mediaType) {
 
 async function discoverMovieCredits(candidates, source) {
   const data = await tmdbFetch(`/person/${source.value}/movie_credits`);
-  for (const media of data.cast || []) addCandidate(candidates, media, source, "movie");
+  for (const media of data.cast || [])
+    addCandidate(candidates, media, source, "movie");
   for (const media of data.crew || []) {
-    if (media.job === "Director") addCandidate(candidates, media, source, "movie");
+    if (media.job === "Director")
+      addCandidate(candidates, media, source, "movie");
   }
 }
 
 async function discoverTvCredits(candidates, source) {
   if (source.type === "actors") return;
   const data = await tmdbFetch(`/person/${source.value}/tv_credits`);
-  for (const media of data.cast || []) addCandidate(candidates, media, source, "tv");
+  for (const media of data.cast || [])
+    addCandidate(candidates, media, source, "tv");
   for (const media of data.crew || []) {
     if (["Director", "Creator"].includes(media.job)) {
       addCandidate(candidates, media, source, "tv");
@@ -128,18 +137,25 @@ async function discoverByPerson(candidates, source, mediaType) {
 }
 
 async function discoverByGenre(candidates, source, mediaType) {
-  const data = await tmdbFetch(`/discover/${mediaType}?with_genres=${source.value}&page=1`);
-  for (const media of data.results || []) addCandidate(candidates, media, source, mediaType);
+  const data = await tmdbFetch(
+    `/discover/${mediaType}?with_genres=${source.value}&page=1`,
+  );
+  for (const media of data.results || [])
+    addCandidate(candidates, media, source, mediaType);
 }
 
 async function discoverByStudio(candidates, source, mediaType) {
-  const data = await tmdbFetch(`/discover/${mediaType}?with_companies=${source.value}&page=1`);
-  for (const media of data.results || []) addCandidate(candidates, media, source, mediaType);
+  const data = await tmdbFetch(
+    `/discover/${mediaType}?with_companies=${source.value}&page=1`,
+  );
+  for (const media of data.results || [])
+    addCandidate(candidates, media, source, mediaType);
 }
 
 async function discoverByFranchise(candidates, source) {
   const data = await tmdbFetch(`/collection/${source.value}`);
-  for (const media of data.parts || []) addCandidate(candidates, media, source, "movie");
+  for (const media of data.parts || [])
+    addCandidate(candidates, media, source, "movie");
 }
 
 async function generateFromSource(candidates, source, mediaType) {
@@ -162,7 +178,12 @@ async function generateFromSource(candidates, source, mediaType) {
   }
 }
 
-async function generateExplorationCandidates(candidates, mediaType, profile, history) {
+async function generateExplorationCandidates(
+  candidates,
+  mediaType,
+  profile,
+  history,
+) {
   const queries = buildExplorationQueries(
     mediaType,
     profile,
@@ -221,8 +242,10 @@ function getStrongConnections(profile, limit = 20) {
         confidence: data.confidence,
       }))
       .sort((a, b) => {
-        if (b.evidenceScore !== a.evidenceScore) return b.evidenceScore - a.evidenceScore;
-        if (b.appearances !== a.appearances) return b.appearances - a.appearances;
+        if (b.evidenceScore !== a.evidenceScore)
+          return b.evidenceScore - a.evidenceScore;
+        if (b.appearances !== a.appearances)
+          return b.appearances - a.appearances;
         return `${a.type}:${a.value}`.localeCompare(`${b.type}:${b.value}`);
       })
       .slice(0, MAX_SOURCES_PER_TYPE[type]);
@@ -232,7 +255,8 @@ function getStrongConnections(profile, limit = 20) {
 
   return connections
     .sort((a, b) => {
-      if (b.evidenceScore !== a.evidenceScore) return b.evidenceScore - a.evidenceScore;
+      if (b.evidenceScore !== a.evidenceScore)
+        return b.evidenceScore - a.evidenceScore;
       if (b.appearances !== a.appearances) return b.appearances - a.appearances;
       return `${a.type}:${a.value}`.localeCompare(`${b.type}:${b.value}`);
     })
@@ -324,7 +348,12 @@ function selectExplorationCandidates(candidates, limit) {
   return selected;
 }
 
-export async function generateCandidates(profile, history, mediaType, limit = 100) {
+export async function generateCandidates(
+  profile,
+  history,
+  mediaType,
+  limit = 100,
+) {
   const strongConnections = getStrongConnections(profile);
   const knownIds = getKnownMediaIds(history);
   const candidates = new Map();
@@ -335,7 +364,10 @@ export async function generateCandidates(profile, history, mediaType, limit = 10
       try {
         await generateFromSource(candidates, source, mediaType);
       } catch (error) {
-        console.warn(`Candidate source failed: ${source.type}:${source.value}`, error.message);
+        console.warn(
+          `Candidate source failed: ${source.type}:${source.value}`,
+          error.message,
+        );
       }
     },
     SOURCE_DISCOVERY_CONCURRENCY,
@@ -344,14 +376,26 @@ export async function generateCandidates(profile, history, mediaType, limit = 10
   await generateExplorationCandidates(candidates, mediaType, profile, history);
 
   const discovered = [...candidates.values()].filter(
-    (candidate) => !knownIds.has(createCandidateKey(candidate.type, candidate.id)),
+    (candidate) =>
+      !knownIds.has(createCandidateKey(candidate.type, candidate.id)),
   );
 
   const enriched = await enrichCandidates(discovered);
-  const exploitation = enriched.filter((candidate) => candidate.pool === "exploitation");
-  const exploration = enriched.filter((candidate) => candidate.pool === "exploration");
-  const explorationLimit = Math.min(Math.floor(limit * 0.4), exploration.length);
-  const exploitationLimit = Math.min(limit * 2, exploitation.length);
+  const exploitation = enriched.filter(
+    (candidate) => candidate.pool === "exploitation",
+  );
+  const exploration = enriched.filter(
+    (candidate) => candidate.pool === "exploration",
+  );
+  const explorationLimit = Math.min(
+    Math.floor(limit * 0.4),
+    exploration.length,
+  );
+
+  const exploitationLimit = Math.min(
+    limit - explorationLimit,
+    exploitation.length,
+  );
 
   const rankedExploitation = exploitation
     .map((candidate) => ({
@@ -362,7 +406,10 @@ export async function generateCandidates(profile, history, mediaType, limit = 10
     .sort(compareCandidatesByEvidence)
     .slice(0, exploitationLimit);
 
-  const selectedExploration = selectExplorationCandidates(exploration, explorationLimit);
+  const selectedExploration = selectExplorationCandidates(
+    exploration,
+    explorationLimit,
+  );
   const output = [...rankedExploitation, ...selectedExploration];
 
   validateCandidateOutput(output, { mediaType, limit, knownIds });
