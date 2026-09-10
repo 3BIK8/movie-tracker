@@ -1,7 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { scoreCandidate } from "../services/recommendations/recommendationScorer.js";
+import {
+  scoreCandidate,
+  rankCandidates,
+} from "../services/recommendations/recommendationScorer.js";
 
 function historyItem({ id = 1, type = "movie", rating, connections, title = "History" }) {
   return {
@@ -79,6 +82,26 @@ test("movie and TV histories remain isolated", () => {
 
   assert.equal(result.recommendationScore, 0);
   assert.equal(result.sourceCount, 0);
+});
+
+test("implicit skipped feedback weakens a previously positive connection", () => {
+  const history = [historyItem({ rating: "S", connections: [actor("a")] })];
+  const input = candidate({ connections: [actor("a")] });
+
+  const baseline = rankCandidates([input], history)[0];
+  const withFeedback = rankCandidates([input], history, {
+    exposures: [
+      {
+        type: "movie",
+        id: "200",
+        connections: [actor("a")],
+        interactions: [{ event: "skipped" }],
+      },
+    ],
+  })[0];
+
+  assert.ok(withFeedback.recommendationScore < baseline.recommendationScore);
+  assert.equal(withFeedback.hardNegative, false);
 });
 
 test("scoring is deterministic for identical inputs", () => {
