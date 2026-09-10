@@ -12,6 +12,7 @@ const CONNECTION_TYPES = [
   "genres",
   "franchises",
   "studios",
+  "keywords",
   "years",
   "languages",
   "mediaTypes",
@@ -212,6 +213,10 @@ function addMediaConnections(profile, media, ratingWeight, temporalWeight) {
 
   for (const studio of media.studios || []) {
     addSignal(profile, "studios", studio.id ?? studio.name, ratingWeight, temporalWeight);
+  }
+
+  for (const keyword of media.keywords || []) {
+    addSignal(profile, "keywords", keyword.id ?? keyword.name, ratingWeight, temporalWeight);
   }
 
   if (media.year) {
