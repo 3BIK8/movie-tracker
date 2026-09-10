@@ -1,4 +1,5 @@
 import { getMediaDetails } from "./api";
+import { recordRecommendationInteraction } from "./recommendationFeedback";
 
 const STORAGE_KEY = "my-watch-history";
 
@@ -132,7 +133,9 @@ export function setWatchStatus(item, type, status, metadata = {}) {
     return;
   }
 
-  if (history[key]?.status === status) {
+  const previousStatus = history[key]?.status || null;
+
+  if (previousStatus === status) {
     const timestamp = nowIso();
     history[key] = {
       ...history[key],
@@ -164,6 +167,10 @@ export function setWatchStatus(item, type, status, metadata = {}) {
 
   localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
   window.dispatchEvent(new Event(WATCH_HISTORY_UPDATED));
+  recordRecommendationInteraction(normalizedType, normalizedId, "status", {
+    status,
+    previousStatus,
+  });
 }
 
 export function setWatchFavorite(item, type, metadata = {}) {
@@ -195,6 +202,11 @@ export function setWatchFavorite(item, type, metadata = {}) {
 
   localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
   window.dispatchEvent(new Event(WATCH_HISTORY_UPDATED));
+  recordRecommendationInteraction(
+    normalizedType,
+    normalizedId,
+    favorite ? "favorite" : "unfavorite",
+  );
 }
 
 export function getWatchFavorite(type, id) {
@@ -318,4 +330,7 @@ export function setWatchRating(type, id, rating) {
 
   localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
   window.dispatchEvent(new Event(WATCH_HISTORY_UPDATED));
+  recordRecommendationInteraction(normalizedType, normalizedId, "rating", {
+    rating: history[key].rating,
+  });
 }
