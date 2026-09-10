@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useWatchHistory } from "../hooks/useWatchHistory";
 import { useConnectionSearch } from "./network/useConnectionSearch";
 import { useNetworkGraph } from "./network/useNetworkGraph";
@@ -35,6 +35,17 @@ function NetworkView() {
   const { connectionSearch, setConnectionSearch, filteredConnections } =
     useConnectionSearch(networkData, activeTypes);
 
+  const mediaNodes = useMemo(
+    () => networkData?.nodes?.filter((node) => node.type === "media") || [],
+    [networkData],
+  );
+
+  const connectionNodes = useMemo(
+    () =>
+      networkData?.nodes?.filter((node) => node.type === "connection") || [],
+    [networkData],
+  );
+
   function toggleType(type) {
     setActiveTypes((current) => {
       const next = new Set(current);
@@ -58,12 +69,16 @@ function NetworkView() {
   }
 
   function focusConnection(connection) {
+    const connectedMedia = (connection.connectedMediaIds || [])
+      .map((id) => networkData?.nodes?.find((node) => node.id === id))
+      .filter(Boolean);
+
     setFocusedConnection(connection);
     setConnectionSearch("");
 
     setSelectedNode({
       node: connection,
-      connectedMedia: [],
+      connectedMedia,
     });
   }
 
@@ -79,6 +94,8 @@ function NetworkView() {
 
   const historyCount = Object.keys(history).length;
   const visibleFocusedConnection = historyCount ? focusedConnection : null;
+  const enrichedCount = networkData?.meta?.enrichedMedia ?? 0;
+  const connectionCount = connectionNodes.length;
 
   return (
     <section className="network-page">
@@ -86,7 +103,17 @@ function NetworkView() {
         <div>
           <h1>My Watch Network</h1>
 
-          <p>{historyCount} titles in your watch history</p>
+          <p>
+            {historyCount} titles in your watch history
+            {networkData && (
+              <>
+                {" · "}
+                {enrichedCount} enriched
+                {" · "}
+                {connectionCount} shared connections
+              </>
+            )}
+          </p>
         </div>
 
         <button className="network-reset" onClick={resetNetwork}>
@@ -124,11 +151,16 @@ function NetworkView() {
           />
 
           <div className="network-help">
-            <p>Hover a node to highlight its connections.</p>
+            <p>
+              The graph shows titles linked through connections shared by at
+              least two titles.
+            </p>
 
-            <p>Click a connection to inspect it.</p>
+            <p>Hover a node to highlight its relationships.</p>
 
-            <p>Use Explore to focus on a specific connection.</p>
+            <p>Click a connection to inspect the titles behind it.</p>
+
+            <p>Filters and focus are local and do not rebuild the network.</p>
           </div>
         </aside>
 
@@ -142,6 +174,12 @@ function NetworkView() {
           {!historyCount && !loading && (
             <div className="network-overlay">
               Add some titles to your library first.
+            </div>
+          )}
+
+          {historyCount > 0 && !loading && !error && networkData && !connectionCount && (
+            <div className="network-overlay">
+              No shared connections match the current filters.
             </div>
           )}
 
