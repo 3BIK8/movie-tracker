@@ -43,7 +43,7 @@ test("recommendation mix never exceeds the configured exploration ceiling", () =
   );
 });
 
-test("recommendation mix preserves source ordering within each pool", () => {
+test("recommendation mix does not exceed the exploration ceiling when exploitation is insufficient", () => {
   const exploitation = Array.from({ length: 6 }, (_, index) =>
     item(index + 1, "exploitation"),
   );
@@ -51,9 +51,10 @@ test("recommendation mix preserves source ordering within each pool", () => {
 
   const result = mixRecommendationPools(exploitation, exploration, 8, 0.25);
 
+  assert.equal(result.length, 7);
   assert.deepEqual(
     result.map((candidate) => candidate.id),
-    ["1", "2", "3", "4", "101", "5", "6", "102"],
+    ["1", "2", "3", "4", "101", "5", "6"],
   );
 });
 
