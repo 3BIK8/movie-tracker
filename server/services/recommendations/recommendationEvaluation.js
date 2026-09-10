@@ -164,9 +164,10 @@ export function explorationQuality(exposures) {
   }
 
   const positive = exploration.filter((exposure) =>
-    (exposure.interactions || []).some((interaction) =>
-      interaction.event === "watched" ||
-      (interaction.event === "rating" && ["S", "A", "B"].includes(interaction.rating)),
+    (exposure.interactions || []).some(
+      (interaction) =>
+        (interaction.event === "status" && interaction.status === "watched") ||
+        (interaction.event === "rating" && ["S", "A", "B"].includes(interaction.rating)),
     ),
   ).length;
 
