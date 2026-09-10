@@ -1,6 +1,7 @@
 import { getMediaMetadata } from "./mediaMetadataService.js";
 import { getMediaConnections } from "./connectionExtractor.js";
 import { analyzeHistory } from "./historyAnalyzer.js";
+import { calculateExplorationRatio } from "./explorationPolicy.js";
 import { generateCandidates } from "./candidateService.js";
 import { scoreCandidates } from "./recommendationScorer.js";
 import { diversifyRankedCandidates } from "./recommendationDiversifier.js";
@@ -12,7 +13,6 @@ import { mapWithConcurrency } from "../../utils/runWithConcurrency.js";
 const RECOMMENDATION_LIMIT = 100;
 const HISTORY_ENRICHMENT_CONCURRENCY = 6;
 const DIVERSITY_LAMBDA = 0.8;
-const EXPLORATION_RATIO = 0.2;
 
 export async function analyzeWatchHistory(history) {
   const canonicalHistory = normalizeWatchHistory(history);
@@ -47,6 +47,10 @@ export async function analyzeWatchHistory(history) {
 
   const enrichedHistory = enrichedResults.filter(Boolean);
   const profile = analyzeHistory(enrichedHistory);
+  const movieExplorationRatio = calculateExplorationRatio(
+    profile.movies.strength,
+  );
+  const tvExplorationRatio = calculateExplorationRatio(profile.tv.strength);
 
   const [movieCandidates, tvCandidates] = await Promise.all([
     generateCandidates(
@@ -97,14 +101,14 @@ export async function analyzeWatchHistory(history) {
     moviePools.exploitation,
     moviePools.exploration,
     RECOMMENDATION_LIMIT,
-    EXPLORATION_RATIO,
+    movieExplorationRatio,
   );
 
   const diversifiedTv = mixRecommendationPools(
     tvPools.exploitation,
     tvPools.exploration,
     RECOMMENDATION_LIMIT,
-    EXPLORATION_RATIO,
+    tvExplorationRatio,
   );
 
   const knownIds = new Set(
@@ -117,16 +121,28 @@ export async function analyzeWatchHistory(history) {
     mediaType: "movie",
     limit: RECOMMENDATION_LIMIT,
     knownIds,
+    explorationRatio: movieExplorationRatio,
   });
 
   validateRecommendationOutput(diversifiedTv, {
     mediaType: "tv",
     limit: RECOMMENDATION_LIMIT,
     knownIds,
+    explorationRatio: tvExplorationRatio,
   });
 
   return {
     profile,
+    explorationPolicy: {
+      movies: {
+        ratio: movieExplorationRatio,
+        strength: profile.movies.strength,
+      },
+      tv: {
+        ratio: tvExplorationRatio,
+        strength: profile.tv.strength,
+      },
+    },
     recommendations: {
       movies: diversifiedMovies,
       tv: diversifiedTv,
