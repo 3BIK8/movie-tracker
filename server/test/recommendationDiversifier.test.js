@@ -38,7 +38,7 @@ test("diversification can prefer a distinct candidate over a redundant higher-ra
       { type: "actor", value: 100 },
       { type: "genre", value: 28 },
     ]),
-    candidate(3, 9, [
+    candidate(3, 9.6, [
       { type: "director", value: 200 },
       { type: "genre", value: 18 },
     ]),
