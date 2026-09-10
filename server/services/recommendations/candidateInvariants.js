@@ -16,7 +16,7 @@ export function validateCandidateOutput(
     ? normalizeMediaRef(mediaType, 1).type
     : null;
   const seen = new Set();
-  const explorationLimit = Math.ceil(limit * 0.4);
+  const explorationLimit = Math.floor(limit * 0.4);
 
   if (candidates.length > limit) {
     throw new Error(
