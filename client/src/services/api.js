@@ -1,3 +1,5 @@
+import { compactRecommendationFeedback } from "./recommendationFeedbackPayload";
+
 const API_URL = "http://localhost:5000/api";
 
 async function request(url, fallbackMessage, options = {}) {
@@ -88,6 +90,8 @@ export async function getWatchHistoryNetwork(history) {
 }
 
 export async function getRecommendations(history, feedback = null) {
+  const compactFeedback = compactRecommendationFeedback(feedback);
+
   return request(
     `${API_URL}/recommendations/analyze`,
     "Unable to generate recommendations.",
@@ -98,7 +102,7 @@ export async function getRecommendations(history, feedback = null) {
       },
       body: JSON.stringify({
         history,
-        feedback,
+        feedback: compactFeedback,
       }),
     },
   );

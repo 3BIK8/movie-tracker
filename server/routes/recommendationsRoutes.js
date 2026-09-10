@@ -1,6 +1,7 @@
 import express from "express";
 import { analyzeWatchHistory } from "../services/recommendations/recommendationsService.js";
 import { buildNetwork } from "../services/recommendations/networkService.js";
+import { normalizeRecommendationFeedback } from "../services/recommendations/feedbackPayload.js";
 
 const router = express.Router();
 
@@ -10,10 +11,8 @@ function isValidationError(error) {
 
 router.post("/analyze", async (req, res) => {
   try {
-    const result = await analyzeWatchHistory(
-      req.body.history,
-      req.body.feedback || null,
-    );
+    const feedback = normalizeRecommendationFeedback(req.body.feedback);
+    const result = await analyzeWatchHistory(req.body.history, feedback);
 
     res.json(result);
   } catch (error) {
