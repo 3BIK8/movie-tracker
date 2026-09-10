@@ -71,24 +71,12 @@ export function useNetworkGraph({ history, activeTypes, focusedConnection }) {
 
     cyRef.current?.destroy();
 
-    const { nodes: filteredNodes, edges: filteredEdges } = filterGraphElements(
-      networkData,
-      activeTypes,
-      focusedConnection,
-    );
-
-    const elements = [
-      ...filteredNodes.map((node) => ({
-        data: node,
-      })),
-      ...filteredEdges.map((edge) => ({
-        data: edge,
-      })),
-    ];
-
     const cy = cytoscape({
       container: containerRef.current,
-      elements,
+      elements: [
+        ...networkData.nodes.map((node) => ({ data: node })),
+        ...networkData.edges.map((edge) => ({ data: edge })),
+      ],
 
       layout: {
         name: "cose",
@@ -96,9 +84,8 @@ export function useNetworkGraph({ history, activeTypes, focusedConnection }) {
         animationDuration: 700,
         fit: true,
         padding: 80,
-
         nodeRepulsion: 16000,
-        idealEdgeLength: focusedConnection ? 110 : 85,
+        idealEdgeLength: 85,
         edgeElasticity: 140,
         nestingFactor: 1.2,
         gravity: 1.5,
@@ -107,14 +94,13 @@ export function useNetworkGraph({ history, activeTypes, focusedConnection }) {
 
       minZoom: 0.2,
       maxZoom: 4,
-
       style: NETWORK_STYLES,
     });
 
     const detachGraphEventListeners = attachGraphEventListeners(cy, {
       networkDataRef,
       setSelectedNode,
-      focusedConnection,
+      focusedConnection: null,
     });
     cy.on("destroy", detachGraphEventListeners);
     cyRef.current = cy;
@@ -123,6 +109,39 @@ export function useNetworkGraph({ history, activeTypes, focusedConnection }) {
       cy.destroy();
       cyRef.current = null;
     };
+  }, [networkData]);
+
+  useEffect(() => {
+    if (!networkData || !cyRef.current) {
+      return;
+    }
+
+    const cy = cyRef.current;
+    const { nodes: filteredNodes } = filterGraphElements(
+      networkData,
+      activeTypes,
+      focusedConnection,
+    );
+    const visibleIds = new Set(filteredNodes.map((node) => node.id));
+
+    cy.nodes().forEach((node) => {
+      node.toggleClass("dimmed", !visibleIds.has(node.id));
+      node.toggleClass("filtered-out", !visibleIds.has(node.id));
+    });
+
+    cy.edges().forEach((edge) => {
+      const visible =
+        visibleIds.has(edge.data("source")) &&
+        visibleIds.has(edge.data("target"));
+
+      edge.toggleClass("filtered-out", !visible);
+    });
+
+    const visibleElements = cy.elements().not(".filtered-out");
+
+    if (visibleElements.length) {
+      cy.fit(visibleElements, 80);
+    }
   }, [networkData, activeTypes, focusedConnection]);
 
   function resetNetwork() {
@@ -132,7 +151,8 @@ export function useNetworkGraph({ history, activeTypes, focusedConnection }) {
       ?.elements()
       .removeClass("dimmed")
       .removeClass("highlighted")
-      .removeClass("show-label");
+      .removeClass("show-label")
+      .removeClass("filtered-out");
 
     cyRef.current?.fit(undefined, 80);
   }
