@@ -1,6 +1,7 @@
 import { getMediaMetadata } from "./mediaMetadataService.js";
 import { getMediaConnections } from "./connectionExtractor.js";
 import { buildGraph } from "./graphBuilder.js";
+import { normalizeWatchHistory } from "../../utils/mediaIdentity.js";
 import { mapWithConcurrency } from "../../utils/runWithConcurrency.js";
 
 const NETWORK_ENRICHMENT_CONCURRENCY = 6;
@@ -10,17 +11,11 @@ function getTitle(item) {
 }
 
 export async function buildNetwork(history) {
-  if (!Array.isArray(history)) {
-    throw new TypeError("Watch history must be an array.");
-  }
+  const canonicalHistory = normalizeWatchHistory(history);
 
   const mediaRecords = await mapWithConcurrency(
-    history,
+    canonicalHistory,
     async (historyItem) => {
-      if (!historyItem?.id || !historyItem?.type) {
-        return null;
-      }
-
       try {
         const metadata = await getMediaMetadata(historyItem.type, historyItem.id);
 

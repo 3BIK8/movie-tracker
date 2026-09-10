@@ -3,23 +3,18 @@ import { getMediaConnections } from "./connectionExtractor.js";
 import { analyzeHistory } from "./historyAnalyzer.js";
 import { generateCandidates } from "./candidateService.js";
 import { scoreCandidates } from "./recommendationScorer.js";
+import { normalizeWatchHistory } from "../../utils/mediaIdentity.js";
 import { mapWithConcurrency } from "../../utils/runWithConcurrency.js";
 
 const RECOMMENDATION_LIMIT = 100;
 const HISTORY_ENRICHMENT_CONCURRENCY = 6;
 
 export async function analyzeWatchHistory(history) {
-  if (!Array.isArray(history)) {
-    throw new TypeError("Watch history must be an array.");
-  }
+  const canonicalHistory = normalizeWatchHistory(history);
 
   const enrichedResults = await mapWithConcurrency(
-    history,
+    canonicalHistory,
     async (historyItem) => {
-      if (!historyItem?.id || !historyItem?.type) {
-        return null;
-      }
-
       try {
         const metadata = await getMediaMetadata(historyItem.type, historyItem.id);
 
