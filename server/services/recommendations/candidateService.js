@@ -431,6 +431,13 @@ function selectExplorationCandidates(candidates, limit) {
   return selected;
 }
 
+function calculateCandidateEvidence(candidate) {
+  return candidate.sources.reduce(
+    (sum, source) => sum + source.evidenceScore,
+    0,
+  );
+}
+
 export async function generateCandidates(
   profile,
   history,
