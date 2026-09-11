@@ -1,9 +1,6 @@
 const CURRENT_YEAR = new Date().getFullYear();
 
-const DEFAULT_YEAR_RANGES = [
-  [2010, CURRENT_YEAR],
-  [2000, 2009],
-];
+const DEFAULT_YEAR_RANGES = [[2010, CURRENT_YEAR]];
 
 const STRATEGIES = [
   "long_tail",
@@ -78,7 +75,9 @@ function getProfileYearRanges(profile) {
       return b.decade - a.decade;
     });
 
-  const ranges = decades.slice(0, 3).map(({ decade }) => [decade, decade + 9]);
+  const ranges = decades.slice(0, 3)
+    .map(({ decade }) => [decade, Math.min(decade + 9, CURRENT_YEAR)])
+    .filter(([start, end]) => start <= end);
 
   if (ranges.length > 0 && ranges[0][1] < CURRENT_YEAR) {
     ranges.unshift([Math.max(ranges[0][0], CURRENT_YEAR - 5), CURRENT_YEAR]);
