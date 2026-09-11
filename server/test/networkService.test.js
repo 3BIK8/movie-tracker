@@ -11,6 +11,7 @@ test("buildNetwork accepts an empty history without external enrichment", async 
   assert.equal(result.meta.enrichedMedia, 0);
   assert.equal(result.meta.nodeCount, 0);
   assert.equal(result.meta.edgeCount, 0);
+  assert.equal(result.meta.personalizedConnections, 0);
   assert.equal(typeof result.meta.buildMs, "number");
 });
 
