@@ -5,7 +5,12 @@ import { NETWORK_STYLES } from "./networkStyles";
 import { filterGraphElements } from "./filterGraphElements";
 import { attachGraphEventListeners } from "./cytoscapeEvents";
 
-export function useNetworkGraph({ history, activeTypes, focusedConnection }) {
+export function useNetworkGraph({
+  history,
+  activeTypes,
+  focusedConnection,
+  onConnectionFocus,
+}) {
   const containerRef = useRef(null);
   const cyRef = useRef(null);
   const networkDataRef = useRef(null);
@@ -123,6 +128,7 @@ export function useNetworkGraph({ history, activeTypes, focusedConnection }) {
       networkDataRef,
       setSelectedNode,
       focusedConnection: null,
+      onConnectionFocus,
     });
     cy.on("destroy", detachGraphEventListeners);
     cyRef.current = cy;
@@ -140,7 +146,7 @@ export function useNetworkGraph({ history, activeTypes, focusedConnection }) {
         cyRef.current = null;
       }
     };
-  }, [networkData]);
+  }, [networkData, onConnectionFocus]);
 
   useEffect(() => {
     if (!networkData || !cyRef.current) {
