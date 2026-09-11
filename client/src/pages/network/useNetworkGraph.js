@@ -3,6 +3,10 @@ import cytoscape from "cytoscape";
 import { getWatchHistoryNetwork } from "../../services/api";
 import { NETWORK_STYLES } from "./networkStyles";
 import { filterGraphElements } from "./filterGraphElements";
+import {
+  buildStructuredNetworkLayout,
+  STRUCTURED_NETWORK_LAYOUT,
+} from "./structuredNetworkLayout";
 import { attachGraphEventListeners } from "./cytoscapeEvents";
 
 export function useNetworkGraph({
@@ -31,7 +35,6 @@ export function useNetworkGraph({
       setNetworkData(null);
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setSelectedNode(null);
-
       return;
     }
 
@@ -87,31 +90,24 @@ export function useNetworkGraph({
       activeTypes,
       focusedConnection,
     );
+    const positions = buildStructuredNetworkLayout(projection.nodes);
 
     pendingFitRef.current = null;
     layoutActiveRef.current = true;
 
+    const elements = [
+      ...projection.nodes.map((node) => ({
+        data: node,
+        position: positions[node.id],
+      })),
+      ...projection.edges.map((edge) => ({ data: edge })),
+    ];
+
     const cy = cytoscape({
       container: containerRef.current,
-      elements: [
-        ...projection.nodes.map((node) => ({ data: node })),
-        ...projection.edges.map((edge) => ({ data: edge })),
-      ],
-
-      layout: {
-        name: "cose",
-        animate: false,
-        fit: true,
-        padding: 100,
-        nodeRepulsion: 28000,
-        idealEdgeLength: 130,
-        edgeElasticity: 120,
-        nestingFactor: 1.1,
-        gravity: 0.7,
-        gravityRange: 3,
-      },
-
-      minZoom: 0.15,
+      elements,
+      layout: STRUCTURED_NETWORK_LAYOUT,
+      minZoom: 0.12,
       maxZoom: 4,
       style: NETWORK_STYLES,
     });
@@ -125,7 +121,6 @@ export function useNetworkGraph({
 
       const pendingFit = pendingFitRef.current;
       pendingFitRef.current = null;
-
       pendingFit?.();
     });
 
