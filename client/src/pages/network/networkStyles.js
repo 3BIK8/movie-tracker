@@ -107,7 +107,9 @@ export const NETWORK_STYLES = [
       width: 1.5,
       "line-color": "#94a3b8",
       opacity: 0.25,
-      "curve-style": "bezier",
+      "curve-style": "taxi",
+      "taxi-direction": "horizontal",
+      "taxi-turn": 30,
     },
   },
   {
@@ -116,7 +118,9 @@ export const NETWORK_STYLES = [
       width: 1,
       "line-color": "#64748b",
       opacity: 0.15,
-      "curve-style": "bezier",
+      "curve-style": "taxi",
+      "taxi-direction": "horizontal",
+      "taxi-turn": 30,
     },
   },
   {

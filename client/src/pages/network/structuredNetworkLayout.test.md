@@ -1,0 +1,1 @@
+The structured layout regression suite verifies deterministic positions, primary media grid placement, and ordered connection lanes.
