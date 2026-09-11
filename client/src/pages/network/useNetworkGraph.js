@@ -82,31 +82,36 @@ export function useNetworkGraph({
       previousCy.destroy();
     }
 
+    const projection = filterGraphElements(
+      networkData,
+      activeTypes,
+      focusedConnection,
+    );
+
     pendingFitRef.current = null;
     layoutActiveRef.current = true;
 
     const cy = cytoscape({
       container: containerRef.current,
       elements: [
-        ...networkData.nodes.map((node) => ({ data: node })),
-        ...networkData.edges.map((edge) => ({ data: edge })),
+        ...projection.nodes.map((node) => ({ data: node })),
+        ...projection.edges.map((edge) => ({ data: edge })),
       ],
 
       layout: {
         name: "cose",
-        animate: true,
-        animationDuration: 700,
+        animate: false,
         fit: true,
-        padding: 80,
-        nodeRepulsion: 16000,
-        idealEdgeLength: 85,
-        edgeElasticity: 140,
-        nestingFactor: 1.2,
-        gravity: 1.5,
-        gravityRange: 3.5,
+        padding: 100,
+        nodeRepulsion: 28000,
+        idealEdgeLength: 130,
+        edgeElasticity: 120,
+        nestingFactor: 1.1,
+        gravity: 0.7,
+        gravityRange: 3,
       },
 
-      minZoom: 0.2,
+      minZoom: 0.15,
       maxZoom: 4,
       style: NETWORK_STYLES,
     });
@@ -146,57 +151,7 @@ export function useNetworkGraph({
         cyRef.current = null;
       }
     };
-  }, [networkData, onConnectionFocus]);
-
-  useEffect(() => {
-    if (!networkData || !cyRef.current) {
-      return;
-    }
-
-    const cy = cyRef.current;
-    const { nodes: filteredNodes } = filterGraphElements(
-      networkData,
-      activeTypes,
-      focusedConnection,
-    );
-    const visibleIds = new Set(filteredNodes.map((node) => node.id));
-
-    cy.nodes().forEach((node) => {
-      node.toggleClass("dimmed", !visibleIds.has(node.id()));
-      node.toggleClass("filtered-out", !visibleIds.has(node.id()));
-    });
-
-    cy.edges().forEach((edge) => {
-      const visible =
-        visibleIds.has(edge.data("source")) &&
-        visibleIds.has(edge.data("target"));
-
-      edge.toggleClass("filtered-out", !visible);
-    });
-
-    const fitVisibleNodes = () => {
-      if (cyRef.current !== cy) {
-        return;
-      }
-
-      // Fit only nodes. Asking Cytoscape to calculate an edge-inclusive
-      // bounding box while visibility classes are changing can force edge
-      // projection recalculation during a render transition.
-      const visibleNodes = cy.nodes().filter((node) =>
-        visibleIds.has(node.id()),
-      );
-
-      if (visibleNodes.length) {
-        cy.fit(visibleNodes, 80);
-      }
-    };
-
-    if (layoutActiveRef.current) {
-      pendingFitRef.current = fitVisibleNodes;
-    } else {
-      fitVisibleNodes();
-    }
-  }, [networkData, activeTypes, focusedConnection]);
+  }, [networkData, activeTypes, focusedConnection, onConnectionFocus]);
 
   function resetNetwork() {
     setSelectedNode(null);
@@ -217,7 +172,7 @@ export function useNetworkGraph({
         return;
       }
 
-      cy.fit(cy.nodes(), 80);
+      cy.fit(cy.nodes(), 100);
     };
 
     if (layoutActiveRef.current) {
