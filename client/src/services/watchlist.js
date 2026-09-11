@@ -1,9 +1,19 @@
-import { getMediaDetails } from "./api";
+import {
+  deleteWatchHistoryItem as deleteWatchHistoryItemFromDatabase,
+  getMediaDetails,
+  getWatchHistoryFromDatabase,
+  migrateWatchHistoryToDatabase,
+  saveWatchHistoryItem,
+} from "./api";
 import { recordRecommendationInteraction } from "./recommendationFeedback";
 
 const STORAGE_KEY = "my-watch-history";
 
 export const WATCH_HISTORY_UPDATED = "watch-history-updated";
+
+let historyCache = {};
+let initialized = false;
+let initializationPromise = null;
 
 function normalizeMediaType(type) {
   return typeof type === "string" ? type.trim().toLowerCase() : "";
@@ -53,9 +63,8 @@ function normalizeHistory(history) {
 
   const normalized = {};
 
-  for (const [key, item] of Object.entries(history)) {
+  for (const item of Object.values(history)) {
     if (!item || typeof item !== "object") {
-      normalized[key] = item;
       continue;
     }
 
@@ -63,7 +72,6 @@ function normalizeHistory(history) {
     const id = normalizeMediaId(item.id);
 
     if (!type || !id) {
-      normalized[key] = item;
       continue;
     }
 
@@ -75,6 +83,82 @@ function normalizeHistory(history) {
   }
 
   return normalized;
+}
+
+function readLegacyHistory() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+    return normalizeHistory(parsed);
+  } catch {
+    return {};
+  }
+}
+
+function clearLegacyHistory() {
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // The database is already authoritative; legacy storage cleanup is best effort.
+  }
+}
+
+function emitHistoryUpdated() {
+  window.dispatchEvent(new Event(WATCH_HISTORY_UPDATED));
+}
+
+export async function initializeWatchHistory() {
+  if (initialized) {
+    return { history: historyCache, migrated: false };
+  }
+
+  if (initializationPromise) {
+    return initializationPromise;
+  }
+
+  initializationPromise = (async () => {
+    const databaseHistory = await getWatchHistoryFromDatabase();
+    let migrated = false;
+
+    if (databaseHistory.count === 0) {
+      const legacyHistory = readLegacyHistory();
+      const legacyCount = Object.keys(legacyHistory).length;
+
+      if (legacyCount > 0) {
+        const migration = await migrateWatchHistoryToDatabase(legacyHistory);
+
+        if (!migration.migrated && migration.count === 0) {
+          throw new Error("Watch history migration did not create any database records.");
+        }
+
+        historyCache = normalizeHistory(migration.history);
+        migrated = migration.migrated;
+      } else {
+        historyCache = {};
+      }
+    } else {
+      historyCache = normalizeHistory(databaseHistory.history);
+    }
+
+    clearLegacyHistory();
+    initialized = true;
+    emitHistoryUpdated();
+
+    return { history: historyCache, migrated };
+  })();
+
+  try {
+    return await initializationPromise;
+  } finally {
+    initializationPromise = null;
+  }
+}
+
+export function isWatchHistoryInitialized() {
+  return initialized;
+}
+
+export function getWatchHistory() {
+  return historyCache;
 }
 
 function createBaseItem(item, type, existing = {}, metadata = {}) {
@@ -106,6 +190,7 @@ function createBaseItem(item, type, existing = {}, metadata = {}) {
     keywords: keywords.length ? keywords : normalizeArray(existing.keywords),
     language: metadata.language ?? existing.language ?? null,
     popularity: metadata.popularity ?? existing.popularity ?? null,
+    tmdbRating: metadata.tmdbRating ?? existing.tmdbRating ?? null,
     franchise: metadata.franchise ?? existing.franchise ?? null,
     createdAt: existing.createdAt || timestamp,
     updatedAt: timestamp,
@@ -113,18 +198,19 @@ function createBaseItem(item, type, existing = {}, metadata = {}) {
   };
 }
 
-export function getWatchHistory() {
-  try {
-    return normalizeHistory(
-      JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}"),
-    );
-  } catch {
-    return {};
+async function persistHistoryItem(key, item) {
+  if (item?.status == null && item?.favorite !== true) {
+    delete historyCache[key];
+    await deleteWatchHistoryItemFromDatabase(item.type, item.id);
+  } else {
+    const response = await saveWatchHistoryItem(item);
+    historyCache[key] = normalizeHistoryItem(response.item || item);
   }
+
+  emitHistoryUpdated();
 }
 
-export function setWatchStatus(item, type, status, metadata = {}) {
-  const history = getWatchHistory();
+export async function setWatchStatus(item, type, status, metadata = {}) {
   const normalizedType = normalizeMediaType(type);
   const normalizedId = normalizeMediaId(item.id);
   const key = `${normalizedType}-${normalizedId}`;
@@ -133,23 +219,22 @@ export function setWatchStatus(item, type, status, metadata = {}) {
     return;
   }
 
-  const previousStatus = history[key]?.status || null;
+  const existing = historyCache[key] || {};
+  const previousStatus = existing.status || null;
+  const timestamp = nowIso();
 
   if (previousStatus === status) {
-    const timestamp = nowIso();
-    history[key] = {
-      ...history[key],
+    historyCache[key] = {
+      ...existing,
       status: null,
       updatedAt: timestamp,
       statusChangedAt: timestamp,
       lastInteractedAt: timestamp,
     };
   } else {
-    const existing = history[key] || {};
     const next = createBaseItem(item, type, existing, metadata);
-    const timestamp = nowIso();
 
-    history[key] = {
+    historyCache[key] = {
       ...next,
       status,
       statusChangedAt: timestamp,
@@ -161,20 +246,27 @@ export function setWatchStatus(item, type, status, metadata = {}) {
     };
   }
 
-  if (history[key]?.status == null && history[key]?.favorite !== true) {
-    delete history[key];
+  emitHistoryUpdated();
+
+  try {
+    await persistHistoryItem(key, historyCache[key]);
+  } catch (error) {
+    console.error("Unable to persist watch status", error);
+    historyCache[key] = existing;
+    if (!existing.status && existing.favorite !== true) {
+      delete historyCache[key];
+    }
+    emitHistoryUpdated();
+    throw error;
   }
 
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
-  window.dispatchEvent(new Event(WATCH_HISTORY_UPDATED));
   recordRecommendationInteraction(normalizedType, normalizedId, "status", {
     status,
     previousStatus,
   });
 }
 
-export function setWatchFavorite(item, type, metadata = {}) {
-  const history = getWatchHistory();
+export async function setWatchFavorite(item, type, metadata = {}) {
   const normalizedType = normalizeMediaType(type);
   const normalizedId = normalizeMediaId(item.id);
   const key = `${normalizedType}-${normalizedId}`;
@@ -183,12 +275,12 @@ export function setWatchFavorite(item, type, metadata = {}) {
     return;
   }
 
-  const existing = history[key] || {};
+  const existing = historyCache[key] || {};
   const next = createBaseItem(item, type, existing, metadata);
   const timestamp = nowIso();
   const favorite = existing.favorite !== true;
 
-  history[key] = {
+  historyCache[key] = {
     ...next,
     status: existing.status || null,
     rating: existing.status === "watched" ? existing.rating || null : null,
@@ -196,12 +288,20 @@ export function setWatchFavorite(item, type, metadata = {}) {
     favoriteAt: favorite ? timestamp : null,
   };
 
-  if (history[key].status == null && !favorite) {
-    delete history[key];
+  emitHistoryUpdated();
+
+  try {
+    await persistHistoryItem(key, historyCache[key]);
+  } catch (error) {
+    console.error("Unable to persist favorite", error);
+    historyCache[key] = existing;
+    if (!existing.status && existing.favorite !== true) {
+      delete historyCache[key];
+    }
+    emitHistoryUpdated();
+    throw error;
   }
 
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
-  window.dispatchEvent(new Event(WATCH_HISTORY_UPDATED));
   recordRecommendationInteraction(
     normalizedType,
     normalizedId,
@@ -210,50 +310,13 @@ export function setWatchFavorite(item, type, metadata = {}) {
 }
 
 export function getWatchFavorite(type, id) {
-  const history = getWatchHistory();
   const normalizedType = normalizeMediaType(type);
   const normalizedId = normalizeMediaId(id);
-  return history[`${normalizedType}-${normalizedId}`]?.favorite === true;
+  return historyCache[`${normalizedType}-${normalizedId}`]?.favorite === true;
 }
 
 export async function migrateWatchHistoryGenres() {
-  const history = getWatchHistory();
-  let changed = false;
-
-  for (const [key, value] of Object.entries(history)) {
-    if (typeof value !== "string") {
-      continue;
-    }
-
-    const match = key.match(/^(movie|tv)-(\d+)$/);
-
-    if (!match) {
-      continue;
-    }
-
-    const [, type, id] = match;
-    const timestamp = nowIso();
-
-    history[key] = {
-      status: value,
-      type,
-      id,
-      title: "",
-      date: "",
-      poster_path: null,
-      genres: [],
-      rating: null,
-      favorite: false,
-      createdAt: timestamp,
-      updatedAt: timestamp,
-      statusChangedAt: timestamp,
-      lastInteractedAt: timestamp,
-    };
-
-    changed = true;
-  }
-
-  const entries = Object.entries(history).filter(
+  const entries = Object.entries(historyCache).filter(
     ([, item]) =>
       item?.id != null &&
       item?.type &&
@@ -263,12 +326,11 @@ export async function migrateWatchHistoryGenres() {
   for (const [key, item] of entries) {
     try {
       const details = await getMediaDetails(item.type, item.id);
-
-      history[key] = {
-        ...history[key],
-        title: details.title || history[key].title,
-        date: details.date || history[key].date,
-        year: details.year ?? history[key].year ?? null,
+      const enriched = normalizeHistoryItem({
+        ...item,
+        title: details.title || item.title,
+        date: details.date || item.date,
+        year: details.year ?? item.year ?? null,
         genres: details.genres || [],
         genre_ids: details.genre_ids || [],
         actors: details.actors || [],
@@ -277,29 +339,24 @@ export async function migrateWatchHistoryGenres() {
         keywords: details.keywords || [],
         language: details.language || null,
         popularity: details.popularity ?? null,
+        tmdbRating: details.tmdbRating ?? null,
         franchise: details.franchise || null,
-      };
+      });
 
-      changed = true;
+      historyCache[key] = enriched;
+      await persistHistoryItem(key, enriched);
     } catch (error) {
-      console.error(
-        `Unable to migrate genres for ${item.type}-${item.id}`,
-        error,
-      );
+      console.error(`Unable to migrate metadata for ${item.type}-${item.id}`, error);
     }
   }
 
-  if (changed) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
-    window.dispatchEvent(new Event(WATCH_HISTORY_UPDATED));
-  }
+  emitHistoryUpdated();
 }
 
 export function getWatchRating(type, id) {
-  const history = getWatchHistory();
   const normalizedType = normalizeMediaType(type);
   const normalizedId = normalizeMediaId(id);
-  const item = history[`${normalizedType}-${normalizedId}`];
+  const item = historyCache[`${normalizedType}-${normalizedId}`];
 
   if (item?.status !== "watched") {
     return null;
@@ -308,29 +365,37 @@ export function getWatchRating(type, id) {
   return item.rating || null;
 }
 
-export function setWatchRating(type, id, rating) {
-  const history = getWatchHistory();
+export async function setWatchRating(type, id, rating) {
   const normalizedType = normalizeMediaType(type);
   const normalizedId = normalizeMediaId(id);
   const key = `${normalizedType}-${normalizedId}`;
+  const existing = historyCache[key];
 
-  if (!history[key] || history[key].status !== "watched") {
+  if (!existing || existing.status !== "watched") {
     return;
   }
 
   const timestamp = nowIso();
 
-  history[key] = {
-    ...history[key],
-    rating: history[key].rating === rating ? null : rating,
+  historyCache[key] = {
+    ...existing,
+    rating: existing.rating === rating ? null : rating,
     ratingUpdatedAt: timestamp,
     updatedAt: timestamp,
     lastInteractedAt: timestamp,
   };
 
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
-  window.dispatchEvent(new Event(WATCH_HISTORY_UPDATED));
+  emitHistoryUpdated();
+
+  try {
+    await persistHistoryItem(key, historyCache[key]);
+  } catch (error) {
+    historyCache[key] = existing;
+    emitHistoryUpdated();
+    throw error;
+  }
+
   recordRecommendationInteraction(normalizedType, normalizedId, "rating", {
-    rating: history[key].rating,
+    rating: historyCache[key]?.rating || null,
   });
 }

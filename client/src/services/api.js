@@ -1,6 +1,4 @@
-import { compactNetworkHistory } from "./networkRequestPayload";
 import { compactRecommendationFeedback } from "./recommendationFeedbackPayload";
-import { compactRecommendationHistory } from "./recommendationRequestPayload";
 
 const API_URL = "http://localhost:5000/api";
 
@@ -8,6 +6,10 @@ async function request(url, fallbackMessage, options = {}) {
   const response = await fetch(url, options);
 
   if (response.ok) {
+    if (response.status === 204) {
+      return null;
+    }
+
     return response.json();
   }
 
@@ -75,26 +77,62 @@ export async function getMediaDetails(type, id) {
   );
 }
 
-export async function getWatchHistoryNetwork(history) {
-  const compactHistory = compactNetworkHistory(history);
-
+export async function getWatchHistoryFromDatabase() {
   return request(
-    `${API_URL}/recommendations/network`,
-    "Unable to load watch-history network.",
+    `${API_URL}/watch-history`,
+    "Unable to load watch history.",
+  );
+}
+
+export async function saveWatchHistoryItem(item) {
+  return request(
+    `${API_URL}/watch-history/item`,
+    "Unable to save watch history.",
+    {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ item }),
+    },
+  );
+}
+
+export async function deleteWatchHistoryItem(type, id) {
+  return request(
+    `${API_URL}/watch-history/item/${encodeURIComponent(type)}/${encodeURIComponent(id)}`,
+    "Unable to delete watch history item.",
+    {
+      method: "DELETE",
+    },
+  );
+}
+
+export async function migrateWatchHistoryToDatabase(history) {
+  return request(
+    `${API_URL}/watch-history/migrate`,
+    "Unable to migrate watch history.",
     {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        history: compactHistory,
-      }),
+      body: JSON.stringify({ history }),
     },
   );
 }
 
-export async function getRecommendations(history, feedback = null) {
-  const compactHistory = compactRecommendationHistory(history);
+export async function getWatchHistoryNetwork() {
+  return request(
+    `${API_URL}/recommendations/network`,
+    "Unable to load watch-history network.",
+    {
+      method: "POST",
+    },
+  );
+}
+
+export async function getRecommendations(_history, feedback = null) {
   const compactFeedback = compactRecommendationFeedback(feedback);
 
   return request(
@@ -106,7 +144,6 @@ export async function getRecommendations(history, feedback = null) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        history: compactHistory,
         feedback: compactFeedback,
       }),
     },

@@ -2,8 +2,11 @@ import { useEffect, useState } from "react";
 import DiscoverView from "./pages/Discover";
 import LibraryView from "./pages/Library";
 import NetworkView from "./pages/Network";
-import { migrateWatchHistoryGenres } from "./services/watchlist";
 import RecommendationsView from "./pages/Recommendations";
+import {
+  initializeWatchHistory,
+  migrateWatchHistoryGenres,
+} from "./services/watchlist";
 
 function getInitialView() {
   const params = new URLSearchParams(window.location.search);
@@ -17,9 +20,39 @@ function getInitialView() {
 
 function App() {
   const [view, setView] = useState(getInitialView);
+  const [historyReady, setHistoryReady] = useState(false);
+  const [historyError, setHistoryError] = useState(null);
+
   useEffect(() => {
-    void migrateWatchHistoryGenres();
+    let active = true;
+
+    async function initialize() {
+      try {
+        const result = await initializeWatchHistory();
+
+        if (result.migrated) {
+          await migrateWatchHistoryGenres();
+        }
+
+        if (active) {
+          setHistoryReady(true);
+        }
+      } catch (error) {
+        console.error("Unable to initialize persistent watch history", error);
+
+        if (active) {
+          setHistoryError(error);
+        }
+      }
+    }
+
+    void initialize();
+
+    return () => {
+      active = false;
+    };
   }, []);
+
   function changeView(newView) {
     setView(newView);
 
@@ -37,6 +70,31 @@ function App() {
       null,
       "",
       query ? `?${query}` : window.location.pathname,
+    );
+  }
+
+  if (historyError) {
+    return (
+      <main>
+        <section className="error-state">
+          <h1>Watch history unavailable</h1>
+          <p>
+            The application could not connect to its persistent watch-history
+            database.
+          </p>
+          <p>{historyError.message}</p>
+        </section>
+      </main>
+    );
+  }
+
+  if (!historyReady) {
+    return (
+      <main>
+        <section className="loading-state">
+          <p>Loading your watch history…</p>
+        </section>
+      </main>
     );
   }
 

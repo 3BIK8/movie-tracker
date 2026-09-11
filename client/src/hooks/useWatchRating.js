@@ -36,7 +36,9 @@ export function useWatchRating(type, id, status) {
         return;
       }
 
-      setWatchRating(type, id, newRating);
+      void setWatchRating(type, id, newRating).catch((error) =>
+        console.error("Unable to persist rating", error),
+      );
     },
     [type, id, status],
   );
