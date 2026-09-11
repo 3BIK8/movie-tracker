@@ -15,7 +15,6 @@ function NetworkView() {
   const [activeTypes, setActiveTypes] = useState(
     new Set(["actor", "director", "genre", "franchise", "decade"]),
   );
-
   const [focusedConnection, setFocusedConnection] = useState(null);
 
   const {
@@ -53,11 +52,8 @@ function NetworkView() {
     setActiveTypes((current) => {
       const next = new Set(current);
 
-      if (next.has(type)) {
-        next.delete(type);
-      } else {
-        next.add(type);
-      }
+      if (next.has(type)) next.delete(type);
+      else next.add(type);
 
       if (
         focusedConnection &&
@@ -79,11 +75,7 @@ function NetworkView() {
 
       setFocusedConnection(connection);
       setConnectionSearch("");
-
-      setSelectedNode({
-        node: connection,
-        connectedMedia,
-      });
+      setSelectedNode({ node: connection, connectedMedia });
     },
     [networkData, setSelectedNode],
   );
@@ -103,17 +95,20 @@ function NetworkView() {
   const enrichedCount = networkData?.meta?.enrichedMedia ?? 0;
   const personalizedConnectionCount =
     networkData?.meta?.personalizedConnections ?? 0;
+  const networkWindow = networkData?.meta?.networkWindow ?? enrichedCount;
+  const totalHistory = networkData?.meta?.totalHistory ?? historyCount;
 
   return (
     <section className="network-page">
       <header className="network-header">
         <div>
           <h1>My Watch Network</h1>
-
           <p>
             {historyCount} titles in your watch history
             {networkData && (
               <>
+                {" · "}
+                showing {Math.min(networkWindow, totalHistory)} of {totalHistory}
                 {" · "}
                 {enrichedCount} enriched
                 {" · "}
@@ -141,11 +136,9 @@ function NetworkView() {
                 checked={activeTypes.has(connection.id)}
                 onChange={() => toggleType(connection.id)}
               />
-
               <span
                 className={`network-color network-color-${connection.id}`}
               />
-
               {connection.label}
             </label>
           ))}
@@ -161,17 +154,14 @@ function NetworkView() {
 
           <div className="network-help">
             <p>
-              Click a node to highlight its neighborhood and inspect it.
+              The graph intentionally renders a bounded window instead of
+              enriching your entire history at once.
             </p>
-
+            <p>Click a node to highlight its neighborhood and inspect it.</p>
             <p>Double-click a connection to focus on its titles.</p>
-
             <p>
-              Personal evidence distinguishes known preferences from
-              connections that are still uncertain.
+              Filters and focus stay local and do not rebuild the network.
             </p>
-
-            <p>Filters and focus stay local and do not rebuild the network.</p>
           </div>
         </aside>
 
@@ -179,15 +169,12 @@ function NetworkView() {
           {loading && (
             <div className="network-overlay">Building network...</div>
           )}
-
           {error && <div className="network-overlay error">{error}</div>}
-
           {!historyCount && !loading && (
             <div className="network-overlay">
               Add some titles to your library first.
             </div>
           )}
-
           {historyCount > 0 &&
             !loading &&
             !error &&
@@ -197,11 +184,9 @@ function NetworkView() {
                 No shared connections match the current filters.
               </div>
             )}
-
           {visibleFocusedConnection && !loading && (
             <div className="network-focus-indicator">
               <span>Focused on</span>
-
               <strong>
                 {CONNECTION_LABELS[visibleFocusedConnection.connectionType] ||
                   visibleFocusedConnection.connectionType}
@@ -209,7 +194,6 @@ function NetworkView() {
               </strong>
             </div>
           )}
-
           <div ref={containerRef} className="network-graph" />
         </div>
 

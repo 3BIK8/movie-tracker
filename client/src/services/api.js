@@ -30,35 +30,14 @@ export async function discoverMedia({
   sort = "popularity",
   page = 1,
 }) {
-  const params = new URLSearchParams({
-    type,
-    page,
-    sort,
-  });
+  const params = new URLSearchParams({ type, page, sort });
 
-  if (query) {
-    params.set("query", query);
-  }
-
-  if (year) {
-    params.set("year", year);
-  }
-
-  if (genre) {
-    params.set("genre", genre);
-  }
-
-  if (language) {
-    params.set("language", language);
-  }
-
-  if (minRating !== "") {
-    params.set("minRating", minRating);
-  }
-
-  if (maxRating !== "") {
-    params.set("maxRating", maxRating);
-  }
+  if (query) params.set("query", query);
+  if (year) params.set("year", year);
+  if (genre) params.set("genre", genre);
+  if (language) params.set("language", language);
+  if (minRating !== "") params.set("minRating", minRating);
+  if (maxRating !== "") params.set("maxRating", maxRating);
 
   return request(
     `${API_URL}/discover?${params.toString()}`,
@@ -67,10 +46,7 @@ export async function discoverMedia({
 }
 
 export async function getMediaDetails(type, id) {
-  const params = new URLSearchParams({
-    type,
-    id,
-  });
+  const params = new URLSearchParams({ type, id });
 
   return request(
     `${API_URL}/details?${params.toString()}`,
@@ -91,9 +67,7 @@ export async function saveWatchHistoryItem(item) {
     "Unable to save watch history.",
     {
       method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ item }),
     },
   );
@@ -103,9 +77,7 @@ export async function deleteWatchHistoryItem(type, id) {
   return request(
     `${API_URL}/watch-history/item/${encodeURIComponent(type)}/${encodeURIComponent(id)}`,
     "Unable to delete watch history item.",
-    {
-      method: "DELETE",
-    },
+    { method: "DELETE" },
   );
 }
 
@@ -123,9 +95,7 @@ export async function migrateWatchHistoryToDatabase(history) {
       "Unable to migrate watch history.",
       {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ history: batch }),
       },
     );
@@ -139,13 +109,13 @@ export async function migrateWatchHistoryToDatabase(history) {
   };
 }
 
-export async function getWatchHistoryNetwork() {
+export async function getWatchHistoryNetwork({ limit = 150 } = {}) {
+  const params = new URLSearchParams({ limit: String(limit) });
+
   return request(
-    `${API_URL}/recommendations/network`,
+    `${API_URL}/recommendations/network?${params.toString()}`,
     "Unable to load watch-history network.",
-    {
-      method: "POST",
-    },
+    { method: "POST" },
   );
 }
 
@@ -157,22 +127,14 @@ export async function getRecommendations(_history, feedback = null) {
     "Unable to generate recommendations.",
     {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        feedback: compactFeedback,
-      }),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ feedback: compactFeedback }),
     },
   );
 }
 
 export async function discoverPerson({ personId, role = "actor", page = 1 }) {
-  const params = new URLSearchParams({
-    personId,
-    role,
-    page,
-  });
+  const params = new URLSearchParams({ personId, role, page });
 
   return request(
     `${API_URL}/discover/person?${params.toString()}`,

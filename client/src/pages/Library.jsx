@@ -30,6 +30,7 @@ const RATING_OPTIONS = [
 ];
 
 const SORT_OPTIONS = [
+  { value: "newest-added", label: "Newest added" },
   { value: "newest", label: "Newest release" },
   { value: "oldest", label: "Oldest release" },
   { value: "title-asc", label: "Title A–Z" },
@@ -43,7 +44,7 @@ function Library() {
   const [genreFilter, setGenreFilter] = useState("all");
   const [ratingFilter, setRatingFilter] = useState("all");
   const [yearFilter, setYearFilter] = useState("all");
-  const [sortBy, setSortBy] = useState("newest");
+  const [sortBy, setSortBy] = useState("newest-added");
 
   const [page, setPage] = useState(1);
   const [pageInput, setPageInput] = useState("1");
@@ -81,20 +82,15 @@ function Library() {
       .filter((item) => {
         const matchesStatus =
           statusFilter === "all" || item.status === statusFilter;
-
         const matchesType = typeFilter === "all" || item.type === typeFilter;
-
         const matchesGenre =
           genreFilter === "all" || item.genres?.includes(genreFilter);
-
         const matchesRating =
           ratingFilter === "all" ||
           (ratingFilter === "unrated"
             ? !item.rating
             : item.rating === ratingFilter);
-
         const itemYear = item.date ? item.date.slice(0, 4) : "";
-
         const matchesYear = yearFilter === "all" || itemYear === yearFilter;
 
         return (
@@ -110,6 +106,18 @@ function Library() {
         const titleB = b.title || "";
 
         switch (sortBy) {
+          case "newest-added": {
+            const addedCompare = (b.createdAt || "").localeCompare(
+              a.createdAt || "",
+            );
+
+            return (
+              addedCompare ||
+              (b.updatedAt || "").localeCompare(a.updatedAt || "") ||
+              titleA.localeCompare(titleB)
+            );
+          }
+
           case "oldest":
             return (a.date || "").localeCompare(b.date || "");
 
@@ -120,19 +128,8 @@ function Library() {
             return titleB.localeCompare(titleA);
 
           case "rating": {
-            const ratingOrder = {
-              S: 0,
-              A: 1,
-              B: 2,
-              C: 3,
-              D: 4,
-            };
-
-            const ratingA = ratingOrder[a.rating] ?? 5;
-
-            const ratingB = ratingOrder[b.rating] ?? 5;
-
-            return ratingA - ratingB;
+            const ratingOrder = { S: 0, A: 1, B: 2, C: 3, D: 4 };
+            return (ratingOrder[a.rating] ?? 5) - (ratingOrder[b.rating] ?? 5);
           }
 
           case "newest":
@@ -154,12 +151,10 @@ function Library() {
     Math.ceil(filteredItems.length / ITEMS_PER_PAGE),
     1,
   );
-
   const safePage = Math.min(page, totalPages);
 
   const visibleItems = useMemo(() => {
     const start = (safePage - 1) * ITEMS_PER_PAGE;
-
     return filteredItems.slice(start, start + ITEMS_PER_PAGE);
   }, [filteredItems, safePage]);
 
@@ -201,7 +196,6 @@ function Library() {
 
   function handlePageChange(newPage) {
     const safePage = Math.min(Math.max(newPage, 1), totalPages);
-
     setPage(safePage);
     setPageInput(String(safePage));
     setExpandedId(null);
@@ -241,27 +235,19 @@ function Library() {
         <div className="library-controls">
           <div className="library-control">
             <label>Genre</label>
-
             <Select
               ariaLabel="Genre"
               value={genreFilter}
               onChange={handleGenreChange}
               options={[
-                {
-                  value: "all",
-                  label: "All Genres",
-                },
-                ...genres.map((genre) => ({
-                  value: genre,
-                  label: genre,
-                })),
+                { value: "all", label: "All Genres" },
+                ...genres.map((genre) => ({ value: genre, label: genre })),
               ]}
             />
           </div>
 
           <div className="library-control">
             <label>Rating</label>
-
             <Select
               ariaLabel="Rating"
               value={ratingFilter}
@@ -272,27 +258,19 @@ function Library() {
 
           <div className="library-control">
             <label>Year</label>
-
             <Select
               ariaLabel="Release year"
               value={yearFilter}
               onChange={handleYearChange}
               options={[
-                {
-                  value: "all",
-                  label: "Any Year",
-                },
-                ...years.map((year) => ({
-                  value: year,
-                  label: year,
-                })),
+                { value: "all", label: "Any Year" },
+                ...years.map((year) => ({ value: year, label: year })),
               ]}
             />
           </div>
 
           <div className="library-control">
             <label>Sort</label>
-
             <Select
               ariaLabel="Sort"
               value={sortBy}
