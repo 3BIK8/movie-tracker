@@ -5,7 +5,11 @@ import FranchiseDetails from "./FranchiseDetails";
 import StudioDetails from "./StudioDetails";
 import GenericConnectionDetails from "./GenericConnectionDetails";
 
-function NetworkDetailsPanel({ node, connectedMedia = [] }) {
+function NetworkDetailsPanel({
+  node,
+  connectedMedia = [],
+  onConnectionFocus,
+}) {
   if (!node) {
     return (
       <aside className="network-details">
@@ -56,7 +60,19 @@ function NetworkDetailsPanel({ node, connectedMedia = [] }) {
       );
   }
 
-  return <aside className="network-details">{content}</aside>;
+  return (
+    <aside className="network-details">
+      {content}
+      {onConnectionFocus && node.type === "connection" && (
+        <button
+          className="network-details-focus"
+          onClick={() => onConnectionFocus(node)}
+        >
+          Focus this connection
+        </button>
+      )}
+    </aside>
+  );
 }
 
 export default NetworkDetailsPanel;
