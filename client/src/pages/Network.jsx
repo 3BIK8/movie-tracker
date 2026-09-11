@@ -101,7 +101,6 @@ function NetworkView() {
   const historyCount = Object.keys(history).length;
   const visibleFocusedConnection = historyCount ? focusedConnection : null;
   const enrichedCount = networkData?.meta?.enrichedMedia ?? 0;
-  const connectionCount = connectionNodes.length;
 
   return (
     <section className="network-page">
@@ -116,7 +115,7 @@ function NetworkView() {
                 {" · "}
                 {enrichedCount} enriched
                 {" · "}
-                {connectionCount} shared connections
+                {visibleConnectionCount} visible shared connections
               </>
             )}
           </p>
