@@ -5,6 +5,7 @@ import { createTasteProfile } from "./tasteProfile.js";
 import { calculateExplorationRatio } from "./explorationPolicy.js";
 import { generateCandidates } from "./candidateService.js";
 import { scoreCandidates } from "./recommendationScorer.js";
+import { applyTemporalScoring } from "./temporalRecommendationScoring.js";
 import { diversifyRankedCandidates } from "./recommendationDiversifier.js";
 import { mixRecommendationPools } from "./recommendationMixer.js";
 import { validateRecommendationOutput } from "./recommendationInvariants.js";
@@ -70,8 +71,14 @@ export async function analyzeWatchHistory(history, feedback = null) {
   ]);
 
   const [scoredMovies, scoredTv] = [
-    scoreCandidates(movieCandidates, enrichedHistory, feedback),
-    scoreCandidates(tvCandidates, enrichedHistory, feedback),
+    applyTemporalScoring(
+      scoreCandidates(movieCandidates, enrichedHistory, feedback),
+      profile.movies,
+    ),
+    applyTemporalScoring(
+      scoreCandidates(tvCandidates, enrichedHistory, feedback),
+      profile.tv,
+    ),
   ];
 
   const rankRecommendationPools = (candidates) => {
