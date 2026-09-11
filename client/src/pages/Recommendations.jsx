@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import MovieCard from "../components/MovieCard";
 import Pagination from "../components/Pagination";
 import { getRecommendations } from "../services/api";
@@ -10,6 +10,7 @@ import {
   recordRecommendationsShown,
   recordRecommendationsSkipped,
 } from "../services/recommendationFeedback";
+import { filterDisplayedRecommendations } from "../services/recommendationDisplayFilter";
 
 const PAGE_SIZE = 20;
 
@@ -26,8 +27,10 @@ function RecommendationsView() {
   const [expandedId, setExpandedId] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const requestSequence = useRef(0);
 
   const loadRecommendations = useCallback(async () => {
+    const requestId = ++requestSequence.current;
     setIsLoading(true);
     setError(null);
 
@@ -37,25 +40,54 @@ function RecommendationsView() {
       const history = Object.values(getWatchHistory());
       const feedback = getRecommendationFeedback();
       const result = await getRecommendations(history, feedback);
+
+      // A newer history change may already have started another generation.
+      // Older responses are never allowed to overwrite newer recommendation
+      // state.
+      if (requestId !== requestSequence.current) {
+        return;
+      }
+
       const nextRecommendations = result.recommendations || {
         movies: [],
         tv: [],
       };
 
-      setRecommendations(nextRecommendations);
+      // The server enforces this invariant too. The client guard prevents a
+      // stale response from ever rendering a title that became known locally
+      // while the request was in flight.
+      const latestHistory = Object.values(getWatchHistory());
+      const filteredRecommendations = {
+        movies: filterDisplayedRecommendations(
+          nextRecommendations.movies,
+          latestHistory,
+        ),
+        tv: filterDisplayedRecommendations(
+          nextRecommendations.tv,
+          latestHistory,
+        ),
+      };
+
+      setRecommendations(filteredRecommendations);
       recordRecommendationsShown([
-        ...(nextRecommendations.movies || []),
-        ...(nextRecommendations.tv || []),
+        ...filteredRecommendations.movies,
+        ...filteredRecommendations.tv,
       ]);
 
       setPage(1);
       setPageInput("1");
       setExpandedId(null);
     } catch (error) {
+      if (requestId !== requestSequence.current) {
+        return;
+      }
+
       console.error(error);
       setError(error.message || "Unable to generate recommendations.");
     } finally {
-      setIsLoading(false);
+      if (requestId === requestSequence.current) {
+        setIsLoading(false);
+      }
     }
   }, []);
 
@@ -68,6 +100,7 @@ function RecommendationsView() {
   useEffect(() => {
     const handleHistoryUpdate = () => {
       setExpandedId(null);
+      void loadRecommendations();
     };
 
     window.addEventListener(WATCH_HISTORY_UPDATED, handleHistoryUpdate);
@@ -75,7 +108,7 @@ function RecommendationsView() {
     return () => {
       window.removeEventListener(WATCH_HISTORY_UPDATED, handleHistoryUpdate);
     };
-  }, []);
+  }, [loadRecommendations]);
 
   const recommendationKey = activeType === "movie" ? "movies" : "tv";
   const items = recommendations[recommendationKey] || [];
