@@ -29,9 +29,14 @@ function RecommendationsView() {
   const [error, setError] = useState(null);
   const requestSequence = useRef(0);
 
-  const loadRecommendations = useCallback(async () => {
+  const loadRecommendations = useCallback(async (options = {}) => {
+    const { showLoading = true } = options;
     const requestId = ++requestSequence.current;
-    setIsLoading(true);
+
+    if (showLoading) {
+      setIsLoading(true);
+    }
+
     setError(null);
 
     try {
@@ -85,7 +90,7 @@ function RecommendationsView() {
       console.error(error);
       setError(error.message || "Unable to generate recommendations.");
     } finally {
-      if (requestId === requestSequence.current) {
+      if (requestId === requestSequence.current && showLoading) {
         setIsLoading(false);
       }
     }
@@ -99,8 +104,19 @@ function RecommendationsView() {
 
   useEffect(() => {
     const handleHistoryUpdate = () => {
+      const latestHistory = Object.values(getWatchHistory());
+
+      // Apply the local history invariant immediately. The existing list stays
+      // visible while the server generates the next recommendation set.
+      setRecommendations((current) => ({
+        movies: filterDisplayedRecommendations(current.movies, latestHistory),
+        tv: filterDisplayedRecommendations(current.tv, latestHistory),
+      }));
       setExpandedId(null);
-      void loadRecommendations();
+
+      // History changes are persisted before this event is emitted, so the
+      // background generation always reads the new authoritative DB state.
+      void loadRecommendations({ showLoading: false });
     };
 
     window.addEventListener(WATCH_HISTORY_UPDATED, handleHistoryUpdate);
@@ -165,7 +181,7 @@ function RecommendationsView() {
 
         <button
           type="button"
-          onClick={loadRecommendations}
+          onClick={() => loadRecommendations()}
           disabled={isLoading}
         >
           {isLoading ? "Analyzing…" : "Refresh"}
