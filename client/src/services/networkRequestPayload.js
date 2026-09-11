@@ -1,5 +1,5 @@
-const MAX_NETWORK_HISTORY_ITEMS = 180;
-const MAX_NETWORK_PAYLOAD_BYTES = 40 * 1024;
+const MAX_NETWORK_HISTORY_ITEMS = 400;
+const MAX_NETWORK_PAYLOAD_BYTES = 90 * 1024;
 const PERSONAL_RATINGS = new Set(["S", "A", "B", "C", "D"]);
 
 function normalizeTimestamp(value) {
@@ -72,76 +72,20 @@ function sortByPriority(items) {
   });
 }
 
-function allocateTypeCounts(movieCount, tvCount, limit) {
-  const total = movieCount + tvCount;
+function fitPayloadToBudget(items) {
+  let result = items.slice(0, MAX_NETWORK_HISTORY_ITEMS);
 
-  if (total <= limit) {
-    return { movie: movieCount, tv: tvCount };
-  }
+  while (result.length > 0) {
+    const payload = JSON.stringify({ history: result });
 
-  if (movieCount === 0) {
-    return { movie: 0, tv: limit };
-  }
-
-  if (tvCount === 0) {
-    return { movie: limit, tv: 0 };
-  }
-
-  const movieExact = (limit * movieCount) / total;
-  const tvExact = (limit * tvCount) / total;
-  let movie = Math.floor(movieExact);
-  let tv = Math.floor(tvExact);
-
-  movie = Math.max(1, movie);
-  tv = Math.max(1, tv);
-
-  while (movie + tv < limit) {
-    const movieRemainder = movieExact - movie;
-    const tvRemainder = tvExact - tv;
-
-    if (movie < movieCount && (movieRemainder > tvRemainder || tv >= tvCount)) {
-      movie += 1;
-    } else if (tv < tvCount) {
-      tv += 1;
-    } else {
-      break;
-    }
-  }
-
-  while (movie + tv > limit) {
-    const movieRemainder = movieExact - movie;
-    const tvRemainder = tvExact - tv;
-
-    if (movie > 1 && (movieRemainder < tvRemainder || tv >= tvCount)) {
-      movie -= 1;
-    } else if (tv > 1) {
-      tv -= 1;
-    } else {
-      break;
-    }
-  }
-
-  return { movie, tv };
-}
-
-function selectHistoryItems(items) {
-  const sorted = sortByPriority(items);
-  const movies = sorted.filter((item) => item.type === "movie");
-  const tv = sorted.filter((item) => item.type === "tv");
-  const allocation = allocateTypeCounts(movies.length, tv.length, MAX_NETWORK_HISTORY_ITEMS);
-
-  return [
-    ...movies.slice(0, allocation.movie),
-    ...tv.slice(0, allocation.tv),
-  ].sort((a, b) => {
-    const recencyCompare = getRecency(b) - getRecency(a);
-
-    if (recencyCompare !== 0) {
-      return recencyCompare;
+    if (new TextEncoder().encode(payload).byteLength <= MAX_NETWORK_PAYLOAD_BYTES) {
+      return result;
     }
 
-    return `${a.type}:${a.id}`.localeCompare(`${b.type}:${b.id}`);
-  });
+    result = result.slice(0, -1);
+  }
+
+  return [];
 }
 
 export function compactNetworkHistory(history) {
@@ -166,19 +110,7 @@ export function compactNetworkHistory(history) {
     compacted.push(compactItemValue);
   }
 
-  let result = selectHistoryItems(compacted);
-
-  while (result.length > 0) {
-    const payload = JSON.stringify({ history: result });
-
-    if (new TextEncoder().encode(payload).byteLength <= MAX_NETWORK_PAYLOAD_BYTES) {
-      return result;
-    }
-
-    result = result.slice(0, -1);
-  }
-
-  return [];
+  return fitPayloadToBudget(sortByPriority(compacted));
 }
 
 export const NETWORK_REQUEST_LIMITS = Object.freeze({
