@@ -45,8 +45,19 @@ router.post("/analyze", async (req, res) => {
     validateOptionalClientHistory(req.body, normalizeWatchHistory);
 
     const feedback = normalizeRecommendationFeedback(req.body.feedback);
+    const historyReadStartedAt = Date.now();
     const history = getWatchHistory();
+    const historyReadMs = Date.now() - historyReadStartedAt;
     const result = await analyzeWatchHistory(history, feedback);
+
+    result.recommendationDiagnostics = {
+      ...result.recommendationDiagnostics,
+      timingMs: {
+        ...result.recommendationDiagnostics.timingMs,
+        databaseHistoryRead: historyReadMs,
+        requestTotal: Date.now() - historyReadStartedAt,
+      },
+    };
 
     res.json(result);
   } catch (error) {
@@ -67,8 +78,10 @@ router.post("/network", async (req, res) => {
     validateOptionalClientHistory(req.body, validateNetworkHistory);
 
     const limit = parseNetworkWindow(req.query.limit);
+    const historyReadStartedAt = Date.now();
     const history = getWatchHistory();
     const totalHistory = getWatchHistoryCount();
+    const databaseReadMs = Date.now() - historyReadStartedAt;
     const networkHistory = history.slice(0, limit);
     const result = await buildNetwork(networkHistory);
 
@@ -79,6 +92,11 @@ router.post("/network", async (req, res) => {
         totalHistory,
         networkWindow: limit,
         hasMoreHistory: limit < totalHistory,
+        timingMs: {
+          ...result.meta.timingMs,
+          databaseRead: databaseReadMs,
+          requestTotal: Date.now() - historyReadStartedAt,
+        },
       },
     });
   } catch (error) {
