@@ -16,6 +16,7 @@ import {
   selectCandidatesForEnrichment,
 } from "./candidateRetrievalPolicy.js";
 import { discoverMultiHopCandidates } from "./multiHopCandidateRetrieval.js";
+import { getHistoryExplorationSources } from "./historyExplorationSources.js";
 
 const MAX_SOURCES_PER_TYPE = {
   franchises: 8,
@@ -26,7 +27,7 @@ const MAX_SOURCES_PER_TYPE = {
   keywords: 8,
 };
 
-const EXPLORATION_BATCHES = 3;
+const EXPLORATION_BATCHES = 6;
 const SOURCE_DISCOVERY_CONCURRENCY = 6;
 const EXPLORATION_DISCOVERY_CONCURRENCY = 3;
 const CANDIDATE_ENRICHMENT_CONCURRENCY = 6;
@@ -76,7 +77,8 @@ function addCandidate(candidates, media, source, mediaType) {
   if (!isValidCandidate(candidate)) return;
 
   const key = createCandidateKey(candidate.type, candidate.id);
-  const isExploration = source.type === "exploration";
+  const isExploration =
+    source.type === "exploration" || source.pool === "exploration";
 
   if (!candidates.has(key)) {
     candidates.set(key, {
@@ -106,6 +108,7 @@ function addCandidate(candidates, media, source, mediaType) {
     existing.sources.push({
       type: source.type,
       value: source.value,
+      pool: source.pool,
       evidenceScore: source.evidenceScore ?? 0,
       confidence: source.confidence ?? 0,
       appearances: source.appearances ?? 0,
@@ -210,6 +213,31 @@ async function generateFromSource(candidates, source, mediaType) {
     default:
       break;
   }
+}
+
+async function generateHistoryExplorationCandidates(
+  candidates,
+  mediaType,
+  history,
+) {
+  const sources = getHistoryExplorationSources(history, mediaType);
+
+  await mapWithConcurrency(
+    sources,
+    async (source) => {
+      try {
+        await generateFromSource(candidates, source, mediaType);
+      } catch (error) {
+        console.warn(
+          `History exploration source failed: ${mediaType}:${source.type}:${source.value}`,
+          error.message,
+        );
+      }
+    },
+    SOURCE_DISCOVERY_CONCURRENCY,
+  );
+
+  return sources.length;
 }
 
 async function generateExplorationCandidates(
@@ -340,13 +368,28 @@ async function enrichCandidates(candidates) {
   return enrichedResults.filter(Boolean);
 }
 
+function getExplorationSourceGroup(source) {
+  if (source.pool === "exploration") {
+    return `history:${source.type}`;
+  }
+
+  if (source.type === "exploration") {
+    return source.value.split(":")[0];
+  }
+
+  return "unknown";
+}
+
 function selectExplorationCandidates(candidates, limit) {
   const byStrategy = new Map();
 
   for (const candidate of candidates) {
     const strategies = candidate.sources
-      .filter((source) => source.type === "exploration")
-      .map((source) => source.value.split(":")[0]);
+      .filter(
+        (source) =>
+          source.pool === "exploration" || source.type === "exploration",
+      )
+      .map(getExplorationSourceGroup);
     const strategy = strategies[0] || "unknown";
 
     if (!byStrategy.has(strategy)) byStrategy.set(strategy, []);
@@ -418,6 +461,12 @@ export async function generateCandidates(
     addCandidate(candidates, media, source, mediaType);
   }
 
+  const historyExplorationSources = await generateHistoryExplorationCandidates(
+    candidates,
+    mediaType,
+    history,
+  );
+
   await generateExplorationCandidates(candidates, mediaType, profile, history);
 
   const discovered = [...candidates.values()].filter(
@@ -462,6 +511,7 @@ export async function generateCandidates(
   console.log("CANDIDATE COUNTS:", {
     mediaType,
     sourceBudget,
+    historyExplorationSources,
     discovered: discovered.length,
     multiHopDiscovered: multiHopResults.length,
     enrichmentInput: enrichmentInput.length,
