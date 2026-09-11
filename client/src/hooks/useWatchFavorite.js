@@ -20,7 +20,9 @@ export function useWatchFavorite(item, type, metadata = null) {
   }, [readFavorite]);
 
   const updateFavorite = useCallback(() => {
-    setWatchFavorite(item, type, metadata || {});
+    void setWatchFavorite(item, type, metadata || {}).catch((error) =>
+      console.error("Unable to persist favorite", error),
+    );
   }, [item, type, metadata]);
 
   return {

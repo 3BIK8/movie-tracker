@@ -38,7 +38,7 @@ function normalizeEvidence(item) {
   };
 }
 
-function validateNetworkHistory(history) {
+export function validateNetworkHistory(history) {
   if (!Array.isArray(history)) {
     throw new TypeError("Network history must be an array.");
   }

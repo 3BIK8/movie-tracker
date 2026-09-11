@@ -1,7 +1,12 @@
 import express from "express";
+import { getWatchHistory } from "../repositories/watchHistoryRepository.js";
 import { analyzeWatchHistory } from "../services/recommendations/recommendationsService.js";
-import { buildNetwork } from "../services/recommendations/networkService.js";
+import {
+  buildNetwork,
+  validateNetworkHistory,
+} from "../services/recommendations/networkService.js";
 import { normalizeRecommendationFeedback } from "../services/recommendations/feedbackPayload.js";
+import { normalizeWatchHistory } from "../utils/mediaIdentity.js";
 
 const router = express.Router();
 
@@ -9,10 +14,21 @@ function isValidationError(error) {
   return error instanceof TypeError || error?.name === "ValidationError";
 }
 
+function validateOptionalClientHistory(body, validator) {
+  if (!Object.prototype.hasOwnProperty.call(body || {}, "history")) {
+    return;
+  }
+
+  validator(body.history);
+}
+
 router.post("/analyze", async (req, res) => {
   try {
+    validateOptionalClientHistory(req.body, normalizeWatchHistory);
+
     const feedback = normalizeRecommendationFeedback(req.body.feedback);
-    const result = await analyzeWatchHistory(req.body.history, feedback);
+    const history = getWatchHistory();
+    const result = await analyzeWatchHistory(history, feedback);
 
     res.json(result);
   } catch (error) {
@@ -32,7 +48,10 @@ router.post("/analyze", async (req, res) => {
 
 router.post("/network", async (req, res) => {
   try {
-    const result = await buildNetwork(req.body.history);
+    validateOptionalClientHistory(req.body, validateNetworkHistory);
+
+    const history = getWatchHistory();
+    const result = await buildNetwork(history);
 
     res.json(result);
   } catch (error) {

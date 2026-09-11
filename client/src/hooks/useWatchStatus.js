@@ -24,7 +24,9 @@ export function useWatchStatus(item, type, metadata = null) {
 
   const updateStatus = useCallback(
     (newStatus) => {
-      setWatchStatusService(item, type, newStatus, metadata || {});
+      void setWatchStatusService(item, type, newStatus, metadata || {}).catch(
+        (error) => console.error("Unable to persist watch status", error),
+      );
     },
     [item, type, metadata],
   );
