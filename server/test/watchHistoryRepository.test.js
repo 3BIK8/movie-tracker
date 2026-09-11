@@ -55,10 +55,10 @@ test.after(() => {
 
 test("starts with an empty persistent watch history", () => {
   assert.equal(getWatchHistoryCount(), 0);
-  assert.deepEqual(getWatchHistory(), {});
+  assert.deepEqual(getWatchHistory(), []);
 });
 
-test("persists a complete watch history item and reads it back", () => {
+test("persists a complete watch history item and reads it back as an array", () => {
   const saved = upsertWatchHistoryItem(sampleItem);
 
   assert.equal(getWatchHistoryCount(), 1);
@@ -71,7 +71,9 @@ test("persists a complete watch history item and reads it back", () => {
   assert.equal(saved.genres[0].name, "Drama");
 
   const history = getWatchHistory();
-  assert.equal(history["movie-550"].title, "Fight Club");
+  assert.equal(Array.isArray(history), true);
+  assert.equal(history.length, 1);
+  assert.equal(history[0].title, "Fight Club");
 });
 
 test("removes an item when neither status nor favorite remains", () => {
@@ -85,7 +87,7 @@ test("removes an item when neither status nor favorite remains", () => {
   deleteWatchHistoryItem("movie", "550");
 
   assert.equal(getWatchHistoryCount(), 0);
-  assert.deepEqual(getWatchHistory(), {});
+  assert.deepEqual(getWatchHistory(), []);
 });
 
 test("migrates legacy history incrementally across batches", () => {
@@ -136,5 +138,5 @@ test("migrates legacy history incrementally across batches", () => {
 
   assert.equal(secondBatch.migrated, true);
   assert.equal(secondBatch.count, 2);
-  assert.equal(getWatchHistory()["movie-680"].rating, "S");
+  assert.equal(getWatchHistory().find((item) => item.type === "movie" && item.id === "680").rating, "S");
 });

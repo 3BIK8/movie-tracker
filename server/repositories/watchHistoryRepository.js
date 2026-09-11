@@ -141,12 +141,7 @@ export function getWatchHistory() {
     .prepare(`${SELECT_SQL} ORDER BY w.last_interacted_at DESC, w.media_type, w.tmdb_id`)
     .all(USER_ID);
 
-  return Object.fromEntries(
-    rows.map((row) => {
-      const item = rowToHistoryItem(row);
-      return [`${item.type}-${item.id}`, item];
-    }),
-  );
+  return rows.map(rowToHistoryItem);
 }
 
 export function getWatchHistoryCount() {
@@ -238,7 +233,9 @@ export function upsertWatchHistoryItem(rawItem) {
     return null;
   }
 
-  return getWatchHistory()[`${item.type}-${item.id}`];
+  return getWatchHistory().find(
+    (historyItem) => historyItem.type === item.type && historyItem.id === item.id,
+  );
 }
 
 export function deleteWatchHistoryItem(type, id) {
