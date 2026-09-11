@@ -57,13 +57,14 @@ function normalizeHistoryItem(item) {
 }
 
 function normalizeHistory(history) {
-  if (!history || typeof history !== "object" || Array.isArray(history)) {
+  if (!history || typeof history !== "object") {
     return {};
   }
 
+  const sourceItems = Array.isArray(history) ? history : Object.values(history);
   const normalized = {};
 
-  for (const item of Object.values(history)) {
+  for (const item of sourceItems) {
     if (!item || typeof item !== "object") {
       continue;
     }
@@ -246,8 +247,6 @@ export async function setWatchStatus(item, type, status, metadata = {}) {
     };
   }
 
-  emitHistoryUpdated();
-
   try {
     await persistHistoryItem(key, historyCache[key]);
   } catch (error) {
@@ -287,8 +286,6 @@ export async function setWatchFavorite(item, type, metadata = {}) {
     favorite,
     favoriteAt: favorite ? timestamp : null,
   };
-
-  emitHistoryUpdated();
 
   try {
     await persistHistoryItem(key, historyCache[key]);
@@ -384,8 +381,6 @@ export async function setWatchRating(type, id, rating) {
     updatedAt: timestamp,
     lastInteractedAt: timestamp,
   };
-
-  emitHistoryUpdated();
 
   try {
     await persistHistoryItem(key, historyCache[key]);
