@@ -18,6 +18,36 @@ function connection(type, value, label = value) {
   return { type, value, label };
 }
 
+function tasteProfile(overrides = {}) {
+  return {
+    mediaTypes: {
+      movies: {
+        dimensions: {
+          actors: {
+            "10": {
+              direction: "positive",
+              evidenceScore: 1.5,
+              temporalEvidenceScore: 1.2,
+              confidence: 0.75,
+              appearances: 3,
+            },
+          },
+          genres: {
+            "18": {
+              direction: "negative",
+              evidenceScore: -0.8,
+              temporalEvidenceScore: -0.6,
+              confidence: 0.6,
+              appearances: 2,
+            },
+          },
+        },
+      },
+    },
+    ...overrides,
+  };
+}
+
 test("buildGraph creates a deterministic bipartite graph", () => {
   const records = [
     record("2", [connection("actor", "10", "Actor A")]),
@@ -63,6 +93,47 @@ test("buildGraph excludes connections that occur in only one media item", () => 
 
   assert.equal(graph.nodes.filter((node) => node.type === "connection").length, 0);
   assert.equal(graph.edges.length, 0);
+});
+
+test("buildGraph attaches positive, negative, and unknown personal evidence", () => {
+  const graph = buildGraph(
+    [
+      record("1", [connection("actor", "10", "Actor A"), connection("genre", "18", "Drama")]),
+      record("2", [connection("actor", "10", "Actor A"), connection("genre", "18", "Drama")]),
+    ],
+    tasteProfile(),
+  );
+
+  const actor = graph.nodes.find((node) => node.id === "connection-actor-10");
+  const genre = graph.nodes.find((node) => node.id === "connection-genre-18");
+
+  assert.deepEqual(actor.personalEvidence, {
+    state: "positive",
+    evidenceScore: 1.5,
+    temporalEvidenceScore: 1.2,
+    confidence: 0.75,
+    appearances: 3,
+  });
+  assert.deepEqual(genre.personalEvidence, {
+    state: "negative",
+    evidenceScore: -0.8,
+    temporalEvidenceScore: -0.6,
+    confidence: 0.6,
+    appearances: 2,
+  });
+
+  const unknownGraph = buildGraph(
+    [
+      record("1", [connection("studio", "7", "Studio")]),
+      record("2", [connection("studio", "7", "Studio")]),
+    ],
+    tasteProfile(),
+  );
+
+  assert.equal(
+    unknownGraph.nodes.find((node) => node.id === "connection-studio-7").personalEvidence.state,
+    "unknown",
+  );
 });
 
 test("buildGraph stays within topology limits", () => {
