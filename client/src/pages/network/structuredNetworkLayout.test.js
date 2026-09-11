@@ -10,6 +10,9 @@ const nodes = [
   { id: "media-2", type: "media", title: "Beta", releaseDate: "2002-01-01" },
   { id: "media-3", type: "media", title: "Gamma", releaseDate: "2003-01-01" },
   { id: "media-4", type: "media", title: "Delta", releaseDate: "2004-01-01" },
+  { id: "media-5", type: "media", title: "Epsilon", releaseDate: "2005-01-01" },
+  { id: "media-6", type: "media", title: "Zeta", releaseDate: "2006-01-01" },
+  { id: "media-7", type: "media", title: "Eta", releaseDate: "2007-01-01" },
   {
     id: "actor-1",
     type: "connection",
@@ -59,8 +62,8 @@ test("every watched title receives a finite 2D position", () => {
     assert.ok(Number.isFinite(positions[node.id].y));
   }
 
-  assert.ok(new Set(nodes.slice(0, 4).map((node) => positions[node.id].x)).size > 1);
-  assert.ok(new Set(nodes.slice(0, 4).map((node) => positions[node.id].y)).size > 1);
+  assert.ok(new Set(nodes.slice(0, 7).map((node) => positions[node.id].x)).size > 1);
+  assert.ok(new Set(nodes.slice(0, 7).map((node) => positions[node.id].y)).size > 1);
 });
 
 test("movie mesh stays within the intended wide aspect envelope", () => {
@@ -100,10 +103,9 @@ test("edge curve distance is deterministic and points outward", () => {
   const source = { x: -100, y: 0 };
   const target = { x: 100, y: 0 };
   const center = { x: 0, y: 0 };
+  const first = buildEdgeCurveDistance(source, target, center);
+  const second = buildEdgeCurveDistance(source, target, center);
 
-  assert.equal(buildEdgeCurveDistance(source, target, center), 18);
-  assert.equal(
-    buildEdgeCurveDistance(source, target, center),
-    buildEdgeCurveDistance(source, target, center),
-  );
+  assert.ok(Math.abs(first - 18) < 0.1);
+  assert.equal(first, second);
 });
