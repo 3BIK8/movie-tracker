@@ -33,9 +33,13 @@ export function filterDisplayedRecommendations(recommendations, history) {
   const excludedIds = getExcludedRecommendationIds(history);
 
   return (Array.isArray(recommendations) ? recommendations : []).filter(
-    (recommendation) =>
-      !excludedIds.has(
-        createRecommendationMediaKey(recommendation?.type, recommendation?.id),
-      ),
+    (recommendation) => {
+      const key = createRecommendationMediaKey(
+        recommendation?.type,
+        recommendation?.id,
+      );
+
+      return key !== null && !excludedIds.has(key);
+    },
   );
 }
