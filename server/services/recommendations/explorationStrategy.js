@@ -1,14 +1,6 @@
 const CURRENT_YEAR = new Date().getFullYear();
 
-const EXPLORATION_YEAR_RANGES = [
-  [1950, 1969],
-  [1970, 1979],
-  [1980, 1989],
-  [1990, 1999],
-  [2000, 2009],
-  [2010, 2019],
-  [2020, CURRENT_YEAR],
-];
+const DEFAULT_YEAR_RANGES = [[2010, CURRENT_YEAR]];
 
 const STRATEGIES = [
   "long_tail",
@@ -49,12 +41,6 @@ function randomInteger(min, max, random) {
   return Math.floor(random() * (max - min + 1)) + min;
 }
 
-function pickYearRange(random) {
-  return EXPLORATION_YEAR_RANGES[
-    randomInteger(0, EXPLORATION_YEAR_RANGES.length - 1, random)
-  ];
-}
-
 function getTopProfileValue(values = {}) {
   return Object.entries(values)
     .filter(([, data]) => data?.evidenceScore > 0)
@@ -64,6 +50,44 @@ function getTopProfileValue(values = {}) {
       }
       return b[1].appearances - a[1].appearances;
     })[0]?.[0] ?? null;
+}
+
+function getProfileYearRanges(profile) {
+  const decades = Object.entries(profile?.years || {})
+    .filter(
+      ([value, data]) =>
+        /^\d{4}$/.test(value) &&
+        Number(value) % 10 === 0 &&
+        data?.evidenceScore > 0,
+    )
+    .map(([value, data]) => ({
+      decade: Number(value),
+      evidenceScore: data.evidenceScore,
+      appearances: data.appearances ?? 0,
+    }))
+    .sort((a, b) => {
+      if (b.evidenceScore !== a.evidenceScore) {
+        return b.evidenceScore - a.evidenceScore;
+      }
+      if (b.appearances !== a.appearances) {
+        return b.appearances - a.appearances;
+      }
+      return b.decade - a.decade;
+    });
+
+  const ranges = decades.slice(0, 3)
+    .map(({ decade }) => [decade, Math.min(decade + 9, CURRENT_YEAR)])
+    .filter(([start, end]) => start <= end);
+
+  if (ranges.length > 0 && ranges[0][1] < CURRENT_YEAR) {
+    ranges.unshift([Math.max(ranges[0][0], CURRENT_YEAR - 5), CURRENT_YEAR]);
+  }
+
+  return ranges.length > 0 ? ranges : DEFAULT_YEAR_RANGES;
+}
+
+function pickYearRange(yearRanges, random) {
+  return yearRanges[randomInteger(0, yearRanges.length - 1, random)];
 }
 
 function getAvailableStrategies(profile) {
@@ -145,6 +169,7 @@ export function buildExplorationQueries(
   const randomSource = random || createSeededRandom(seed);
   const queries = [];
   const availableStrategies = getAvailableStrategies(profile);
+  const yearRanges = getProfileYearRanges(profile);
 
   for (let index = 0; index < batchCount; index += 1) {
     const strategyIndex = randomInteger(
@@ -154,7 +179,7 @@ export function buildExplorationQueries(
     );
     const strategy =
       availableStrategies.splice(strategyIndex, 1)[0] ?? "long_tail";
-    const yearRange = pickYearRange(randomSource);
+    const yearRange = pickYearRange(yearRanges, randomSource);
     const page =
       strategy === "long_tail"
         ? getRandomPage(3, randomSource)

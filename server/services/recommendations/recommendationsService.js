@@ -23,6 +23,28 @@ function removeKnownRecommendations(recommendations, knownIds) {
   );
 }
 
+export function isGroundedExploitation(candidate) {
+  if (candidate.pool !== "exploitation") {
+    return true;
+  }
+
+  if (candidate.hardNegative || candidate.recommendationScore <= 0) {
+    return false;
+  }
+
+  const positiveConnectionEvidence = (candidate.connectionEvidence || []).some(
+    (evidence) => evidence.score > 0,
+  );
+
+  const positiveHistoryAnchor = (candidate.historyAnchorScore || 0) > 0;
+
+  return positiveConnectionEvidence || positiveHistoryAnchor;
+}
+
+function enforceRecommendationGrounding(candidates) {
+  return candidates.filter(isGroundedExploitation);
+}
+
 export async function analyzeWatchHistory(history, feedback = null) {
   const canonicalHistory = normalizeWatchHistory(history);
 
@@ -88,6 +110,9 @@ export async function analyzeWatchHistory(history, feedback = null) {
     ),
   ];
 
+  const groundedMovies = enforceRecommendationGrounding(scoredMovies);
+  const groundedTv = enforceRecommendationGrounding(scoredTv);
+
   const rankRecommendationPools = (candidates) => {
     const exploitation = candidates.filter(
       (candidate) => candidate.pool === "exploitation",
@@ -115,8 +140,8 @@ export async function analyzeWatchHistory(history, feedback = null) {
     };
   };
 
-  const moviePools = rankRecommendationPools(scoredMovies);
-  const tvPools = rankRecommendationPools(scoredTv);
+  const moviePools = rankRecommendationPools(groundedMovies);
+  const tvPools = rankRecommendationPools(groundedTv);
 
   const diversifiedMovies = mixRecommendationPools(
     moviePools.exploitation,
@@ -138,8 +163,6 @@ export async function analyzeWatchHistory(history, feedback = null) {
       .map((item) => createMediaKey(item.type, item.id)),
   );
 
-  // Final safety boundary: downstream ranking/diversification is never allowed
-  // to reintroduce a title that is already known to the user.
   const safeMovies = removeKnownRecommendations(diversifiedMovies, knownIds);
   const safeTv = removeKnownRecommendations(diversifiedTv, knownIds);
 
@@ -166,8 +189,6 @@ export async function analyzeWatchHistory(history, feedback = null) {
     }));
 
   return {
-    // Legacy analysis remains available while downstream consumers migrate
-    // to the canonical profile contract.
     profile,
     tasteProfile,
     explorationPolicy: {
