@@ -2,12 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { buildGraph, NETWORK_GRAPH_LIMITS } from "../services/recommendations/graphBuilder.js";
 
-function record(id, connections) {
+function record(id, connections, mediaType = "movie") {
   return {
     mediaNode: {
-      id: `media-movie-${id}`,
+      id: `media-${mediaType}-${id}`,
       type: "media",
-      mediaType: "movie",
+      mediaType,
       title: `Movie ${id}`,
     },
     connections,
@@ -16,6 +16,39 @@ function record(id, connections) {
 
 function connection(type, value, label = value) {
   return { type, value, label };
+}
+
+function tasteProfile(overrides = {}) {
+  return {
+    mediaTypes: {
+      movies: {
+        dimensions: {
+          actors: {
+            "10": {
+              direction: "positive",
+              evidenceScore: 1.5,
+              temporalEvidenceScore: 1.2,
+              confidence: 0.75,
+              appearances: 3,
+            },
+          },
+          genres: {
+            "18": {
+              direction: "negative",
+              evidenceScore: -0.8,
+              temporalEvidenceScore: -0.6,
+              confidence: 0.6,
+              appearances: 2,
+            },
+          },
+        },
+      },
+      tv: {
+        dimensions: {},
+      },
+    },
+    ...overrides,
+  };
 }
 
 test("buildGraph creates a deterministic bipartite graph", () => {
@@ -63,6 +96,88 @@ test("buildGraph excludes connections that occur in only one media item", () => 
 
   assert.equal(graph.nodes.filter((node) => node.type === "connection").length, 0);
   assert.equal(graph.edges.length, 0);
+});
+
+test("buildGraph attaches personal evidence without confusing unknown with negative", () => {
+  const graph = buildGraph(
+    [
+      record("1", [connection("actor", "10", "Actor A"), connection("genre", "18", "Drama")]),
+      record("2", [connection("actor", "10", "Actor A"), connection("genre", "18", "Drama")]),
+    ],
+    tasteProfile(),
+  );
+
+  const actor = graph.nodes.find((node) => node.id === "connection-actor-10");
+  const genre = graph.nodes.find((node) => node.id === "connection-genre-18");
+
+  assert.equal(actor.personalEvidence.state, "positive");
+  assert.equal(actor.personalEvidence.evidenceScore, 1.5);
+  assert.equal(actor.personalEvidence.confidence, 0.75);
+  assert.equal(actor.personalEvidence.appearances, 3);
+  assert.equal(actor.personalEvidence.byMediaType.movie.state, "positive");
+
+  assert.equal(genre.personalEvidence.state, "negative");
+  assert.equal(genre.personalEvidence.evidenceScore, -0.8);
+
+  const unknownGraph = buildGraph(
+    [
+      record("1", [connection("studio", "7", "Studio")]),
+      record("2", [connection("studio", "7", "Studio")]),
+    ],
+    tasteProfile(),
+  );
+
+  assert.equal(
+    unknownGraph.nodes.find((node) => node.id === "connection-studio-7").personalEvidence.state,
+    "unknown",
+  );
+});
+
+test("buildGraph aggregates evidence across movie and TV profiles", () => {
+  const graph = buildGraph(
+    [
+      record("1", [connection("actor", "10", "Actor A")], "movie"),
+      record("2", [connection("actor", "10", "Actor A")], "tv"),
+    ],
+    {
+      mediaTypes: {
+        movies: {
+          dimensions: {
+            actors: {
+              "10": {
+                direction: "positive",
+                evidenceScore: 1,
+                temporalEvidenceScore: 1,
+                confidence: 1,
+                appearances: 2,
+              },
+            },
+          },
+        },
+        tv: {
+          dimensions: {
+            actors: {
+              "10": {
+                direction: "negative",
+                evidenceScore: -0.5,
+                temporalEvidenceScore: -0.5,
+                confidence: 0.5,
+                appearances: 2,
+              },
+            },
+          },
+        },
+      },
+    },
+  );
+
+  const actor = graph.nodes.find((node) => node.id === "connection-actor-10");
+
+  assert.equal(actor.personalEvidence.state, "positive");
+  assert.equal(actor.personalEvidence.evidenceScore, 0.5);
+  assert.equal(actor.personalEvidence.confidence, 0.75);
+  assert.equal(actor.personalEvidence.byMediaType.movie.state, "positive");
+  assert.equal(actor.personalEvidence.byMediaType.tv.state, "negative");
 });
 
 test("buildGraph stays within topology limits", () => {

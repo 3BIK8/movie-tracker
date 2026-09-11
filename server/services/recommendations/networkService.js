@@ -1,5 +1,7 @@
 import { getMediaMetadata } from "./mediaMetadataService.js";
 import { getMediaConnections } from "./connectionExtractor.js";
+import { analyzeHistory } from "./historyAnalyzer.js";
+import { createTasteProfile } from "./tasteProfile.js";
 import { buildGraph } from "./graphBuilder.js";
 import { normalizeMediaRef } from "../../utils/mediaIdentity.js";
 import { mapWithConcurrency } from "../../utils/runWithConcurrency.js";
@@ -56,6 +58,33 @@ function validateNetworkHistory(history) {
   return normalized;
 }
 
+function toProfileMedia(record) {
+  const connections = record.connections || [];
+  const values = (type) =>
+    connections
+      .filter((connection) => connection.type === type)
+      .map((connection) => ({
+        id: connection.value,
+        name: connection.label,
+      }));
+
+  return {
+    ...record.mediaNode,
+    type: record.mediaNode.mediaType,
+    actors: values("actor"),
+    directors: values("director"),
+    genres: values("genre"),
+    franchises: values("franchise"),
+    studios: values("studio"),
+    keywords: values("keyword"),
+  };
+}
+
+function buildNetworkTasteProfile(mediaRecords) {
+  const profileInput = mediaRecords.map(toProfileMedia);
+  return createTasteProfile(analyzeHistory(profileInput));
+}
+
 export async function buildNetwork(history) {
   const normalizedHistory = validateNetworkHistory(history);
   const startedAt = Date.now();
@@ -101,15 +130,21 @@ export async function buildNetwork(history) {
     NETWORK_ENRICHMENT_CONCURRENCY,
   );
 
-  const graph = buildGraph(mediaRecords.filter(Boolean));
+  const enrichedRecords = mediaRecords.filter(Boolean);
+  const tasteProfile = buildNetworkTasteProfile(enrichedRecords);
+  const graph = buildGraph(enrichedRecords, tasteProfile);
 
   return {
     ...graph,
     meta: {
       requestedMedia: normalizedHistory.length,
-      enrichedMedia: mediaRecords.filter(Boolean).length,
+      enrichedMedia: enrichedRecords.length,
       nodeCount: graph.nodes.length,
       edgeCount: graph.edges.length,
+      personalizedConnections: graph.nodes.filter(
+        (node) =>
+          node.type === "connection" && node.personalEvidence?.state !== "unknown",
+      ).length,
       buildMs: Date.now() - startedAt,
     },
   };

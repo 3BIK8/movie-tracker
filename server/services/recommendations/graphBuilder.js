@@ -2,6 +2,18 @@ const MAX_CONNECTION_NODES = 400;
 const MAX_MEDIA_PER_CONNECTION = 30;
 const MAX_EDGES = 4000;
 
+const PROFILE_DIMENSION_BY_CONNECTION = Object.freeze({
+  actor: "actors",
+  director: "directors",
+  genre: "genres",
+  franchise: "franchises",
+  studio: "studios",
+  keyword: "keywords",
+  decade: "years",
+  language: "languages",
+  mediaType: "mediaTypes",
+});
+
 function getConnectionId(type, value) {
   return `connection-${type}-${value}`;
 }
@@ -43,6 +55,97 @@ function compareConnections(a, b) {
   }
 
   return String(a.value).localeCompare(String(b.value));
+}
+
+function getSignal(tasteProfile, mediaType, type, value) {
+  const dimension = PROFILE_DIMENSION_BY_CONNECTION[type];
+  const profileType = mediaType === "movie" ? "movies" : "tv";
+
+  return tasteProfile?.mediaTypes?.[profileType]?.dimensions?.[dimension]?.[
+    String(value)
+  ] || null;
+}
+
+function getPersonalEvidence(tasteProfile, mediaRecords, mediaIds, type, value) {
+  const recordsById = new Map(
+    mediaRecords.map((record) => [record.mediaNode.id, record]),
+  );
+  const evidenceByType = {};
+
+  for (const mediaId of mediaIds) {
+    const mediaType = recordsById.get(mediaId)?.mediaNode?.mediaType;
+
+    if (!mediaType || evidenceByType[mediaType]) {
+      continue;
+    }
+
+    const signal = getSignal(tasteProfile, mediaType, type, value);
+
+    evidenceByType[mediaType] = signal
+      ? {
+          state: signal.direction,
+          evidenceScore: signal.evidenceScore,
+          temporalEvidenceScore: signal.temporalEvidenceScore,
+          confidence: signal.confidence,
+          appearances: signal.appearances,
+        }
+      : {
+          state: "unknown",
+          evidenceScore: 0,
+          temporalEvidenceScore: 0,
+          confidence: 0,
+          appearances: 0,
+        };
+  }
+
+  const knownEvidence = Object.values(evidenceByType).filter(
+    (evidence) => evidence.state !== "unknown",
+  );
+
+  if (knownEvidence.length === 0) {
+    return {
+      state: "unknown",
+      evidenceScore: 0,
+      temporalEvidenceScore: 0,
+      confidence: 0,
+      appearances: 0,
+      byMediaType: evidenceByType,
+    };
+  }
+
+  const appearances = knownEvidence.reduce(
+    (sum, evidence) => sum + evidence.appearances,
+    0,
+  );
+  const evidenceScore = knownEvidence.reduce(
+    (sum, evidence) => sum + evidence.evidenceScore,
+    0,
+  );
+  const temporalEvidenceScore = knownEvidence.reduce(
+    (sum, evidence) => sum + evidence.temporalEvidenceScore,
+    0,
+  );
+  const confidence =
+    appearances > 0
+      ? knownEvidence.reduce(
+          (sum, evidence) => sum + evidence.confidence * evidence.appearances,
+          0,
+        ) / appearances
+      : 0;
+
+  return {
+    state:
+      evidenceScore > 0
+        ? "positive"
+        : evidenceScore < 0
+          ? "negative"
+          : "neutral",
+    evidenceScore,
+    temporalEvidenceScore,
+    confidence,
+    appearances,
+    byMediaType: evidenceByType,
+  };
 }
 
 function buildConnectionMap(mediaRecords) {
@@ -92,7 +195,7 @@ function buildConnectionMap(mediaRecords) {
     .slice(0, MAX_CONNECTION_NODES);
 }
 
-export function buildGraph(mediaRecords) {
+export function buildGraph(mediaRecords, tasteProfile = null) {
   const nodes = new Map();
   const edges = new Map();
   const connections = buildConnectionMap(mediaRecords);
@@ -117,6 +220,13 @@ export function buildGraph(mediaRecords) {
       label: connection.label,
       count: mediaIds.length,
       connectedMediaIds: mediaIds,
+      personalEvidence: getPersonalEvidence(
+        tasteProfile,
+        mediaRecords,
+        mediaIds,
+        connection.type,
+        connection.value,
+      ),
       ...connection.metadata,
     });
 
