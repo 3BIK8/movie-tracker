@@ -70,6 +70,7 @@ function toProfileMedia(record) {
 
   return {
     ...record.mediaNode,
+    type: record.mediaNode.mediaType,
     actors: values("actor"),
     directors: values("director"),
     genres: values("genre"),
