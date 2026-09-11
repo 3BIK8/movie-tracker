@@ -2,6 +2,18 @@ const MAX_CONNECTION_NODES = 400;
 const MAX_MEDIA_PER_CONNECTION = 30;
 const MAX_EDGES = 4000;
 
+const PROFILE_DIMENSION_BY_CONNECTION = Object.freeze({
+  actor: "actors",
+  director: "directors",
+  genre: "genres",
+  franchise: "franchises",
+  studio: "studios",
+  keyword: "keywords",
+  decade: "years",
+  language: "languages",
+  mediaType: "mediaTypes",
+});
+
 function getConnectionId(type, value) {
   return `connection-${type}-${value}`;
 }
@@ -43,6 +55,32 @@ function compareConnections(a, b) {
   }
 
   return String(a.value).localeCompare(String(b.value));
+}
+
+function getPersonalEvidence(tasteProfile, mediaType, type, value) {
+  const dimension = PROFILE_DIMENSION_BY_CONNECTION[type];
+  const mediaProfile = tasteProfile?.mediaTypes?.[
+    mediaType === "movie" ? "movies" : "tv"
+  ];
+  const signal = mediaProfile?.dimensions?.[dimension]?.[String(value)];
+
+  if (!signal) {
+    return {
+      state: "unknown",
+      evidenceScore: 0,
+      temporalEvidenceScore: 0,
+      confidence: 0,
+      appearances: 0,
+    };
+  }
+
+  return {
+    state: signal.direction,
+    evidenceScore: signal.evidenceScore,
+    temporalEvidenceScore: signal.temporalEvidenceScore,
+    confidence: signal.confidence,
+    appearances: signal.appearances,
+  };
 }
 
 function buildConnectionMap(mediaRecords) {
@@ -92,7 +130,7 @@ function buildConnectionMap(mediaRecords) {
     .slice(0, MAX_CONNECTION_NODES);
 }
 
-export function buildGraph(mediaRecords) {
+export function buildGraph(mediaRecords, tasteProfile = null) {
   const nodes = new Map();
   const edges = new Map();
   const connections = buildConnectionMap(mediaRecords);
@@ -109,6 +147,10 @@ export function buildGraph(mediaRecords) {
     }
 
     const connectionId = getConnectionId(connection.type, connection.value);
+    const firstMedia = mediaRecords.find(
+      (record) => record.mediaNode.id === mediaIds[0],
+    );
+    const mediaType = firstMedia?.mediaNode?.mediaType;
 
     addNode(nodes, {
       id: connectionId,
@@ -117,6 +159,12 @@ export function buildGraph(mediaRecords) {
       label: connection.label,
       count: mediaIds.length,
       connectedMediaIds: mediaIds,
+      personalEvidence: getPersonalEvidence(
+        tasteProfile,
+        mediaType,
+        connection.type,
+        connection.value,
+      ),
       ...connection.metadata,
     });
 
