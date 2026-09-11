@@ -101,6 +101,8 @@ function NetworkView() {
   const historyCount = Object.keys(history).length;
   const visibleFocusedConnection = historyCount ? focusedConnection : null;
   const enrichedCount = networkData?.meta?.enrichedMedia ?? 0;
+  const personalizedConnectionCount =
+    networkData?.meta?.personalizedConnections ?? 0;
 
   return (
     <section className="network-page">
@@ -116,6 +118,8 @@ function NetworkView() {
                 {enrichedCount} enriched
                 {" · "}
                 {visibleConnectionCount} visible shared connections
+                {" · "}
+                {personalizedConnectionCount} with personal evidence
               </>
             )}
           </p>
@@ -161,6 +165,11 @@ function NetworkView() {
             </p>
 
             <p>Double-click a connection to focus on its titles.</p>
+
+            <p>
+              Personal evidence distinguishes known preferences from
+              connections that are still uncertain.
+            </p>
 
             <p>Filters and focus stay local and do not rebuild the network.</p>
           </div>
