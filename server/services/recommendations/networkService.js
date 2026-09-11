@@ -7,7 +7,16 @@ import { normalizeMediaRef } from "../../utils/mediaIdentity.js";
 import { mapWithConcurrency } from "../../utils/runWithConcurrency.js";
 
 const NETWORK_ENRICHMENT_CONCURRENCY = 6;
-const MAX_NETWORK_HISTORY_ITEMS = 180;
+const MAX_NETWORK_HISTORY_ITEMS = 400;
+
+function normalizeRating(value) {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const rating = value.trim().toUpperCase();
+  return ["S", "A", "B", "C", "D"].includes(rating) ? rating : null;
+}
 
 function normalizeEvidence(item) {
   const ref = normalizeMediaRef(item?.type, item?.id);
@@ -16,7 +25,7 @@ function normalizeEvidence(item) {
     type: ref.type,
     id: ref.id,
     status: typeof item.status === "string" ? item.status : null,
-    rating: Number.isFinite(item.rating) ? item.rating : null,
+    rating: normalizeRating(item.rating),
     favorite: item.favorite === true,
     createdAt: typeof item.createdAt === "string" ? item.createdAt : null,
     statusChangedAt:
@@ -139,7 +148,15 @@ export async function buildNetwork(history) {
     meta: {
       requestedMedia: normalizedHistory.length,
       enrichedMedia: enrichedRecords.length,
+      movieMedia: enrichedRecords.filter(
+        (record) => record.mediaNode.mediaType === "movie",
+      ).length,
+      tvMedia: enrichedRecords.filter(
+        (record) => record.mediaNode.mediaType === "tv",
+      ).length,
       nodeCount: graph.nodes.length,
+      mediaNodeCount: graph.nodes.filter((node) => node.type === "media").length,
+      connectionNodeCount: graph.nodes.filter((node) => node.type === "connection").length,
       edgeCount: graph.edges.length,
       personalizedConnections: graph.nodes.filter(
         (node) =>
