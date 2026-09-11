@@ -97,6 +97,7 @@ function buildNetworkTasteProfile(mediaRecords) {
 export async function buildNetwork(history) {
   const normalizedHistory = validateNetworkHistory(history);
   const startedAt = Date.now();
+  const enrichmentStartedAt = Date.now();
 
   const mediaRecords = await mapWithConcurrency(
     normalizedHistory,
@@ -139,9 +140,16 @@ export async function buildNetwork(history) {
     NETWORK_ENRICHMENT_CONCURRENCY,
   );
 
+  const enrichmentMs = Date.now() - enrichmentStartedAt;
   const enrichedRecords = mediaRecords.filter(Boolean);
+
+  const profileStartedAt = Date.now();
   const tasteProfile = buildNetworkTasteProfile(enrichedRecords);
+  const profileMs = Date.now() - profileStartedAt;
+
+  const graphStartedAt = Date.now();
   const graph = buildGraph(enrichedRecords, tasteProfile);
+  const graphMs = Date.now() - graphStartedAt;
 
   return {
     ...graph,
@@ -163,6 +171,11 @@ export async function buildNetwork(history) {
           node.type === "connection" && node.personalEvidence?.state !== "unknown",
       ).length,
       buildMs: Date.now() - startedAt,
+      timingMs: {
+        enrichment: enrichmentMs,
+        profile: profileMs,
+        graph: graphMs,
+      },
     },
   };
 }
