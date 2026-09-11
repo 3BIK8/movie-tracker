@@ -132,20 +132,6 @@ export const NETWORK_STYLES = [
     style: { opacity: 0.08 },
   },
   {
-    selector: "node.filtered-out",
-    style: {
-      opacity: 0,
-      label: "",
-      events: "no",
-    },
-  },
-  {
-    selector: "edge.filtered-out",
-    style: {
-      opacity: 0,
-    },
-  },
-  {
     selector: "edge.highlighted",
     style: { width: 3, opacity: 1 },
   },
@@ -162,6 +148,20 @@ export const NETWORK_STYLES = [
       "text-background-color": "#101114",
       "text-background-opacity": 0.9,
       "text-background-padding": 3,
+    },
+  },
+  {
+    selector: "node.filtered-out",
+    style: {
+      opacity: 0,
+      label: "",
+      events: "no",
+    },
+  },
+  {
+    selector: "edge.filtered-out",
+    style: {
+      opacity: 0,
     },
   },
 ];
