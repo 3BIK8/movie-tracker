@@ -16,7 +16,6 @@ const NETWORK_ASPECT_RATIO = 1.77;
 const RELAXATION_STEPS = 50;
 const RELAXATION_ALPHA = 0.08;
 const CONNECTION_OFFSET = 72;
-const MAX_VERTICAL_RATIO = 0.56;
 
 function canonicalDate(node) {
   return String(
@@ -42,16 +41,14 @@ function compareNodes(a, b) {
   );
 }
 
+function connectionTypeRank(type) {
+  const index = CONNECTION_TYPE_ORDER.indexOf(type);
+  return index === -1 ? CONNECTION_TYPE_ORDER.length : index;
+}
+
 function sortConnectionTypes(types) {
   return [...types].sort(
-    (a, b) =>
-      (CONNECTION_TYPE_ORDER.indexOf(a) === -1
-        ? CONNECTION_TYPE_ORDER.length
-        : CONNECTION_TYPE_ORDER.indexOf(a)) -
-        (CONNECTION_TYPE_ORDER.indexOf(b) === -1
-          ? CONNECTION_TYPE_ORDER.length
-          : CONNECTION_TYPE_ORDER.indexOf(b)) ||
-      a.localeCompare(b),
+    (a, b) => connectionTypeRank(a) - connectionTypeRank(b) || a.localeCompare(b),
   );
 }
 
@@ -238,13 +235,27 @@ function hexToPoint(cell) {
   };
 }
 
-function assignProjectedPointsToHexes(mediaNodes, projection) {
+function mediaFeatureDegree(node, features) {
+  const featureSets = features.get(node.id);
+  if (!featureSets) return 0;
+  return FEATURE_TYPES.reduce((sum, type) => sum + featureSets.get(type).size, 0);
+}
+
+function assignProjectedPointsToHexes(mediaNodes, projection, features) {
   const cells = generateHexCells(mediaNodes.length);
   const targets = projection.map((point, index) => ({
     ...point,
     index,
     radius: Math.hypot(point.x, point.y),
   }));
+  const hubIndex = mediaNodes.reduce((best, node, index) =>
+    mediaFeatureDegree(node, features) > mediaFeatureDegree(mediaNodes[best], features)
+      ? index
+      : mediaFeatureDegree(node, features) === mediaFeatureDegree(mediaNodes[best], features) &&
+          compareNodes(node, mediaNodes[best]) < 0
+        ? index
+        : best,
+  0);
   const order = [...targets].sort(
     (a, b) =>
       a.radius - b.radius ||
@@ -253,16 +264,26 @@ function assignProjectedPointsToHexes(mediaNodes, projection) {
   const available = new Set(cells.map((_, index) => index));
   const positions = new Array(mediaNodes.length);
 
+  if (available.has(0)) {
+    positions[hubIndex] = hexToPoint(cells[0]);
+    available.delete(0);
+  }
+
   for (const target of order) {
+    if (target.index === hubIndex) continue;
+
     let bestCellIndex = null;
     let bestDistance = Number.POSITIVE_INFINITY;
-
     for (const cellIndex of available) {
       const point = hexToPoint(cells[cellIndex]);
-      const distance = Math.hypot(point.x - target.x * GRID_BASE_STEP, point.y - target.y * GRID_BASE_STEP);
+      const distance = Math.hypot(
+        point.x - target.x * GRID_BASE_STEP,
+        point.y - target.y * GRID_BASE_STEP,
+      );
       if (
         distance < bestDistance ||
-        (distance === bestDistance && (bestCellIndex === null || cellIndex < bestCellIndex))
+        (distance === bestDistance &&
+          (bestCellIndex === null || cellIndex < bestCellIndex))
       ) {
         bestCellIndex = cellIndex;
         bestDistance = distance;
@@ -289,15 +310,12 @@ function getSimilarityMap(mediaNodes, similarityMatrix) {
   return map;
 }
 
-function constrainVerticalSpread(positions) {
+function constrainAspectRatio(positions) {
   if (!positions.length) return;
 
   const maxX = Math.max(...positions.map((position) => Math.abs(position.x)), GRID_BASE_STEP);
   const maxY = Math.max(...positions.map((position) => Math.abs(position.y)));
-  const allowedY = Math.max(
-    GRID_BASE_STEP,
-    maxX * MAX_VERTICAL_RATIO / NETWORK_ASPECT_RATIO,
-  );
+  const allowedY = Math.max(GRID_BASE_STEP / 2, maxX / NETWORK_ASPECT_RATIO);
 
   if (maxY <= allowedY) return;
 
@@ -332,36 +350,44 @@ function relaxMovieMesh(mediaNodes, positions, similarityMatrix) {
       result[i] = { x: nextX, y: nextY };
     }
 
-    constrainVerticalSpread(result);
+    constrainAspectRatio(result);
   }
 
   return result;
 }
 
-function distanceToSegment(point, a, b) {
-  const dx = b.x - a.x;
-  const dy = b.y - a.y;
-  const lengthSquared = dx * dx + dy * dy;
-  if (!lengthSquared) return Math.hypot(point.x - a.x, point.y - a.y);
-  const t = Math.max(
-    0,
-    Math.min(
-      1,
-      ((point.x - a.x) * dx + (point.y - a.y) * dy) / lengthSquared,
-    ),
-  );
-  return Math.hypot(
-    point.x - (a.x + t * dx),
-    point.y - (a.y + t * dy),
-  );
-}
-
 function connectionSort(a, b) {
   return (
     (b.connectedMediaIds?.length || 0) - (a.connectedMediaIds?.length || 0) ||
-    sortConnectionTypes([a.connectionType, b.connectionType])[0] === a.connectionType ? -1 : 1 ||
+    connectionTypeRank(a.connectionType) - connectionTypeRank(b.connectionType) ||
     canonicalId(a).localeCompare(canonicalId(b))
   );
+}
+
+function weightedCentroid(connected, mediaNodes, mediaPositionById) {
+  let totalWeight = 0;
+  const centroid = { x: 0, y: 0 };
+
+  for (const node of mediaNodes) {
+    const point = mediaPositionById.get(node.id);
+    if (!point || !connected.includes(point)) continue;
+    const weight = 1 + Math.log1p(node.connectedMediaCount || node.connectionCount || 0);
+    centroid.x += point.x * weight;
+    centroid.y += point.y * weight;
+    totalWeight += weight;
+  }
+
+  if (!totalWeight) {
+    return connected.reduce(
+      (result, point) => ({
+        x: result.x + point.x / connected.length,
+        y: result.y + point.y / connected.length,
+      }),
+      { x: 0, y: 0 },
+    );
+  }
+
+  return { x: centroid.x / totalWeight, y: centroid.y / totalWeight };
 }
 
 function placeConnectionNodes(connectionNodes, mediaNodes, mediaPositions) {
@@ -377,12 +403,17 @@ function placeConnectionNodes(connectionNodes, mediaNodes, mediaPositions) {
   const ordered = [...connectionNodes].sort(connectionSort);
 
   for (const node of ordered) {
-    const connected = getConnectedMediaIds(node, mediaIds)
+    const connectedIds = getConnectedMediaIds(node, mediaIds);
+    const connected = connectedIds
       .map((id) => mediaPositionById.get(id))
       .filter(Boolean);
 
     if (!connected.length) {
-      result[node.id] = { x: 0, y: 0 };
+      const fallbackIndex = Object.keys(result).length;
+      result[node.id] = {
+        x: (fallbackIndex + 1) * CONNECTION_OFFSET,
+        y: CONNECTION_OFFSET * ((fallbackIndex % 3) - 1),
+      };
       continue;
     }
 
@@ -406,13 +437,7 @@ function placeConnectionNodes(connectionNodes, mediaNodes, mediaPositions) {
         y: midpoint.y + (dx / length) * CONNECTION_OFFSET * sign,
       };
     } else {
-      candidate = connected.reduce(
-        (centroid, point) => ({
-          x: centroid.x + point.x / connected.length,
-          y: centroid.y + point.y / connected.length,
-        }),
-        { x: 0, y: 0 },
-      );
+      candidate = weightedCentroid(connected, mediaNodes, mediaPositionById);
     }
 
     const offsets = [
@@ -452,19 +477,18 @@ function placeConnectionNodes(connectionNodes, mediaNodes, mediaPositions) {
   return result;
 }
 
-export function buildEdgeAwareControlPoint(source, target, center) {
+export function buildEdgeCurveDistance(source, target, center) {
   const midpoint = {
     x: (source.x + target.x) / 2,
     y: (source.y + target.y) / 2,
   };
+  const edge = { x: target.x - source.x, y: target.y - source.y };
   const outward = { x: midpoint.x - center.x, y: midpoint.y - center.y };
-  const length = Math.hypot(outward.x, outward.y) || 1;
-  const offset = Math.min(70, 18 + length * 0.04);
-
-  return {
-    x: midpoint.x + (outward.x / length) * offset,
-    y: midpoint.y + (outward.y / length) * offset,
-  };
+  const edgeLength = Math.hypot(edge.x, edge.y) || 1;
+  const outwardLength = Math.hypot(outward.x, outward.y) || 1;
+  const normal = { x: -edge.y / edgeLength, y: edge.x / edgeLength };
+  const sign = normal.x * outward.x + normal.y * outward.y >= 0 ? 1 : -1;
+  return sign * Math.min(70, 18 + outwardLength * 0.04);
 }
 
 /**
@@ -483,7 +507,7 @@ export function buildStructuredNetworkLayout(nodes) {
   const features = buildFeatureSets(mediaNodes, connectionNodes);
   const similarityMatrix = buildSimilarityMatrix(mediaNodes, features);
   const projection = spectralProjection(similarityMatrix);
-  const hexPositions = assignProjectedPointsToHexes(mediaNodes, projection);
+  const hexPositions = assignProjectedPointsToHexes(mediaNodes, projection, features);
   const relaxedPositions = relaxMovieMesh(mediaNodes, hexPositions, similarityMatrix);
   const positions = {};
 
