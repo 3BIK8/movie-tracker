@@ -72,26 +72,8 @@ test("temporal scoring changes ranking without changing candidates", () => {
 
   const recent = candidate(4);
   recent.id = "recent";
-
-  const ranked = applyTemporalScoring(
-    [older, recent],
-    {
-      connections: {
-        actors: {
-          "42": {
-            evidenceScore: 1,
-            temporalEvidenceScore: 0.25,
-          },
-          "43": {
-            evidenceScore: 1,
-            temporalEvidenceScore: 1,
-          },
-        },
-      },
-    },
-  );
-
   recent.connectionEvidence[0].value = "43";
+
   const reranked = applyTemporalScoring(
     [older, recent],
     {
