@@ -35,34 +35,28 @@ test("compactNetworkHistory keeps only canonical network evidence", () => {
   ]);
 });
 
-test("compactNetworkHistory preserves TV coverage under the global cap", () => {
+test("compactNetworkHistory preserves all history within the bounded transport contract", () => {
   const movies = Array.from({ length: 220 }, (_, index) => ({
     type: "movie",
     id: String(index + 1),
     lastInteractedAt: `2026-09-${String((index % 9) + 1).padStart(2, "0")}T00:00:00.000Z`,
   }));
-  const tv = [
-    {
-      type: "tv",
-      id: "9001",
-      status: "watched",
-      rating: "S",
-      lastInteractedAt: "2026-01-01T00:00:00.000Z",
-    },
-    {
-      type: "tv",
-      id: "9002",
-      lastInteractedAt: "2026-01-02T00:00:00.000Z",
-    },
-  ];
+  const tv = Array.from({ length: 68 }, (_, index) => ({
+    type: "tv",
+    id: String(9001 + index),
+    status: "watched",
+    rating: index === 0 ? "S" : "C",
+    lastInteractedAt: `2026-08-${String((index % 9) + 1).padStart(2, "0")}T00:00:00.000Z`,
+  }));
 
   const result = compactNetworkHistory([...movies, ...tv]);
 
-  assert.equal(result.length, NETWORK_REQUEST_LIMITS.maxItems);
-  assert.ok(result.some((item) => item.type === "movie"));
-  assert.ok(result.some((item) => item.type === "tv"));
+  assert.equal(result.length, 288);
+  assert.equal(result.filter((item) => item.type === "movie").length, 220);
+  assert.equal(result.filter((item) => item.type === "tv").length, 68);
   assert.ok(result.some((item) => item.type === "tv" && item.rating === "S"));
   assert.equal(new Set(result.map((item) => `${item.type}:${item.id}`)).size, result.length);
+  assert.ok(result.length <= NETWORK_REQUEST_LIMITS.maxItems);
 });
 
 test("compactNetworkHistory rejects invalid personal ratings", () => {
