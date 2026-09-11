@@ -132,8 +132,18 @@ export const NETWORK_STYLES = [
     style: { opacity: 0.08 },
   },
   {
-    selector: ".filtered-out",
-    style: { display: "none" },
+    selector: "node.filtered-out",
+    style: {
+      opacity: 0,
+      label: "",
+      events: "no",
+    },
+  },
+  {
+    selector: "edge.filtered-out",
+    style: {
+      opacity: 0,
+    },
   },
   {
     selector: "edge.highlighted",
