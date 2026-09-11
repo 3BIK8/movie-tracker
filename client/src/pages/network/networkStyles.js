@@ -2,8 +2,8 @@ export const NETWORK_STYLES = [
   {
     selector: "node[type='media']",
     style: {
-      width: 48,
-      height: 48,
+      width: 54,
+      height: 54,
       shape: "ellipse",
       "background-color": "#2563eb",
       "border-width": 3,
@@ -106,10 +106,9 @@ export const NETWORK_STYLES = [
     style: {
       width: 1.5,
       "line-color": "#94a3b8",
-      opacity: 0.25,
-      "curve-style": "taxi",
-      "taxi-direction": "horizontal",
-      "taxi-turn": 30,
+      opacity: 0.3,
+      "curve-style": "bezier",
+      "control-point-step-size": 45,
     },
   },
   {
@@ -117,10 +116,9 @@ export const NETWORK_STYLES = [
     style: {
       width: 1,
       "line-color": "#64748b",
-      opacity: 0.15,
-      "curve-style": "taxi",
-      "taxi-direction": "horizontal",
-      "taxi-turn": 30,
+      opacity: 0.18,
+      "curve-style": "bezier",
+      "control-point-step-size": 35,
     },
   },
   {
