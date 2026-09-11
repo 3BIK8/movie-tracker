@@ -12,17 +12,18 @@ import { compareCandidatesByEvidence } from "./candidateOrdering.js";
 import { validateCandidateOutput } from "./candidateInvariants.js";
 import {
   getDiscoveryPageCount,
+  getSourceBudget,
   selectCandidatesForEnrichment,
 } from "./candidateRetrievalPolicy.js";
 import { discoverMultiHopCandidates } from "./multiHopCandidateRetrieval.js";
 
 const MAX_SOURCES_PER_TYPE = {
-  franchises: 5,
-  directors: 4,
-  actors: 6,
-  genres: 3,
-  studios: 2,
-  keywords: 5,
+  franchises: 8,
+  directors: 8,
+  actors: 12,
+  genres: 6,
+  studios: 4,
+  keywords: 8,
 };
 
 const EXPLORATION_BATCHES = 3;
@@ -255,7 +256,7 @@ async function generateExplorationCandidates(
   );
 }
 
-function getStrongConnections(profile, limit = 20) {
+function getStrongConnections(profile, limit = getSourceBudget(profile)) {
   const connections = [];
 
   for (const type of Object.keys(MAX_SOURCES_PER_TYPE)) {
@@ -387,7 +388,8 @@ export async function generateCandidates(
   mediaType,
   limit = 100,
 ) {
-  const strongConnections = getStrongConnections(profile);
+  const sourceBudget = getSourceBudget(profile);
+  const strongConnections = getStrongConnections(profile, sourceBudget);
   const knownIds = getKnownMediaIds(history);
   const candidates = new Map();
 
@@ -459,6 +461,7 @@ export async function generateCandidates(
 
   console.log("CANDIDATE COUNTS:", {
     mediaType,
+    sourceBudget,
     discovered: discovered.length,
     multiHopDiscovered: multiHopResults.length,
     enrichmentInput: enrichmentInput.length,
