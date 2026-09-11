@@ -22,7 +22,7 @@ function getBridgeEvidence(candidate) {
   );
 }
 
-function selectBridgeCandidates(candidates) {
+export function selectMultiHopBridges(candidates) {
   return [...candidates]
     .sort((a, b) => {
       const sourceCountDifference = b.sources.length - a.sources.length;
@@ -37,7 +37,7 @@ function selectBridgeCandidates(candidates) {
     .slice(0, MAX_BRIDGE_CANDIDATES);
 }
 
-function getBridgeConnections(metadata) {
+export function getSecondOrderConnections(metadata) {
   return getMediaConnections(metadata)
     .filter((connection) => SECOND_ORDER_CONNECTION_TYPES.has(connection.type))
     .sort((a, b) =>
@@ -101,7 +101,7 @@ async function discoverFromConnection(connection, mediaType) {
 }
 
 export async function discoverMultiHopCandidates(candidates, mediaType) {
-  const bridges = selectBridgeCandidates(candidates);
+  const bridges = selectMultiHopBridges(candidates);
   const discovered = [];
 
   const enrichedBridges = await mapWithConcurrency(
@@ -110,7 +110,7 @@ export async function discoverMultiHopCandidates(candidates, mediaType) {
       try {
         const metadata = await getMediaMetadata(bridge.type, bridge.id);
         if (!metadata) return null;
-        return { bridge, connections: getBridgeConnections(metadata) };
+        return { bridge, connections: getSecondOrderConnections(metadata) };
       } catch (error) {
         console.warn(
           `Multi-hop bridge enrichment failed for ${bridge.type}:${bridge.id}`,
