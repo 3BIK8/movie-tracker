@@ -220,7 +220,9 @@ async function generateHistoryExplorationCandidates(
   mediaType,
   history,
 ) {
-  const sources = getHistoryExplorationSources(history, mediaType);
+  const historySources = getHistoryExplorationSources(history, mediaType);
+  const { sources, watchedHistoryItems, historyConnectionCount } =
+    historySources;
 
   await mapWithConcurrency(
     sources,
@@ -237,7 +239,11 @@ async function generateHistoryExplorationCandidates(
     SOURCE_DISCOVERY_CONCURRENCY,
   );
 
-  return sources.length;
+  return {
+    sourceCount: sources.length,
+    watchedHistoryItems,
+    historyConnectionCount,
+  };
 }
 
 async function generateExplorationCandidates(
@@ -461,7 +467,7 @@ export async function generateCandidates(
     addCandidate(candidates, media, source, mediaType);
   }
 
-  const historyExplorationSources = await generateHistoryExplorationCandidates(
+  const historyExploration = await generateHistoryExplorationCandidates(
     candidates,
     mediaType,
     history,
@@ -511,7 +517,9 @@ export async function generateCandidates(
   console.log("CANDIDATE COUNTS:", {
     mediaType,
     sourceBudget,
-    historyExplorationSources,
+    historyExplorationSources: historyExploration.sourceCount,
+    watchedHistoryItems: historyExploration.watchedHistoryItems,
+    historyConnectionCount: historyExploration.historyConnectionCount,
     discovered: discovered.length,
     multiHopDiscovered: multiHopResults.length,
     enrichmentInput: enrichmentInput.length,
@@ -523,11 +531,4 @@ export async function generateCandidates(
   });
 
   return output;
-}
-
-function calculateCandidateEvidence(candidate) {
-  return candidate.sources.reduce(
-    (sum, source) => sum + source.evidenceScore,
-    0,
-  );
 }
