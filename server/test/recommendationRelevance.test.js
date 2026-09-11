@@ -8,6 +8,7 @@ function signal(evidenceScore, appearances = 1) {
 }
 
 test("exploration uses learned release eras instead of arbitrary historical eras", () => {
+  const currentYear = new Date().getFullYear();
   const profile = {
     genres: { "28": signal(2) },
     languages: { en: signal(1) },
@@ -29,14 +30,22 @@ test("exploration uses learned release eras instead of arbitrary historical eras
     const end = Number(match[2]);
 
     assert.ok(start >= 2010);
-    assert.ok(end <= new Date().getFullYear());
+    assert.ok(end <= currentYear);
   }
 });
 
 test("exploration falls back to contemporary eras when no release-year preference exists", () => {
-  const queries = buildExplorationQueries("movie", { genres: {}, languages: {}, years: {} }, 3, () => 0);
+  const currentYear = new Date().getFullYear();
+  const queries = buildExplorationQueries(
+    "movie",
+    { genres: {}, languages: {}, years: {} },
+    3,
+    () => 0,
+  );
 
-  assert.ok(queries.every((query) => query.yearRange === "2010-2026" || query.yearRange === "2000-2009"));
+  assert.ok(
+    queries.every((query) => query.yearRange === `2010-${currentYear}`),
+  );
 });
 
 test("exploitation candidates require positive learned evidence", () => {
