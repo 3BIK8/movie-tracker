@@ -162,8 +162,8 @@ export function useNetworkGraph({
     const visibleIds = new Set(filteredNodes.map((node) => node.id));
 
     cy.nodes().forEach((node) => {
-      node.toggleClass("dimmed", !visibleIds.has(node.id));
-      node.toggleClass("filtered-out", !visibleIds.has(node.id));
+      node.toggleClass("dimmed", !visibleIds.has(node.id()));
+      node.toggleClass("filtered-out", !visibleIds.has(node.id()));
     });
 
     cy.edges().forEach((edge) => {
@@ -174,22 +174,27 @@ export function useNetworkGraph({
       edge.toggleClass("filtered-out", !visible);
     });
 
-    const fitVisibleElements = () => {
+    const fitVisibleNodes = () => {
       if (cyRef.current !== cy) {
         return;
       }
 
-      const visibleElements = cy.elements().not(".filtered-out");
+      // Fit only nodes. Asking Cytoscape to calculate an edge-inclusive
+      // bounding box while visibility classes are changing can force edge
+      // projection recalculation during a render transition.
+      const visibleNodes = cy.nodes().filter((node) =>
+        visibleIds.has(node.id()),
+      );
 
-      if (visibleElements.length) {
-        cy.fit(visibleElements, 80);
+      if (visibleNodes.length) {
+        cy.fit(visibleNodes, 80);
       }
     };
 
     if (layoutActiveRef.current) {
-      pendingFitRef.current = fitVisibleElements;
+      pendingFitRef.current = fitVisibleNodes;
     } else {
-      fitVisibleElements();
+      fitVisibleNodes();
     }
   }, [networkData, activeTypes, focusedConnection]);
 
@@ -207,18 +212,18 @@ export function useNetworkGraph({
       .removeClass("show-label")
       .removeClass("filtered-out");
 
-    const fitAllElements = () => {
+    const fitAllNodes = () => {
       if (cyRef.current !== cy) {
         return;
       }
 
-      cy.fit(undefined, 80);
+      cy.fit(cy.nodes(), 80);
     };
 
     if (layoutActiveRef.current) {
-      pendingFitRef.current = fitAllElements;
+      pendingFitRef.current = fitAllNodes;
     } else {
-      fitAllElements();
+      fitAllNodes();
     }
   }
 
