@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useWatchHistory } from "../hooks/useWatchHistory";
 import { useConnectionSearch } from "./network/useConnectionSearch";
 import { useNetworkGraph } from "./network/useNetworkGraph";
@@ -30,6 +30,7 @@ function NetworkView() {
     history,
     activeTypes,
     focusedConnection,
+    onConnectionFocus: setFocusedConnection,
   });
 
   const { connectionSearch, setConnectionSearch, filteredConnections } =
@@ -70,19 +71,22 @@ function NetworkView() {
     });
   }
 
-  function focusConnection(connection) {
-    const connectedMedia = (connection.connectedMediaIds || [])
-      .map((id) => networkData?.nodes?.find((node) => node.id === id))
-      .filter(Boolean);
+  const focusConnection = useCallback(
+    (connection) => {
+      const connectedMedia = (connection.connectedMediaIds || [])
+        .map((id) => networkData?.nodes?.find((node) => node.id === id))
+        .filter(Boolean);
 
-    setFocusedConnection(connection);
-    setConnectionSearch("");
+      setFocusedConnection(connection);
+      setConnectionSearch("");
 
-    setSelectedNode({
-      node: connection,
-      connectedMedia,
-    });
-  }
+      setSelectedNode({
+        node: connection,
+        connectedMedia,
+      });
+    },
+    [networkData, setSelectedNode],
+  );
 
   function clearConnectionFocus() {
     setFocusedConnection(null);
@@ -97,7 +101,6 @@ function NetworkView() {
   const historyCount = Object.keys(history).length;
   const visibleFocusedConnection = historyCount ? focusedConnection : null;
   const enrichedCount = networkData?.meta?.enrichedMedia ?? 0;
-  const connectionCount = connectionNodes.length;
 
   return (
     <section className="network-page">
@@ -112,7 +115,7 @@ function NetworkView() {
                 {" · "}
                 {enrichedCount} enriched
                 {" · "}
-                {connectionCount} shared connections
+                {visibleConnectionCount} visible shared connections
               </>
             )}
           </p>
@@ -154,15 +157,12 @@ function NetworkView() {
 
           <div className="network-help">
             <p>
-              The graph shows titles linked through connections shared by at
-              least two titles.
+              Click a node to highlight its neighborhood and inspect it.
             </p>
 
-            <p>Hover a node to highlight its relationships.</p>
+            <p>Double-click a connection to focus on its titles.</p>
 
-            <p>Click a connection to inspect the titles behind it.</p>
-
-            <p>Filters and focus are local and do not rebuild the network.</p>
+            <p>Filters and focus stay local and do not rebuild the network.</p>
           </div>
         </aside>
 
@@ -207,6 +207,7 @@ function NetworkView() {
         <NetworkDetailsPanel
           node={selectedNode?.node}
           connectedMedia={selectedNode?.connectedMedia}
+          onConnectionFocus={focusConnection}
         />
       </div>
     </section>
