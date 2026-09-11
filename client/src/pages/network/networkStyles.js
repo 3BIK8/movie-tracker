@@ -45,7 +45,7 @@ export const NETWORK_STYLES = [
     selector: "node[connectionType='genre']",
     style: {
       width: "mapData(count, 2, 20, 24, 42)",
-      height: "mapData(count, 2, 20, 42, 42)",
+      height: "mapData(count, 2, 20, 24, 42)",
       shape: "roundrectangle",
       "background-color": "#22c55e",
       "border-width": 2,
@@ -81,7 +81,7 @@ export const NETWORK_STYLES = [
     selector: "node[connectionType='studio']",
     style: {
       width: "mapData(count, 2, 20, 22, 40)",
-      height: "mapData(count, 2, 20, 20, 40)",
+      height: "mapData(count, 2, 20, 22, 40)",
       shape: "diamond",
       "background-color": "#14b8a6",
       "border-width": 1,
