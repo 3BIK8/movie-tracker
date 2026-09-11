@@ -10,6 +10,10 @@ import {
 } from "../../utils/mediaIdentity.js";
 import { compareCandidatesByEvidence } from "./candidateOrdering.js";
 import { validateCandidateOutput } from "./candidateInvariants.js";
+import {
+  getDiscoveryPageCount,
+  selectCandidatesForEnrichment,
+} from "./candidateRetrievalPolicy.js";
 
 const MAX_SOURCES_PER_TYPE = {
   franchises: 5,
@@ -137,28 +141,44 @@ async function discoverByPerson(candidates, source, mediaType) {
   await discoverTvCredits(candidates, source);
 }
 
+async function discoverByPagedDiscover(candidates, source, mediaType, parameter) {
+  const pageCount = getDiscoveryPageCount(source.type);
+
+  for (let page = 1; page <= pageCount; page += 1) {
+    const data = await tmdbFetch(
+      `/discover/${mediaType}?${parameter}=${source.value}&page=${page}`,
+    );
+
+    for (const media of data.results || []) {
+      addCandidate(candidates, media, source, mediaType);
+    }
+
+    if (!data.total_pages || page >= data.total_pages) {
+      break;
+    }
+  }
+}
+
 async function discoverByGenre(candidates, source, mediaType) {
-  const data = await tmdbFetch(
-    `/discover/${mediaType}?with_genres=${source.value}&page=1`,
-  );
-  for (const media of data.results || [])
-    addCandidate(candidates, media, source, mediaType);
+  await discoverByPagedDiscover(candidates, source, mediaType, "with_genres");
 }
 
 async function discoverByStudio(candidates, source, mediaType) {
-  const data = await tmdbFetch(
-    `/discover/${mediaType}?with_companies=${source.value}&page=1`,
+  await discoverByPagedDiscover(
+    candidates,
+    source,
+    mediaType,
+    "with_companies",
   );
-  for (const media of data.results || [])
-    addCandidate(candidates, media, source, mediaType);
 }
 
 async function discoverByKeyword(candidates, source, mediaType) {
-  const data = await tmdbFetch(
-    `/discover/${mediaType}?with_keywords=${source.value}&page=1`,
+  await discoverByPagedDiscover(
+    candidates,
+    source,
+    mediaType,
+    "with_keywords",
   );
-  for (const media of data.results || [])
-    addCandidate(candidates, media, source, mediaType);
 }
 
 async function discoverByFranchise(candidates, source) {
@@ -391,8 +411,8 @@ export async function generateCandidates(
     (candidate) =>
       !knownIds.has(createCandidateKey(candidate.type, candidate.id)),
   );
-
-  const enriched = await enrichCandidates(discovered);
+  const enrichmentInput = selectCandidatesForEnrichment(discovered, limit);
+  const enriched = await enrichCandidates(enrichmentInput);
   const exploitation = enriched.filter(
     (candidate) => candidate.pool === "exploitation",
   );
@@ -429,6 +449,7 @@ export async function generateCandidates(
   console.log("CANDIDATE COUNTS:", {
     mediaType,
     discovered: discovered.length,
+    enrichmentInput: enrichmentInput.length,
     enriched: enriched.length,
     exploitation: exploitation.length,
     exploration: exploration.length,
