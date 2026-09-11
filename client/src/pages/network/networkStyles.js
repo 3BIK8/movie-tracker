@@ -136,7 +136,7 @@ export const NETWORK_STYLES = [
     style: { width: 3, opacity: 1 },
   },
   {
-    selector: ".show-label",
+    selector: ".show-label[displayLabel]",
     style: {
       label: "data(displayLabel)",
       color: "#ffffff",
