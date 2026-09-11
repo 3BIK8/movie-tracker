@@ -1,6 +1,7 @@
 import { compactRecommendationFeedback } from "./recommendationFeedbackPayload";
 
 const API_URL = "http://localhost:5000/api";
+const WATCH_HISTORY_MIGRATION_BATCH_SIZE = 10;
 
 async function request(url, fallbackMessage, options = {}) {
   const response = await fetch(url, options);
@@ -109,17 +110,33 @@ export async function deleteWatchHistoryItem(type, id) {
 }
 
 export async function migrateWatchHistoryToDatabase(history) {
-  return request(
-    `${API_URL}/watch-history/migrate`,
-    "Unable to migrate watch history.",
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
+  const entries = Object.entries(history || {});
+  let lastResponse = null;
+
+  for (let index = 0; index < entries.length; index += WATCH_HISTORY_MIGRATION_BATCH_SIZE) {
+    const batch = Object.fromEntries(
+      entries.slice(index, index + WATCH_HISTORY_MIGRATION_BATCH_SIZE),
+    );
+
+    lastResponse = await request(
+      `${API_URL}/watch-history/migrate`,
+      "Unable to migrate watch history.",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ history: batch }),
       },
-      body: JSON.stringify({ history }),
-    },
-  );
+    );
+  }
+
+  return lastResponse || {
+    migrated: false,
+    count: 0,
+    history: {},
+    source: "database",
+  };
 }
 
 export async function getWatchHistoryNetwork() {
