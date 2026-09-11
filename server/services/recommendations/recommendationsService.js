@@ -1,6 +1,7 @@
 import { getMediaMetadata } from "./mediaMetadataService.js";
 import { getMediaConnections } from "./connectionExtractor.js";
 import { analyzeHistory } from "./historyAnalyzer.js";
+import { createTasteProfile } from "./tasteProfile.js";
 import { calculateExplorationRatio } from "./explorationPolicy.js";
 import { generateCandidates } from "./candidateService.js";
 import { scoreCandidates } from "./recommendationScorer.js";
@@ -47,6 +48,7 @@ export async function analyzeWatchHistory(history, feedback = null) {
 
   const enrichedHistory = enrichedResults.filter(Boolean);
   const profile = analyzeHistory(enrichedHistory, feedback);
+  const tasteProfile = createTasteProfile(profile);
   const movieExplorationRatio = calculateExplorationRatio(
     profile.movies.strength,
   );
@@ -140,7 +142,10 @@ export async function analyzeWatchHistory(history, feedback = null) {
     }));
 
   return {
+    // Legacy analysis remains available while downstream consumers migrate
+    // to the canonical profile contract.
     profile,
+    tasteProfile,
     explorationPolicy: {
       movies: {
         ratio: movieExplorationRatio,
