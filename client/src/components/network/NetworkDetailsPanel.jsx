@@ -4,6 +4,7 @@ import GenreDetails from "./GenreDetails";
 import FranchiseDetails from "./FranchiseDetails";
 import StudioDetails from "./StudioDetails";
 import GenericConnectionDetails from "./GenericConnectionDetails";
+import PersonalEvidence from "./PersonalEvidence";
 
 function NetworkDetailsPanel({
   node,
@@ -62,6 +63,7 @@ function NetworkDetailsPanel({
 
   return (
     <aside className="network-details">
+      <PersonalEvidence evidence={node.personalEvidence} />
       {content}
       {onConnectionFocus && node.type === "connection" && (
         <button
