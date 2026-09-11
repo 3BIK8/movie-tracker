@@ -88,8 +88,8 @@ test("removes an item when neither status nor favorite remains", () => {
   assert.deepEqual(getWatchHistory(), {});
 });
 
-test("migrates legacy local history only into the empty database", () => {
-  const result = migrateLegacyWatchHistory({
+test("migrates legacy history incrementally across batches", () => {
+  const firstBatch = migrateLegacyWatchHistory({
     "tv-1399": {
       type: "tv",
       id: "1399",
@@ -110,7 +110,31 @@ test("migrates legacy local history only into the empty database", () => {
     },
   });
 
-  assert.equal(result.migrated, true);
-  assert.equal(result.count, 1);
-  assert.equal(getWatchHistory()["tv-1399"].rating, "A");
+  assert.equal(firstBatch.migrated, true);
+  assert.equal(firstBatch.count, 1);
+
+  const secondBatch = migrateLegacyWatchHistory({
+    "movie-680": {
+      type: "movie",
+      id: "680",
+      title: "Pulp Fiction",
+      year: 1994,
+      genres: [{ id: 80, name: "Crime" }],
+      actors: [],
+      directors: [],
+      studios: [],
+      keywords: [],
+      genre_ids: [80],
+      status: "watched",
+      rating: "S",
+      favorite: false,
+      createdAt: "2026-09-02T11:00:00.000Z",
+      updatedAt: "2026-09-02T11:00:00.000Z",
+      lastInteractedAt: "2026-09-02T11:00:00.000Z",
+    },
+  });
+
+  assert.equal(secondBatch.migrated, true);
+  assert.equal(secondBatch.count, 2);
+  assert.equal(getWatchHistory()["movie-680"].rating, "S");
 });

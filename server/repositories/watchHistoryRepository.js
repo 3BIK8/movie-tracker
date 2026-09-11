@@ -271,10 +271,6 @@ export function migrateLegacyWatchHistory(history) {
     throw new Error("Legacy watch history must be an object.");
   }
 
-  if (getWatchHistoryCount() > 0) {
-    return { migrated: false, count: getWatchHistoryCount() };
-  }
-
   const items = Object.values(history).filter(
     (item) => item && typeof item === "object",
   );
