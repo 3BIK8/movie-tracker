@@ -46,8 +46,10 @@ function enforceRecommendationGrounding(candidates) {
 }
 
 export async function analyzeWatchHistory(history, feedback = null) {
+  const pipelineStartedAt = Date.now();
   const canonicalHistory = normalizeWatchHistory(history);
 
+  const historyEnrichmentStartedAt = Date.now();
   const enrichedResults = await mapWithConcurrency(
     canonicalHistory,
     async (historyItem) => {
@@ -75,15 +77,19 @@ export async function analyzeWatchHistory(history, feedback = null) {
     },
     HISTORY_ENRICHMENT_CONCURRENCY,
   );
+  const historyEnrichmentMs = Date.now() - historyEnrichmentStartedAt;
 
   const enrichedHistory = enrichedResults.filter(Boolean);
+  const profileStartedAt = Date.now();
   const profile = analyzeHistory(enrichedHistory, feedback);
   const tasteProfile = createTasteProfile(profile);
   const movieExplorationRatio = calculateExplorationRatio(
     profile.movies.strength,
   );
   const tvExplorationRatio = calculateExplorationRatio(profile.tv.strength);
+  const profileMs = Date.now() - profileStartedAt;
 
+  const candidateGenerationStartedAt = Date.now();
   const [movieCandidates, tvCandidates] = await Promise.all([
     generateCandidates(
       profile.movies.connections,
@@ -98,7 +104,9 @@ export async function analyzeWatchHistory(history, feedback = null) {
       RECOMMENDATION_LIMIT,
     ),
   ]);
+  const candidateGenerationMs = Date.now() - candidateGenerationStartedAt;
 
+  const rankingStartedAt = Date.now();
   const [scoredMovies, scoredTv] = [
     applyTemporalScoring(
       scoreCandidates(movieCandidates, enrichedHistory, feedback),
@@ -156,6 +164,7 @@ export async function analyzeWatchHistory(history, feedback = null) {
     RECOMMENDATION_LIMIT,
     tvExplorationRatio,
   );
+  const rankingMs = Date.now() - rankingStartedAt;
 
   const knownIds = new Set(
     canonicalHistory
@@ -227,6 +236,13 @@ export async function analyzeWatchHistory(history, feedback = null) {
         finalExploration: safeTv.filter(
           (item) => item.pool === "exploration",
         ).length,
+      },
+      timingMs: {
+        historyEnrichment: historyEnrichmentMs,
+        profile: profileMs,
+        candidateGeneration: candidateGenerationMs,
+        ranking: rankingMs,
+        total: Date.now() - pipelineStartedAt,
       },
     },
     recommendations: {
