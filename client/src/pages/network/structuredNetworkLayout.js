@@ -121,7 +121,6 @@ export function buildStructuredNetworkLayout(nodes) {
     MAX_MOVIE_COLUMNS,
     Math.max(1, Math.ceil(Math.sqrt(Math.max(orderedMedia.length, 1)))),
   );
-  const rows = Math.max(1, Math.ceil(orderedMedia.length / columns));
   const positions = {};
 
   orderedMedia.forEach((node, index) => {
