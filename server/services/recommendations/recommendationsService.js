@@ -16,6 +16,13 @@ const RECOMMENDATION_LIMIT = 100;
 const HISTORY_ENRICHMENT_CONCURRENCY = 6;
 const DIVERSITY_LAMBDA = 0.8;
 
+function removeKnownRecommendations(recommendations, knownIds) {
+  return recommendations.filter(
+    (recommendation) =>
+      !knownIds.has(createMediaKey(recommendation.type, recommendation.id)),
+  );
+}
+
 export async function analyzeWatchHistory(history, feedback = null) {
   const canonicalHistory = normalizeWatchHistory(history);
 
@@ -100,6 +107,11 @@ export async function analyzeWatchHistory(history, feedback = null) {
         exploration.length || 1,
         DIVERSITY_LAMBDA,
       ),
+      counts: {
+        total: candidates.length,
+        exploitation: exploitation.length,
+        exploration: exploration.length,
+      },
     };
   };
 
@@ -126,14 +138,19 @@ export async function analyzeWatchHistory(history, feedback = null) {
       .map((item) => createMediaKey(item.type, item.id)),
   );
 
-  validateRecommendationOutput(diversifiedMovies, {
+  // Final safety boundary: downstream ranking/diversification is never allowed
+  // to reintroduce a title that is already known to the user.
+  const safeMovies = removeKnownRecommendations(diversifiedMovies, knownIds);
+  const safeTv = removeKnownRecommendations(diversifiedTv, knownIds);
+
+  validateRecommendationOutput(safeMovies, {
     mediaType: "movie",
     limit: RECOMMENDATION_LIMIT,
     knownIds,
     explorationRatio: movieExplorationRatio,
   });
 
-  validateRecommendationOutput(diversifiedTv, {
+  validateRecommendationOutput(safeTv, {
     mediaType: "tv",
     limit: RECOMMENDATION_LIMIT,
     knownIds,
@@ -163,9 +180,37 @@ export async function analyzeWatchHistory(history, feedback = null) {
         strength: profile.tv.strength,
       },
     },
+    recommendationDiagnostics: {
+      movies: {
+        historyItems: canonicalHistory.filter((item) => item.type === "movie").length,
+        ratedItems: enrichedHistory.filter(
+          (item) => item.type === "movie" && item.status === "watched" && item.rating,
+        ).length,
+        candidateCounts: moviePools.counts,
+        finalExploitation: safeMovies.filter(
+          (item) => item.pool === "exploitation",
+        ).length,
+        finalExploration: safeMovies.filter(
+          (item) => item.pool === "exploration",
+        ).length,
+      },
+      tv: {
+        historyItems: canonicalHistory.filter((item) => item.type === "tv").length,
+        ratedItems: enrichedHistory.filter(
+          (item) => item.type === "tv" && item.status === "watched" && item.rating,
+        ).length,
+        candidateCounts: tvPools.counts,
+        finalExploitation: safeTv.filter(
+          (item) => item.pool === "exploitation",
+        ).length,
+        finalExploration: safeTv.filter(
+          (item) => item.pool === "exploration",
+        ).length,
+      },
+    },
     recommendations: {
-      movies: attachGenerationId(diversifiedMovies),
-      tv: attachGenerationId(diversifiedTv),
+      movies: attachGenerationId(safeMovies),
+      tv: attachGenerationId(safeTv),
     },
   };
 }
