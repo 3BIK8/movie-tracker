@@ -1,0 +1,1 @@
+The Network presentation is deterministic and non-force-directed. Watched media form the primary grid; relationship types occupy ordered lanes.
