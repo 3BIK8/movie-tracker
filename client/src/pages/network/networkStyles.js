@@ -45,7 +45,7 @@ export const NETWORK_STYLES = [
     selector: "node[connectionType='genre']",
     style: {
       width: "mapData(count, 2, 20, 24, 42)",
-      height: "mapData(count, 2, 20, 24, 42)",
+      height: "mapData(count, 2, 20, 42, 42)",
       shape: "roundrectangle",
       "background-color": "#22c55e",
       "border-width": 2,
@@ -81,7 +81,7 @@ export const NETWORK_STYLES = [
     selector: "node[connectionType='studio']",
     style: {
       width: "mapData(count, 2, 20, 22, 40)",
-      height: "mapData(count, 2, 20, 22, 40)",
+      height: "mapData(count, 2, 20, 20, 40)",
       shape: "diamond",
       "background-color": "#14b8a6",
       "border-width": 1,
@@ -108,7 +108,8 @@ export const NETWORK_STYLES = [
       "line-color": "#94a3b8",
       opacity: 0.3,
       "curve-style": "bezier",
-      "control-point-step-size": 45,
+      "control-point-weights": 0.5,
+      "control-point-distances": "data(curveDistance)",
     },
   },
   {
@@ -118,7 +119,8 @@ export const NETWORK_STYLES = [
       "line-color": "#64748b",
       opacity: 0.18,
       "curve-style": "bezier",
-      "control-point-step-size": 35,
+      "control-point-weights": 0.5,
+      "control-point-distances": "data(curveDistance)",
     },
   },
   {
