@@ -23,7 +23,7 @@ function removeKnownRecommendations(recommendations, knownIds) {
   );
 }
 
-function isGroundedExploitation(candidate) {
+export function isGroundedExploitation(candidate) {
   if (candidate.pool !== "exploitation") {
     return true;
   }
