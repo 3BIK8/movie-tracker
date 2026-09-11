@@ -10,6 +10,7 @@ import {
   recordRecommendationsShown,
   recordRecommendationsSkipped,
 } from "../services/recommendationFeedback";
+import { filterDisplayedRecommendations } from "../services/recommendationDisplayFilter";
 
 const PAGE_SIZE = 20;
 
@@ -42,10 +43,25 @@ function RecommendationsView() {
         tv: [],
       };
 
-      setRecommendations(nextRecommendations);
+      // The server enforces this invariant too. The client guard prevents a
+      // stale response from ever rendering a title that became known locally
+      // while the request was in flight.
+      const latestHistory = Object.values(getWatchHistory());
+      const filteredRecommendations = {
+        movies: filterDisplayedRecommendations(
+          nextRecommendations.movies,
+          latestHistory,
+        ),
+        tv: filterDisplayedRecommendations(
+          nextRecommendations.tv,
+          latestHistory,
+        ),
+      };
+
+      setRecommendations(filteredRecommendations);
       recordRecommendationsShown([
-        ...(nextRecommendations.movies || []),
-        ...(nextRecommendations.tv || []),
+        ...filteredRecommendations.movies,
+        ...filteredRecommendations.tv,
       ]);
 
       setPage(1);
@@ -68,6 +84,7 @@ function RecommendationsView() {
   useEffect(() => {
     const handleHistoryUpdate = () => {
       setExpandedId(null);
+      void loadRecommendations();
     };
 
     window.addEventListener(WATCH_HISTORY_UPDATED, handleHistoryUpdate);
@@ -75,7 +92,7 @@ function RecommendationsView() {
     return () => {
       window.removeEventListener(WATCH_HISTORY_UPDATED, handleHistoryUpdate);
     };
-  }, []);
+  }, [loadRecommendations]);
 
   const recommendationKey = activeType === "movie" ? "movies" : "tv";
   const items = recommendations[recommendationKey] || [];
