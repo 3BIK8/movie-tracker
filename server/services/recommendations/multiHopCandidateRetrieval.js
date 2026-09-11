@@ -38,12 +38,31 @@ export function selectMultiHopBridges(candidates) {
 }
 
 export function getSecondOrderConnections(metadata) {
-  return getMediaConnections(metadata)
+  const connections = getMediaConnections(metadata)
     .filter((connection) => SECOND_ORDER_CONNECTION_TYPES.has(connection.type))
     .sort((a, b) =>
       `${a.type}:${a.value}`.localeCompare(`${b.type}:${b.value}`),
-    )
-    .slice(0, MAX_CONNECTIONS_PER_BRIDGE);
+    );
+
+  const selected = [];
+  const seenTypes = new Set();
+
+  for (const connection of connections) {
+    if (seenTypes.has(connection.type)) continue;
+    selected.push(connection);
+    seenTypes.add(connection.type);
+    if (selected.length === MAX_CONNECTIONS_PER_BRIDGE) return selected;
+  }
+
+  for (const connection of connections) {
+    if (selected.some((item) => item.type === connection.type && item.value === connection.value)) {
+      continue;
+    }
+    selected.push(connection);
+    if (selected.length === MAX_CONNECTIONS_PER_BRIDGE) break;
+  }
+
+  return selected;
 }
 
 function createMultiHopSource(bridge, connection) {
