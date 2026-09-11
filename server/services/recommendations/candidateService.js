@@ -14,6 +14,7 @@ import {
   getDiscoveryPageCount,
   selectCandidatesForEnrichment,
 } from "./candidateRetrievalPolicy.js";
+import { discoverMultiHopCandidates } from "./multiHopCandidateRetrieval.js";
 
 const MAX_SOURCES_PER_TYPE = {
   franchises: 5,
@@ -405,6 +406,16 @@ export async function generateCandidates(
     SOURCE_DISCOVERY_CONCURRENCY,
   );
 
+  const directCandidates = [...candidates.values()];
+  const multiHopResults = await discoverMultiHopCandidates(
+    directCandidates,
+    mediaType,
+  );
+
+  for (const { media, source } of multiHopResults) {
+    addCandidate(candidates, media, source, mediaType);
+  }
+
   await generateExplorationCandidates(candidates, mediaType, profile, history);
 
   const discovered = [...candidates.values()].filter(
@@ -449,6 +460,7 @@ export async function generateCandidates(
   console.log("CANDIDATE COUNTS:", {
     mediaType,
     discovered: discovered.length,
+    multiHopDiscovered: multiHopResults.length,
     enrichmentInput: enrichmentInput.length,
     enriched: enriched.length,
     exploitation: exploitation.length,
