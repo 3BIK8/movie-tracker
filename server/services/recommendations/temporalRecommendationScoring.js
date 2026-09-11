@@ -43,12 +43,18 @@ export function calculateTemporalAdjustment(candidate, profile) {
 
     const signal = getTemporalSignal(profile, evidence);
 
-    if (!signal || !Number.isFinite(signal.evidenceScore)) {
+    if (
+      !signal ||
+      !Number.isFinite(signal.evidenceScore) ||
+      !Number.isFinite(signal.temporalEvidenceScore)
+    ) {
       continue;
     }
 
     const temporalRatio =
-      signal.evidenceScore / (signal.evidenceScore || evidence.score);
+      signal.evidenceScore === 0
+        ? 0
+        : signal.temporalEvidenceScore / signal.evidenceScore;
 
     const temporalScore = evidence.score * temporalRatio;
     adjustment += temporalScore - evidence.score;
@@ -82,5 +88,5 @@ export function applyTemporalScoring(candidates, profile) {
         finalScore,
       };
     })
-    .sort((a, b) => b.finalScore - a.finalScore);
+    .sort((a, b) => b.recommendationScore - a.recommendationScore);
 }
