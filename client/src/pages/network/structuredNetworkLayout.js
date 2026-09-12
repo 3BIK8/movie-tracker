@@ -46,12 +46,6 @@ function connectionTypeRank(type) {
   return index === -1 ? CONNECTION_TYPE_ORDER.length : index;
 }
 
-function sortConnectionTypes(types) {
-  return [...types].sort(
-    (a, b) => connectionTypeRank(a) - connectionTypeRank(b) || a.localeCompare(b),
-  );
-}
-
 function connectionKey(node) {
   return `${node.connectionType || "connection"}:${node.id}`;
 }
@@ -446,75 +440,84 @@ function placeConnectionNodes(connectionNodes, mediaNodes, mediaPositions) {
       { x: -CONNECTION_OFFSET, y: 0 },
       { x: 0, y: CONNECTION_OFFSET },
       { x: 0, y: -CONNECTION_OFFSET },
-      { x: CONNECTION_OFFSET / 2, y: CONNECTION_OFFSET * 0.866 },
-      { x: -CONNECTION_OFFSET / 2, y: CONNECTION_OFFSET * 0.866 },
+      { x: CONNECTION_OFFSET * 0.7, y: CONNECTION_OFFSET * 0.7 },
+      { x: -CONNECTION_OFFSET * 0.7, y: CONNECTION_OFFSET * 0.7 },
+      { x: CONNECTION_OFFSET * 0.7, y: -CONNECTION_OFFSET * 0.7 },
+      { x: -CONNECTION_OFFSET * 0.7, y: -CONNECTION_OFFSET * 0.7 },
     ];
 
-    let best = candidate;
-    let bestPenalty = Number.POSITIVE_INFINITY;
+    let chosen = null;
     for (const offset of offsets) {
       const point = { x: candidate.x + offset.x, y: candidate.y + offset.y };
-      const moviePenalty = occupiedMovies.reduce(
-        (sum, movie) =>
-          sum + Math.max(0, 100 - Math.hypot(point.x - movie.x, point.y - movie.y)),
-        0,
+      const movieCollision = occupiedMovies.some(
+        (movie) => Math.hypot(movie.x - point.x, movie.y - point.y) < 50,
       );
-      const connectionPenalty = Object.values(result).reduce(
-        (sum, existing) =>
-          sum + Math.max(0, 60 - Math.hypot(point.x - existing.x, point.y - existing.y)),
-        0,
+      const connectionCollision = Object.values(result).some(
+        (existing) => Math.hypot(existing.x - point.x, existing.y - point.y) < 42,
       );
-      const penalty = moviePenalty + connectionPenalty;
-      if (penalty < bestPenalty) {
-        best = point;
-        bestPenalty = penalty;
+      if (!movieCollision && !connectionCollision) {
+        chosen = point;
+        break;
       }
     }
 
-    result[node.id] = best;
+    result[node.id] = chosen || candidate;
   }
 
   return result;
 }
 
-export function buildEdgeCurveDistance(source, target, center) {
+function buildEdgeCurveDistance(source, target, center) {
   const midpoint = {
     x: (source.x + target.x) / 2,
     y: (source.y + target.y) / 2,
   };
-  const edge = { x: target.x - source.x, y: target.y - source.y };
-  const outward = { x: midpoint.x - center.x, y: midpoint.y - center.y };
-  const edgeLength = Math.hypot(edge.x, edge.y) || 1;
-  const outwardLength = Math.hypot(outward.x, outward.y) || 1;
-  const normal = { x: -edge.y / edgeLength, y: edge.x / edgeLength };
-  const sign = normal.x * outward.x + normal.y * outward.y >= 0 ? 1 : -1;
-  return sign * Math.min(70, 18 + outwardLength * 0.04);
+  const outward = {
+    x: midpoint.x - center.x,
+    y: midpoint.y - center.y,
+  };
+  const outwardDistance = Math.hypot(outward.x, outward.y);
+  const baseDistance = Math.min(
+    Math.max(Math.hypot(target.x - source.x, target.y - source.y) * 0.09, 12),
+    54,
+  );
+  return baseDistance + Math.min(outwardDistance * 0.04, 8);
 }
 
-/**
- * HCCT-Mesh: Constrained Hex-Centroid Interlocking Net.
- *
- * The Network visualizes the complete watched-history graph. Similarity is
- * used only to arrange titles and place relationship nodes locally; it never
- * decides whether a watched title belongs in the graph.
- */
+export { buildEdgeCurveDistance };
+
 export function buildStructuredNetworkLayout(nodes) {
   const mediaNodes = nodes.filter((node) => node.type === "media").sort(compareNodes);
-  const connectionNodes = nodes.filter((node) => node.type === "connection").sort(compareNodes);
+  const connectionNodes = nodes
+    .filter((node) => node.type === "connection")
+    .sort(connectionSort);
 
-  if (!mediaNodes.length) return {};
+  if (!mediaNodes.length) {
+    return Object.fromEntries(
+      connectionNodes.map((node, index) => [
+        node.id,
+        { x: index * CONNECTION_OFFSET, y: 0 },
+      ]),
+    );
+  }
 
   const features = buildFeatureSets(mediaNodes, connectionNodes);
   const similarityMatrix = buildSimilarityMatrix(mediaNodes, features);
   const projection = spectralProjection(similarityMatrix);
-  const hexPositions = assignProjectedPointsToHexes(mediaNodes, projection, features);
-  const relaxedPositions = relaxMovieMesh(mediaNodes, hexPositions, similarityMatrix);
-  const positions = {};
+  const hexPositions = assignProjectedPointsToHexes(
+    mediaNodes,
+    projection,
+    features,
+  );
+  const relaxedPositions = relaxMovieMesh(
+    mediaNodes,
+    hexPositions,
+    similarityMatrix,
+  );
 
-  mediaNodes.forEach((node, index) => {
-    positions[node.id] = relaxedPositions[index];
-  });
-
+  const positions = Object.fromEntries(
+    mediaNodes.map((node, index) => [node.id, relaxedPositions[index]]),
+  );
   Object.assign(
     positions,
     placeConnectionNodes(connectionNodes, mediaNodes, relaxedPositions),
@@ -522,9 +525,3 @@ export function buildStructuredNetworkLayout(nodes) {
 
   return positions;
 }
-
-export const STRUCTURED_NETWORK_LAYOUT = {
-  name: "preset",
-  fit: true,
-  padding: 70,
-};
