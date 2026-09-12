@@ -6,9 +6,14 @@ import { filterGraphElements } from "./filterGraphElements";
 import {
   buildEdgeCurveDistance,
   buildStructuredNetworkLayout,
-  STRUCTURED_NETWORK_LAYOUT,
 } from "./structuredNetworkLayout";
 import { attachGraphEventListeners } from "./cytoscapeEvents";
+
+const STRUCTURED_NETWORK_LAYOUT = {
+  name: "preset",
+  fit: true,
+  padding: 70,
+};
 
 export function useNetworkGraph({
   history,
