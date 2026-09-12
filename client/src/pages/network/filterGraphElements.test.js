@@ -17,11 +17,7 @@ const networkData = {
 };
 
 test("network projection excludes unselected connection types", () => {
-  const result = filterGraphElements(
-    networkData,
-    new Set(["actor", "genre"]),
-    null,
-  );
+  const result = filterGraphElements(networkData, new Set(["actor", "genre"]), null);
 
   assert.deepEqual(
     result.nodes.map((node) => node.id),
@@ -31,6 +27,12 @@ test("network projection excludes unselected connection types", () => {
     result.edges.map((edge) => edge.id),
     ["media-movie-1->actor-1", "media-movie-1->genre-1"],
   );
+});
+
+test("metadata visibility leaves the complete media backbone", () => {
+  const result = filterGraphElements(networkData, new Set(), null, false);
+  assert.deepEqual(result.nodes.map((node) => node.id), ["media-movie-1"]);
+  assert.deepEqual(result.edges, []);
 });
 
 test("focused connection projection contains only its neighborhood", () => {
