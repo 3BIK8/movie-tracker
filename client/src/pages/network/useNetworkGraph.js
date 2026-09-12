@@ -4,10 +4,16 @@ import { getWatchHistoryNetwork } from "../../services/api";
 import { NETWORK_STYLES } from "./networkStyles";
 import { filterGraphElements } from "./filterGraphElements";
 import {
+  buildEdgeCurveDistance,
   buildStructuredNetworkLayout,
-  STRUCTURED_NETWORK_LAYOUT,
 } from "./structuredNetworkLayout";
 import { attachGraphEventListeners } from "./cytoscapeEvents";
+
+const STRUCTURED_NETWORK_LAYOUT = {
+  name: "preset",
+  fit: true,
+  padding: 70,
+};
 
 export function useNetworkGraph({
   history,
@@ -48,22 +54,17 @@ export function useNetworkGraph({
 
         const data = await getWatchHistoryNetwork(historyItems);
 
-        if (cancelled) {
-          return;
-        }
+        if (cancelled) return;
 
         networkDataRef.current = data;
         setNetworkData(data);
       } catch (err) {
         console.error(err);
-
         if (!cancelled) {
           setError(err.message || "Unable to build watch-history network.");
         }
       } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
+        if (!cancelled) setLoading(false);
       }
     }
 
@@ -75,9 +76,7 @@ export function useNetworkGraph({
   }, [history]);
 
   useEffect(() => {
-    if (!networkData || !containerRef.current) {
-      return undefined;
-    }
+    if (!networkData || !containerRef.current) return undefined;
 
     const previousCy = cyRef.current;
     if (previousCy) {
@@ -91,6 +90,17 @@ export function useNetworkGraph({
       focusedConnection,
     );
     const positions = buildStructuredNetworkLayout(projection.nodes);
+    const mediaPositions = projection.nodes
+      .filter((node) => node.type === "media")
+      .map((node) => positions[node.id])
+      .filter(Boolean);
+    const center = mediaPositions.reduce(
+      (point, position) => ({
+        x: point.x + position.x / Math.max(mediaPositions.length, 1),
+        y: point.y + position.y / Math.max(mediaPositions.length, 1),
+      }),
+      { x: 0, y: 0 },
+    );
 
     pendingFitRef.current = null;
     layoutActiveRef.current = true;
@@ -100,7 +110,19 @@ export function useNetworkGraph({
         data: node,
         position: positions[node.id],
       })),
-      ...projection.edges.map((edge) => ({ data: edge })),
+      ...projection.edges.map((edge) => {
+        const source = positions[edge.source];
+        const target = positions[edge.target];
+        return {
+          data: {
+            ...edge,
+            curveDistance:
+              source && target
+                ? buildEdgeCurveDistance(source, target, center)
+                : 0,
+          },
+        };
+      }),
     ];
 
     const cy = cytoscape({
@@ -113,12 +135,9 @@ export function useNetworkGraph({
     });
 
     cy.one("layoutstop", () => {
-      if (cyRef.current !== cy) {
-        return;
-      }
+      if (cyRef.current !== cy) return;
 
       layoutActiveRef.current = false;
-
       const pendingFit = pendingFitRef.current;
       pendingFitRef.current = null;
       pendingFit?.();
@@ -142,9 +161,7 @@ export function useNetworkGraph({
       cy.stop();
       cy.destroy();
 
-      if (cyRef.current === cy) {
-        cyRef.current = null;
-      }
+      if (cyRef.current === cy) cyRef.current = null;
     };
   }, [networkData, activeTypes, focusedConnection, onConnectionFocus]);
 
@@ -152,9 +169,7 @@ export function useNetworkGraph({
     setSelectedNode(null);
 
     const cy = cyRef.current;
-    if (!cy) {
-      return;
-    }
+    if (!cy) return;
 
     cy.elements()
       .removeClass("dimmed")
@@ -163,10 +178,7 @@ export function useNetworkGraph({
       .removeClass("filtered-out");
 
     const fitAllNodes = () => {
-      if (cyRef.current !== cy) {
-        return;
-      }
-
+      if (cyRef.current !== cy) return;
       cy.fit(cy.nodes(), 100);
     };
 

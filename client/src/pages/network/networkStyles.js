@@ -108,7 +108,8 @@ export const NETWORK_STYLES = [
       "line-color": "#94a3b8",
       opacity: 0.3,
       "curve-style": "bezier",
-      "control-point-step-size": 45,
+      "control-point-weights": 0.5,
+      "control-point-distances": "data(curveDistance)",
     },
   },
   {
@@ -118,7 +119,8 @@ export const NETWORK_STYLES = [
       "line-color": "#64748b",
       opacity: 0.18,
       "curve-style": "bezier",
-      "control-point-step-size": 35,
+      "control-point-weights": 0.5,
+      "control-point-distances": "data(curveDistance)",
     },
   },
   {
