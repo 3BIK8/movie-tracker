@@ -111,6 +111,11 @@ function NetworkView() {
     resetGraph();
   }
 
+  function focusSelectedNode() {
+    const nodeId = selectedNode?.node?.id;
+    if (nodeId) focusNodeById(nodeId);
+  }
+
   function handleTitleSearch(event) {
     event.preventDefault();
     const match = searchMedia(titleSearch);
@@ -163,6 +168,7 @@ function NetworkView() {
               <button type="button" onClick={zoomOut} title="Zoom out" aria-label="Zoom out">−</button>
               <button type="button" onClick={() => fitGraph(90)} title="Fit graph" aria-label="Fit graph">⌂</button>
               <button type="button" onClick={zoomIn} title="Zoom in" aria-label="Zoom in">+</button>
+              <button type="button" onClick={focusSelectedNode} title="Focus selected node" aria-label="Focus selected node" disabled={!selectedNode?.node}>Focus</button>
             </div>
             <div className="network-tool-row">
               <button type="button" onClick={() => setShowMetadata((value) => !value)}>
@@ -222,6 +228,7 @@ function NetworkView() {
             <button type="button" onClick={zoomOut} aria-label="Zoom out" title="Zoom out">−</button>
             <button type="button" onClick={zoomIn} aria-label="Zoom in" title="Zoom in">+</button>
             <button type="button" onClick={() => fitGraph(90)} aria-label="Fit graph" title="Fit graph">⌂</button>
+            <button type="button" onClick={focusSelectedNode} aria-label="Focus selected node" title="Focus selected node" disabled={!selectedNode?.node}>◎</button>
             <button type="button" onClick={resetNetwork} aria-label="Reset network" title="Reset network">↻</button>
             <button type="button" onClick={toggleFullscreen} aria-label="Toggle fullscreen" title="Toggle fullscreen">⛶</button>
           </div>
