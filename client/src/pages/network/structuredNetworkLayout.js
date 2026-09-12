@@ -13,9 +13,9 @@ const CONNECTION_TYPE_ORDER = [
 const FEATURE_TYPES = ["actor", "director", "genre", "studio"];
 const GRID_BASE_STEP = 150;
 const NETWORK_ASPECT_RATIO = 1.77;
-const RELAXATION_STEPS = 50;
-const RELAXATION_ALPHA = 0.08;
-const CONNECTION_OFFSET = 72;
+const INTERSTITIAL_STEP = 42;
+const MIN_MEDIA_GAP = 48;
+const MIN_CONNECTION_GAP = 18;
 
 function canonicalDate(node) {
   return String(
@@ -210,6 +210,7 @@ function generateHexCells(count) {
         }
       }
     }
+
     ring.sort(
       (a, b) =>
         Math.atan2(a.r, a.q) - Math.atan2(b.r, b.q) ||
@@ -242,14 +243,16 @@ function assignProjectedPointsToHexes(mediaNodes, projection, features) {
     index,
     radius: Math.hypot(point.x, point.y),
   }));
-  const hubIndex = mediaNodes.reduce((best, node, index) =>
-    mediaFeatureDegree(node, features) > mediaFeatureDegree(mediaNodes[best], features)
-      ? index
-      : mediaFeatureDegree(node, features) === mediaFeatureDegree(mediaNodes[best], features) &&
-          compareNodes(node, mediaNodes[best]) < 0
-        ? index
-        : best,
-  0);
+  const hubIndex = mediaNodes.reduce((best, node, index) => {
+    const nodeDegree = mediaFeatureDegree(node, features);
+    const bestDegree = mediaFeatureDegree(mediaNodes[best], features);
+
+    if (nodeDegree > bestDegree) return index;
+    if (nodeDegree === bestDegree && compareNodes(node, mediaNodes[best]) < 0) {
+      return index;
+    }
+    return best;
+  }, 0);
   const order = [...targets].sort(
     (a, b) =>
       a.radius - b.radius ||
@@ -258,22 +261,22 @@ function assignProjectedPointsToHexes(mediaNodes, projection, features) {
   const available = new Set(cells.map((_, index) => index));
   const positions = new Array(mediaNodes.length);
 
-  if (available.has(0)) {
-    positions[hubIndex] = hexToPoint(cells[0]);
-    available.delete(0);
-  }
+  positions[hubIndex] = hexToPoint(cells[0]);
+  available.delete(0);
 
   for (const target of order) {
     if (target.index === hubIndex) continue;
 
     let bestCellIndex = null;
     let bestDistance = Number.POSITIVE_INFINITY;
+
     for (const cellIndex of available) {
       const point = hexToPoint(cells[cellIndex]);
       const distance = Math.hypot(
         point.x - target.x * GRID_BASE_STEP,
         point.y - target.y * GRID_BASE_STEP,
       );
+
       if (
         distance < bestDistance ||
         (distance === bestDistance &&
@@ -291,97 +294,76 @@ function assignProjectedPointsToHexes(mediaNodes, projection, features) {
   return positions;
 }
 
-function getSimilarityMap(mediaNodes, similarityMatrix) {
-  const map = new Map();
-  mediaNodes.forEach((node, index) => {
-    map.set(node.id, new Map());
-    mediaNodes.forEach((other, otherIndex) => {
-      if (node.id !== other.id) {
-        map.get(node.id).set(other.id, similarityMatrix[index][otherIndex]);
-      }
-    });
-  });
-  return map;
-}
+function getConnectionCandidates(connected, node) {
+  const candidates = [];
 
-function constrainAspectRatio(positions) {
-  if (!positions.length) return;
+  if (connected.length === 1) {
+    const anchor = connected[0];
+    candidates.push(
+      { x: anchor.x + INTERSTITIAL_STEP, y: anchor.y - INTERSTITIAL_STEP },
+      { x: anchor.x - INTERSTITIAL_STEP, y: anchor.y + INTERSTITIAL_STEP },
+      { x: anchor.x + INTERSTITIAL_STEP, y: anchor.y + INTERSTITIAL_STEP },
+      { x: anchor.x - INTERSTITIAL_STEP, y: anchor.y - INTERSTITIAL_STEP },
+    );
+  } else if (connected.length === 2) {
+    const [a, b] = connected;
+    const midpoint = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const length = Math.hypot(dx, dy) || 1;
+    const sign = canonicalId(node)
+      .split("")
+      .reduce((sum, char) => sum + char.charCodeAt(0), 0) % 2 === 0
+      ? 1
+      : -1;
 
-  const maxX = Math.max(...positions.map((position) => Math.abs(position.x)), GRID_BASE_STEP);
-  const maxY = Math.max(...positions.map((position) => Math.abs(position.y)));
-  const allowedY = Math.max(GRID_BASE_STEP / 2, maxX / NETWORK_ASPECT_RATIO);
-
-  if (maxY <= allowedY) return;
-
-  const scale = allowedY / maxY;
-  for (const position of positions) position.y *= scale;
-}
-
-function relaxMovieMesh(mediaNodes, positions, similarityMatrix) {
-  const similarity = getSimilarityMap(mediaNodes, similarityMatrix);
-  const result = positions.map((position) => ({ ...position }));
-
-  for (let step = 0; step < RELAXATION_STEPS; step += 1) {
-    for (let i = 0; i < mediaNodes.length; i += 1) {
-      let nextX = result[i].x;
-      let nextY = result[i].y;
-
-      for (let j = 0; j < mediaNodes.length; j += 1) {
-        if (i === j) continue;
-        const score = similarity.get(mediaNodes[i].id)?.get(mediaNodes[j].id) || 0;
-        if (score <= 0) continue;
-
-        const dx = result[j].x - result[i].x;
-        const dy = result[j].y - result[i].y;
-        const distance = Math.hypot(dx, dy) || GRID_BASE_STEP;
-        const target = GRID_BASE_STEP * (1 - 0.5 * score);
-        const displacement = ((distance - target) / distance) * score;
-
-        nextX += dx * displacement * RELAXATION_ALPHA;
-        nextY += dy * displacement * RELAXATION_ALPHA;
-      }
-
-      result[i] = { x: nextX, y: nextY };
-    }
-
-    constrainAspectRatio(result);
-  }
-
-  return result;
-}
-
-function connectionSort(a, b) {
-  return (
-    (b.connectedMediaIds?.length || 0) - (a.connectedMediaIds?.length || 0) ||
-    connectionTypeRank(a.connectionType) - connectionTypeRank(b.connectionType) ||
-    canonicalId(a).localeCompare(canonicalId(b))
-  );
-}
-
-function weightedCentroid(connected, mediaNodes, mediaPositionById) {
-  let totalWeight = 0;
-  const centroid = { x: 0, y: 0 };
-
-  for (const node of mediaNodes) {
-    const point = mediaPositionById.get(node.id);
-    if (!point || !connected.includes(point)) continue;
-    const weight = 1 + Math.log1p(node.connectedMediaCount || node.connectionCount || 0);
-    centroid.x += point.x * weight;
-    centroid.y += point.y * weight;
-    totalWeight += weight;
-  }
-
-  if (!totalWeight) {
-    return connected.reduce(
+    candidates.push(
+      {
+        x: midpoint.x + (-dy / length) * INTERSTITIAL_STEP * sign,
+        y: midpoint.y + (dx / length) * INTERSTITIAL_STEP * sign,
+      },
+      {
+        x: midpoint.x + (dy / length) * INTERSTITIAL_STEP * sign,
+        y: midpoint.y + (-dx / length) * INTERSTITIAL_STEP * sign,
+      },
+    );
+  } else {
+    const centroid = connected.reduce(
       (result, point) => ({
         x: result.x + point.x / connected.length,
         y: result.y + point.y / connected.length,
       }),
       { x: 0, y: 0 },
     );
+
+    candidates.push(centroid);
+
+    for (let radius = 1; radius <= 5; radius += 1) {
+      const distance = INTERSTITIAL_STEP * radius;
+      for (let sector = 0; sector < 6; sector += 1) {
+        const angle = (Math.PI / 3) * sector;
+        candidates.push({
+          x: centroid.x + Math.cos(angle) * distance,
+          y: centroid.y + Math.sin(angle) * distance,
+        });
+      }
+    }
   }
 
-  return { x: centroid.x / totalWeight, y: centroid.y / totalWeight };
+  return candidates;
+}
+
+function isOpenInterstitial(point, moviePositions, connectionPositions) {
+  return (
+    moviePositions.every(
+      (movie) => Math.hypot(movie.x - point.x, movie.y - point.y) >= MIN_MEDIA_GAP,
+    ) &&
+    connectionPositions.every(
+      (connection) =>
+        Math.hypot(connection.x - point.x, connection.y - point.y) >=
+        MIN_CONNECTION_GAP,
+    )
+  );
 }
 
 function placeConnectionNodes(connectionNodes, mediaNodes, mediaPositions) {
@@ -389,114 +371,79 @@ function placeConnectionNodes(connectionNodes, mediaNodes, mediaPositions) {
   const mediaPositionById = new Map(
     mediaNodes.map((node, index) => [node.id, mediaPositions[index]]),
   );
-  const occupiedMovies = mediaNodes.map((node) => ({
-    id: node.id,
-    ...mediaPositionById.get(node.id),
-  }));
+  const moviePositions = mediaNodes.map((node) => mediaPositionById.get(node.id));
   const result = {};
-  const ordered = [...connectionNodes].sort(connectionSort);
+  const ordered = [...connectionNodes].sort(
+    (a, b) =>
+      (b.connectedMediaIds?.length || 0) - (a.connectedMediaIds?.length || 0) ||
+      connectionTypeRank(a.connectionType) - connectionTypeRank(b.connectionType) ||
+      canonicalId(a).localeCompare(canonicalId(b)),
+  );
 
   for (const node of ordered) {
-    const connectedIds = getConnectedMediaIds(node, mediaIds);
-    const connected = connectedIds
+    const connected = getConnectedMediaIds(node, mediaIds)
       .map((id) => mediaPositionById.get(id))
       .filter(Boolean);
+    const candidates = getConnectionCandidates(connected, node);
+    const connectionPositions = Object.values(result);
+    let chosen = candidates.find((point) =>
+      isOpenInterstitial(point, moviePositions, connectionPositions),
+    );
 
-    if (!connected.length) {
-      const fallbackIndex = Object.keys(result).length;
-      result[node.id] = {
-        x: (fallbackIndex + 1) * CONNECTION_OFFSET,
-        y: CONNECTION_OFFSET * ((fallbackIndex % 3) - 1),
-      };
-      continue;
-    }
-
-    let candidate;
-    if (connected.length === 1) {
-      candidate = {
-        x: connected[0].x + CONNECTION_OFFSET,
-        y: connected[0].y - CONNECTION_OFFSET,
-      };
-    } else if (connected.length === 2) {
-      const [a, b] = connected;
-      const midpoint = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
-      const dx = b.x - a.x;
-      const dy = b.y - a.y;
-      const length = Math.hypot(dx, dy) || 1;
-      const sign = canonicalId(node)
-        .split("")
-        .reduce((sum, char) => sum + char.charCodeAt(0), 0) % 2 === 0 ? 1 : -1;
-      candidate = {
-        x: midpoint.x + (-dy / length) * CONNECTION_OFFSET * sign,
-        y: midpoint.y + (dx / length) * CONNECTION_OFFSET * sign,
-      };
-    } else {
-      candidate = weightedCentroid(connected, mediaNodes, mediaPositionById);
-    }
-
-    const offsets = [
-      { x: 0, y: 0 },
-      { x: CONNECTION_OFFSET, y: 0 },
-      { x: -CONNECTION_OFFSET, y: 0 },
-      { x: 0, y: CONNECTION_OFFSET },
-      { x: 0, y: -CONNECTION_OFFSET },
-      { x: CONNECTION_OFFSET * 0.7, y: CONNECTION_OFFSET * 0.7 },
-      { x: -CONNECTION_OFFSET * 0.7, y: CONNECTION_OFFSET * 0.7 },
-      { x: CONNECTION_OFFSET * 0.7, y: -CONNECTION_OFFSET * 0.7 },
-      { x: -CONNECTION_OFFSET * 0.7, y: -CONNECTION_OFFSET * 0.7 },
-    ];
-
-    let chosen = null;
-    for (const offset of offsets) {
-      const point = { x: candidate.x + offset.x, y: candidate.y + offset.y };
-      const movieCollision = occupiedMovies.some(
-        (movie) => Math.hypot(movie.x - point.x, movie.y - point.y) < 50,
-      );
-      const connectionCollision = Object.values(result).some(
-        (existing) => Math.hypot(existing.x - point.x, existing.y - point.y) < 42,
-      );
-      if (!movieCollision && !connectionCollision) {
-        chosen = point;
-        break;
+    if (!chosen) {
+      const anchor = candidates[0] || { x: 0, y: 0 };
+      for (let ring = 6; ring <= 12 && !chosen; ring += 1) {
+        const distance = INTERSTITIAL_STEP * ring;
+        for (let sector = 0; sector < 6; sector += 1) {
+          const angle = (Math.PI / 3) * sector;
+          const point = {
+            x: anchor.x + Math.cos(angle) * distance,
+            y: anchor.y + Math.sin(angle) * distance,
+          };
+          if (isOpenInterstitial(point, moviePositions, connectionPositions)) {
+            chosen = point;
+            break;
+          }
+        }
       }
     }
 
-    result[node.id] = chosen || candidate;
+    result[node.id] = chosen || candidates[0] || { x: 0, y: 0 };
   }
 
   return result;
 }
 
-function buildEdgeCurveDistance(source, target, center) {
+export function buildEdgeCurveDistance(source, target, center) {
   const midpoint = {
     x: (source.x + target.x) / 2,
     y: (source.y + target.y) / 2,
   };
-  const outward = {
-    x: midpoint.x - center.x,
-    y: midpoint.y - center.y,
-  };
-  const outwardDistance = Math.hypot(outward.x, outward.y);
+  const outwardDistance = Math.hypot(
+    midpoint.x - center.x,
+    midpoint.y - center.y,
+  );
   const baseDistance = Math.min(
     Math.max(Math.hypot(target.x - source.x, target.y - source.y) * 0.09, 12),
     54,
   );
+
   return baseDistance + Math.min(outwardDistance * 0.04, 8);
 }
 
-export { buildEdgeCurveDistance };
-
 export function buildStructuredNetworkLayout(nodes) {
-  const mediaNodes = nodes.filter((node) => node.type === "media").sort(compareNodes);
+  const mediaNodes = nodes
+    .filter((node) => node.type === "media")
+    .sort(compareNodes);
   const connectionNodes = nodes
     .filter((node) => node.type === "connection")
-    .sort(connectionSort);
+    .sort(compareNodes);
 
   if (!mediaNodes.length) {
     return Object.fromEntries(
       connectionNodes.map((node, index) => [
         node.id,
-        { x: index * CONNECTION_OFFSET, y: 0 },
+        { x: index * INTERSTITIAL_STEP * 2, y: 0 },
       ]),
     );
   }
@@ -504,23 +451,18 @@ export function buildStructuredNetworkLayout(nodes) {
   const features = buildFeatureSets(mediaNodes, connectionNodes);
   const similarityMatrix = buildSimilarityMatrix(mediaNodes, features);
   const projection = spectralProjection(similarityMatrix);
-  const hexPositions = assignProjectedPointsToHexes(
+  const mediaPositions = assignProjectedPointsToHexes(
     mediaNodes,
     projection,
     features,
   );
-  const relaxedPositions = relaxMovieMesh(
-    mediaNodes,
-    hexPositions,
-    similarityMatrix,
+  const positions = Object.fromEntries(
+    mediaNodes.map((node, index) => [node.id, mediaPositions[index]]),
   );
 
-  const positions = Object.fromEntries(
-    mediaNodes.map((node, index) => [node.id, relaxedPositions[index]]),
-  );
   Object.assign(
     positions,
-    placeConnectionNodes(connectionNodes, mediaNodes, relaxedPositions),
+    placeConnectionNodes(connectionNodes, mediaNodes, mediaPositions),
   );
 
   return positions;
