@@ -8,14 +8,10 @@ export function filterGraphElements(
     return { nodes: [], edges: [] };
   }
 
-  let filteredNodes = networkData.nodes.filter(
-    (node) =>
-      node.type === "media" && (showMetadata || !focusedConnection)
-        ? true
-        : node.type === "connection" &&
-            showMetadata &&
-            activeTypes.has(node.connectionType),
-  );
+  let filteredNodes = networkData.nodes.filter((node) => {
+    if (node.type === "media") return true;
+    return showMetadata && activeTypes.has(node.connectionType);
+  });
 
   if (focusedConnection) {
     const connection = networkData.nodes.find(
