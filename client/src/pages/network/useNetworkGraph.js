@@ -19,6 +19,7 @@ export function useNetworkGraph({
   history,
   activeTypes,
   focusedConnection,
+  showMetadata,
   onConnectionFocus,
 }) {
   const containerRef = useRef(null);
@@ -53,7 +54,6 @@ export function useNetworkGraph({
         setSelectedNode(null);
 
         const data = await getWatchHistoryNetwork(historyItems);
-
         if (cancelled) return;
 
         networkDataRef.current = data;
@@ -69,7 +69,6 @@ export function useNetworkGraph({
     }
 
     void loadNetwork();
-
     return () => {
       cancelled = true;
     };
@@ -88,6 +87,7 @@ export function useNetworkGraph({
       networkData,
       activeTypes,
       focusedConnection,
+      showMetadata,
     );
     const positions = buildStructuredNetworkLayout(projection.nodes);
     const mediaPositions = projection.nodes
@@ -136,7 +136,6 @@ export function useNetworkGraph({
 
     cy.one("layoutstop", () => {
       if (cyRef.current !== cy) return;
-
       layoutActiveRef.current = false;
       const pendingFit = pendingFitRef.current;
       pendingFitRef.current = null;
@@ -146,7 +145,7 @@ export function useNetworkGraph({
     const detachGraphEventListeners = attachGraphEventListeners(cy, {
       networkDataRef,
       setSelectedNode,
-      focusedConnection: null,
+      focusedConnection,
       onConnectionFocus,
     });
     cy.on("destroy", detachGraphEventListeners);
@@ -157,17 +156,79 @@ export function useNetworkGraph({
         pendingFitRef.current = null;
         layoutActiveRef.current = false;
       }
-
       cy.stop();
       cy.destroy();
-
       if (cyRef.current === cy) cyRef.current = null;
     };
-  }, [networkData, activeTypes, focusedConnection, onConnectionFocus]);
+  }, [
+    networkData,
+    activeTypes,
+    focusedConnection,
+    showMetadata,
+    onConnectionFocus,
+  ]);
+
+  function fitGraph(padding = 80) {
+    const cy = cyRef.current;
+    if (!cy) return;
+    cy.fit(cy.nodes(), padding);
+  }
+
+  function zoomIn() {
+    const cy = cyRef.current;
+    if (!cy) return;
+    cy.zoom({ level: Math.min(cy.zoom() * 1.25, cy.maxZoom()), renderedPosition: {
+      x: cy.width() / 2,
+      y: cy.height() / 2,
+    } });
+  }
+
+  function zoomOut() {
+    const cy = cyRef.current;
+    if (!cy) return;
+    cy.zoom({ level: Math.max(cy.zoom() / 1.25, cy.minZoom()), renderedPosition: {
+      x: cy.width() / 2,
+      y: cy.height() / 2,
+    } });
+  }
+
+  function focusNodeById(id) {
+    const cy = cyRef.current;
+    if (!cy) return false;
+    const node = cy.getElementById(id);
+    if (!node.length) return false;
+
+    cy.elements().removeClass("dimmed").removeClass("highlighted");
+    node.addClass("highlighted");
+    node.connectedEdges().addClass("highlighted");
+    node.connectedNodes().addClass("highlighted");
+    cy.animate({ center: { eles: node }, zoom: Math.max(cy.zoom(), 1.4) }, {
+      duration: 220,
+    });
+    return true;
+  }
+
+  function searchMedia(query) {
+    const normalized = String(query || "").trim().toLowerCase();
+    if (!normalized || !networkDataRef.current) return null;
+
+    const match = networkDataRef.current.nodes
+      .filter((node) => node.type === "media")
+      .sort((a, b) => String(a.title || a.label || a.id).localeCompare(String(b.title || b.label || b.id)))
+      .find((node) =>
+        String(node.title || node.displayLabel || node.label || "")
+          .toLowerCase()
+          .includes(normalized),
+      );
+
+    if (!match) return null;
+    focusNodeById(match.id);
+    setSelectedNode({ node: match, connectedMedia: [] });
+    return match;
+  }
 
   function resetNetwork() {
     setSelectedNode(null);
-
     const cy = cyRef.current;
     if (!cy) return;
 
@@ -182,11 +243,8 @@ export function useNetworkGraph({
       cy.fit(cy.nodes(), 100);
     };
 
-    if (layoutActiveRef.current) {
-      pendingFitRef.current = fitAllNodes;
-    } else {
-      fitAllNodes();
-    }
+    if (layoutActiveRef.current) pendingFitRef.current = fitAllNodes;
+    else fitAllNodes();
   }
 
   return {
@@ -198,5 +256,10 @@ export function useNetworkGraph({
     error,
     setSelectedNode,
     resetNetwork,
+    fitGraph,
+    zoomIn,
+    zoomOut,
+    focusNodeById,
+    searchMedia,
   };
 }

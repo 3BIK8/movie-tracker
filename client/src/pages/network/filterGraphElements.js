@@ -2,17 +2,16 @@ export function filterGraphElements(
   networkData,
   activeTypes,
   focusedConnection,
+  showMetadata = true,
 ) {
   if (!networkData?.nodes) {
-    return {
-      nodes: [],
-      edges: [],
-    };
+    return { nodes: [], edges: [] };
   }
 
-  let filteredNodes = networkData.nodes.filter(
-    (node) => node.type === "media" || activeTypes.has(node.connectionType),
-  );
+  let filteredNodes = networkData.nodes.filter((node) => {
+    if (node.type === "media") return true;
+    return showMetadata && activeTypes.has(node.connectionType);
+  });
 
   if (focusedConnection) {
     const connection = networkData.nodes.find(
@@ -21,25 +20,17 @@ export function filterGraphElements(
 
     if (connection) {
       const connectedMediaIds = new Set(connection.connectedMediaIds || []);
-
       filteredNodes = networkData.nodes.filter((node) => {
-        if (node.id === connection.id) {
-          return true;
-        }
-
+        if (node.id === connection.id) return showMetadata;
         return node.type === "media" && connectedMediaIds.has(node.id);
       });
     }
   }
 
   const visibleIds = new Set(filteredNodes.map((node) => node.id));
-
   const filteredEdges = networkData.edges.filter(
     (edge) => visibleIds.has(edge.source) && visibleIds.has(edge.target),
   );
 
-  return {
-    nodes: filteredNodes,
-    edges: filteredEdges,
-  };
+  return { nodes: filteredNodes, edges: filteredEdges };
 }
