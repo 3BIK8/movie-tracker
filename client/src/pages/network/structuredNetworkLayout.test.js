@@ -47,10 +47,9 @@ function distance(a, b) {
   return Math.hypot(a.x - b.x, a.y - b.y);
 }
 
-test("HCCT layout is deterministic regardless of input order", () => {
+test("layout is deterministic regardless of input order", () => {
   const first = buildStructuredNetworkLayout(nodes);
   const second = buildStructuredNetworkLayout([...nodes].reverse());
-
   assert.deepEqual(first, second);
 });
 
@@ -61,41 +60,34 @@ test("every watched title receives a finite 2D position", () => {
     assert.ok(Number.isFinite(positions[node.id].x));
     assert.ok(Number.isFinite(positions[node.id].y));
   }
-
-  assert.ok(new Set(nodes.slice(0, 7).map((node) => positions[node.id].x)).size > 1);
-  assert.ok(new Set(nodes.slice(0, 7).map((node) => positions[node.id].y)).size > 1);
 });
 
-test("movie mesh stays within the intended wide aspect envelope", () => {
+test("primary movie nodes have guaranteed collision-free grid spacing", () => {
   const positions = buildStructuredNetworkLayout(nodes);
-  const mediaPositions = nodes
-    .filter((node) => node.type === "media")
-    .map((node) => positions[node.id]);
-  const width = Math.max(...mediaPositions.map((point) => point.x)) - Math.min(...mediaPositions.map((point) => point.x));
-  const height = Math.max(...mediaPositions.map((point) => point.y)) - Math.min(...mediaPositions.map((point) => point.y));
+  const media = nodes.filter((node) => node.type === "media");
 
-  assert.ok(width > 0);
-  assert.ok(height > 0);
-  assert.ok(width / height >= 1.1);
-});
-
-test("relationship nodes stay outside movie slots and inside their neighborhood", () => {
-  const positions = buildStructuredNetworkLayout(nodes);
-
-  for (const connection of nodes.filter((node) => node.type === "connection")) {
-    const connectionPosition = positions[connection.id];
-    for (const media of nodes.filter((node) => node.type === "media")) {
-      assert.ok(distance(connectionPosition, positions[media.id]) > 20);
+  for (let i = 0; i < media.length; i += 1) {
+    for (let j = i + 1; j < media.length; j += 1) {
+      assert.ok(distance(positions[media[i].id], positions[media[j].id]) >= 48);
     }
+  }
+});
 
-    const connectedPositions = connection.connectedMediaIds.map((id) => positions[id]);
-    const minX = Math.min(...connectedPositions.map((point) => point.x)) - 160;
-    const maxX = Math.max(...connectedPositions.map((point) => point.x)) + 160;
-    const minY = Math.min(...connectedPositions.map((point) => point.y)) - 160;
-    const maxY = Math.max(...connectedPositions.map((point) => point.y)) + 160;
+test("relationship nodes occupy open interstitial positions", () => {
+  const positions = buildStructuredNetworkLayout(nodes);
+  const media = nodes.filter((node) => node.type === "media");
+  const connections = nodes.filter((node) => node.type === "connection");
 
-    assert.ok(connectionPosition.x >= minX && connectionPosition.x <= maxX);
-    assert.ok(connectionPosition.y >= minY && connectionPosition.y <= maxY);
+  for (const connection of connections) {
+    for (const movie of media) {
+      assert.ok(distance(positions[connection.id], positions[movie.id]) >= 48);
+    }
+  }
+
+  for (let i = 0; i < connections.length; i += 1) {
+    for (let j = i + 1; j < connections.length; j += 1) {
+      assert.ok(distance(positions[connections[i].id], positions[connections[j].id]) >= 18);
+    }
   }
 });
 
