@@ -7,36 +7,32 @@ function getStyle(selector) {
 }
 
 test("filtered network nodes stay in Cytoscape and become non-interactive", () => {
-  const style = getStyle("node.filtered-out");
-
-  assert.deepEqual(style, {
-    opacity: 0,
-    label: "",
-    events: "no",
-  });
+  assert.deepEqual(getStyle("node.filtered-out"), { opacity: 0, label: "", events: "no" });
 });
 
 test("filtered network edges stay in Cytoscape without contributing visible opacity", () => {
-  const style = getStyle("edge.filtered-out");
+  assert.deepEqual(getStyle("edge.filtered-out"), { opacity: 0 });
+});
 
-  assert.deepEqual(style, {
-    opacity: 0,
-  });
+test("Network uses a visual z-index sandwich", () => {
+  assert.equal(getStyle("edge")["z-index"], 1);
+  assert.equal(getStyle("node[type='connection']")["z-index"], 2);
+  assert.equal(getStyle("node[type='media']")["z-index"], 3);
+});
+
+test("Network uses compact primary and micro metadata nodes", () => {
+  assert.equal(getStyle("node[type='media']").width, 18);
+  assert.equal(getStyle("node[type='media']").height, 18);
+  assert.equal(getStyle("node[type='connection']").width, 5);
+  assert.equal(getStyle("node[type='connection']").height, 5);
+  assert.ok(getStyle("edge").opacity <= 0.15);
 });
 
 test("filtered selectors are applied after interaction styles", () => {
-  const filteredNodeIndex = NETWORK_STYLES.findIndex(
-    (entry) => entry.selector === "node.filtered-out",
-  );
-  const highlightedNodeIndex = NETWORK_STYLES.findIndex(
-    (entry) => entry.selector === ".highlighted",
-  );
-  const filteredEdgeIndex = NETWORK_STYLES.findIndex(
-    (entry) => entry.selector === "edge.filtered-out",
-  );
-  const highlightedEdgeIndex = NETWORK_STYLES.findIndex(
-    (entry) => entry.selector === "edge.highlighted",
-  );
+  const filteredNodeIndex = NETWORK_STYLES.findIndex((entry) => entry.selector === "node.filtered-out");
+  const highlightedNodeIndex = NETWORK_STYLES.findIndex((entry) => entry.selector === ".highlighted");
+  const filteredEdgeIndex = NETWORK_STYLES.findIndex((entry) => entry.selector === "edge.filtered-out");
+  const highlightedEdgeIndex = NETWORK_STYLES.findIndex((entry) => entry.selector === "edge.highlighted");
 
   assert.ok(filteredNodeIndex > highlightedNodeIndex);
   assert.ok(filteredEdgeIndex > highlightedEdgeIndex);
