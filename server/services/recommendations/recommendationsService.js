@@ -11,6 +11,11 @@ import { mixRecommendationPools } from "./recommendationMixer.js";
 import { validateRecommendationOutput } from "./recommendationInvariants.js";
 import { createMediaKey, normalizeWatchHistory } from "../../utils/mediaIdentity.js";
 import { mapWithConcurrency } from "../../utils/runWithConcurrency.js";
+import {
+  diffTmdbMetrics,
+  resetTmdbMetrics,
+  snapshotTmdbMetrics,
+} from "../../utils/tmdbMetrics.js";
 
 const RECOMMENDATION_LIMIT = 100;
 const HISTORY_ENRICHMENT_CONCURRENCY = 6;
@@ -89,6 +94,7 @@ export async function analyzeWatchHistory(history, feedback = null) {
   const tvExplorationRatio = calculateExplorationRatio(profile.tv.strength);
   const profileMs = Date.now() - profileStartedAt;
 
+  resetTmdbMetrics();
   const candidateGenerationStartedAt = Date.now();
   const [movieCandidates, tvCandidates] = await Promise.all([
     generateCandidates(
@@ -105,6 +111,17 @@ export async function analyzeWatchHistory(history, feedback = null) {
     ),
   ]);
   const candidateGenerationMs = Date.now() - candidateGenerationStartedAt;
+  const candidateTmdbMetrics = diffTmdbMetrics(
+    {
+      requests: 0,
+      successes: 0,
+      failures: 0,
+      retries: 0,
+      totalMs: 0,
+      byCategory: {},
+    },
+    snapshotTmdbMetrics(),
+  );
 
   const rankingStartedAt = Date.now();
   const [scoredMovies, scoredTv] = [
@@ -241,6 +258,7 @@ export async function analyzeWatchHistory(history, feedback = null) {
         historyEnrichment: historyEnrichmentMs,
         profile: profileMs,
         candidateGeneration: candidateGenerationMs,
+        candidateTmdb: candidateTmdbMetrics,
         ranking: rankingMs,
         total: Date.now() - pipelineStartedAt,
       },
