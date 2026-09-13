@@ -85,17 +85,20 @@ async function benchmarkNetwork(history, runs) {
 
 async function main() {
   const runs = parseIntegerFlag("runs", 3);
-  const requestedLimit = parseIntegerFlag("history-limit", Number.MAX_SAFE_INTEGER);
+  const requestedLimit = parseIntegerFlag("history-limit", null);
   const mode = hasFlag("network") ? "network" : "recommendations";
 
   const fullHistory = getWatchHistory();
-  const history = fullHistory.slice(0, requestedLimit);
+  const history =
+    requestedLimit === null
+      ? fullHistory
+      : fullHistory.slice(0, requestedLimit);
 
   if (history.length === 0) {
     throw new Error("No watch history is available for benchmarking.");
   }
 
-  if (history.length < requestedLimit) {
+  if (requestedLimit !== null && history.length < requestedLimit) {
     console.warn(
       `Requested ${requestedLimit} history items, but only ${history.length} are available.`,
     );
