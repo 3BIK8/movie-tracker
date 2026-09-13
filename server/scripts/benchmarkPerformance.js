@@ -34,6 +34,60 @@ function summarize(values) {
   };
 }
 
+function getRecommendationProvenance(recommendations) {
+  const directTypes = new Set([
+    "actors",
+    "directors",
+    "genres",
+    "studios",
+    "keywords",
+    "franchises",
+  ]);
+
+  const counts = {
+    direct: 0,
+    multiHop: 0,
+    historyExploration: 0,
+    exploration: 0,
+    directOnly: 0,
+    multiHopOnly: 0,
+    historyOnly: 0,
+    explorationOnly: 0,
+    mixed: 0,
+  };
+
+  for (const recommendation of recommendations) {
+    const phases = new Set();
+
+    for (const source of recommendation.sources || []) {
+      if (directTypes.has(source.type)) phases.add("direct");
+      if (source.type === "multiHop") phases.add("multiHop");
+      if (source.pool === "exploration" && source.type !== "exploration") {
+        phases.add("historyExploration");
+      }
+      if (source.type === "exploration") phases.add("exploration");
+    }
+
+    for (const phase of [
+      "direct",
+      "multiHop",
+      "historyExploration",
+      "exploration",
+    ]) {
+      if (phases.has(phase)) counts[phase] += 1;
+    }
+
+    if (phases.size === 1) {
+      const [phase] = phases;
+      counts[`${phase}Only`] += 1;
+    } else if (phases.size > 1) {
+      counts.mixed += 1;
+    }
+  }
+
+  return counts;
+}
+
 function formatResult(mode, historySize, samples, diagnostics) {
   const timings = samples.map((sample) => sample.totalMs);
 
@@ -49,6 +103,7 @@ function formatResult(mode, historySize, samples, diagnostics) {
 async function benchmarkRecommendations(history, runs) {
   const samples = [];
   let latestDiagnostics = null;
+  let latestProvenance = null;
 
   for (let run = 0; run < runs; run += 1) {
     const startedAt = performance.now();
@@ -57,13 +112,20 @@ async function benchmarkRecommendations(history, runs) {
 
     samples.push({ totalMs });
     latestDiagnostics = result.recommendationDiagnostics;
+    latestProvenance = {
+      movies: getRecommendationProvenance(result.recommendations.movies),
+      tv: getRecommendationProvenance(result.recommendations.tv),
+    };
   }
 
   return formatResult(
     "recommendations",
     history.length,
     samples,
-    latestDiagnostics,
+    {
+      ...latestDiagnostics,
+      recommendationProvenance: latestProvenance,
+    },
   );
 }
 
