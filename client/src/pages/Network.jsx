@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useWatchHistory } from "../hooks/useWatchHistory";
 import { useConnectionSearch } from "./network/useConnectionSearch";
 import { useNetworkGraph } from "./network/useNetworkGraph";
+import { searchNetworkMedia } from "./network/networkMediaSearch";
 import ConnectionExplorer from "./network/ConnectionExplorer";
 import NetworkMinimap from "./network/NetworkMinimap";
 import NetworkDetailsPanel from "../components/network/NetworkDetailsPanel";
@@ -36,20 +37,10 @@ function NetworkView() {
     () => connectionNodes.filter((node) => showMetadata && activeTypes.has(node.connectionType)).length,
     [connectionNodes, activeTypes, showMetadata],
   );
-  const titleSuggestions = useMemo(() => {
-    const query = titleSearch.trim().toLowerCase();
-    if (!query || !networkData?.nodes) return [];
-    return networkData.nodes
-      .filter((node) => node.type === "media")
-      .map((node) => ({ ...node, searchTitle: String(node.title || node.displayLabel || node.label || "") }))
-      .filter((node) => node.searchTitle.toLowerCase().includes(query))
-      .sort((a, b) => {
-        const aTitle = a.searchTitle.toLowerCase();
-        const bTitle = b.searchTitle.toLowerCase();
-        return (aTitle.startsWith(query) ? 0 : 1) - (bTitle.startsWith(query) ? 0 : 1) || aTitle.localeCompare(bTitle);
-      })
-      .slice(0, 8);
-  }, [networkData, titleSearch]);
+  const titleSuggestions = useMemo(
+    () => searchNetworkMedia(networkData?.nodes, titleSearch, 8),
+    [networkData, titleSearch],
+  );
 
   function toggleType(type) {
     setActiveTypes((current) => {
@@ -78,7 +69,19 @@ function NetworkView() {
   async function toggleFullscreen() {
     const element = networkShellRef.current;
     if (!element) return;
-    if (document.fullscreenElement) await document.exitFullscreen(); else await element.requestFullscreen();
+
+    try {
+      if (document.fullscreenElement === element) {
+        await document.exitFullscreen();
+      } else if (!document.fullscreenElement) {
+        await element.requestFullscreen();
+      }
+    } catch (error) {
+      console.error("Unable to toggle network fullscreen mode.", error);
+      setIsFullscreen(document.fullscreenElement === element);
+      return;
+    }
+
     requestAnimationFrame(() => cyRef.current?.resize());
     requestAnimationFrame(() => fitGraph(90));
   }
