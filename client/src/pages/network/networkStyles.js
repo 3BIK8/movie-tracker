@@ -14,14 +14,50 @@ export const NETWORK_STYLES = [
   {
     selector: "edge[type='relationship']",
     style: {
-      width: 0.7,
+      width: 0.75,
       "line-color": "#64748b",
-      opacity: 0.08,
+      opacity: 0.2,
       "curve-style": "bezier",
       "control-point-weights": 0.5,
       "control-point-distances": "data(curveDistance)",
       "z-index": 1,
     },
+  },
+  {
+    selector: "edge[connectionType='actor']",
+    style: { "line-color": "#f97316" },
+  },
+  {
+    selector: "edge[connectionType='director']",
+    style: { "line-color": "#8b5cf6" },
+  },
+  {
+    selector: "edge[connectionType='genre']",
+    style: { "line-color": "#22c55e" },
+  },
+  {
+    selector: "edge[connectionType='franchise']",
+    style: { "line-color": "#ef4444" },
+  },
+  {
+    selector: "edge[connectionType='studio']",
+    style: { "line-color": "#14b8a6" },
+  },
+  {
+    selector: "edge[connectionType='keyword']",
+    style: { "line-color": "#ec4899" },
+  },
+  {
+    selector: "edge[connectionType='language']",
+    style: { "line-color": "#eab308" },
+  },
+  {
+    selector: "edge[connectionType='decade']",
+    style: { "line-color": "#64748b" },
+  },
+  {
+    selector: "edge[connectionType='mediaType']",
+    style: { "line-color": "#06b6d4" },
   },
   {
     selector: "node[type='connection']",
