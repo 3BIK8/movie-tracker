@@ -56,6 +56,22 @@ function createSyntheticMediaNodes(count) {
   }));
 }
 
+function createSyntheticLargeNetwork(count) {
+  const media = createSyntheticMediaNodes(count);
+  const connections = Array.from({ length: 20 }, (_, index) => ({
+    id: `genre-${index + 1}`,
+    type: "connection",
+    connectionType: "genre",
+    label: `Genre ${index + 1}`,
+    connectedMediaIds: media
+      .filter((_, mediaIndex) => mediaIndex % (index + 2) === 0)
+      .slice(0, 30)
+      .map((node) => node.id),
+  }));
+
+  return [...media, ...connections];
+}
+
 test("layout is deterministic regardless of input order", () => {
   const first = buildStructuredNetworkLayout(nodes);
   const second = buildStructuredNetworkLayout([...nodes].reverse());
@@ -130,4 +146,21 @@ test("layout scales to 500 watched titles without losing deterministic positions
   }
 
   assert.ok(elapsedMs < 3000, `500-node layout took ${elapsedMs.toFixed(1)}ms`);
+});
+
+test("large network layout remains fast and collision-free at 1000 titles", () => {
+  const syntheticNodes = createSyntheticLargeNetwork(1000);
+  const startedAt = performance.now();
+  const positions = buildStructuredNetworkLayout(syntheticNodes);
+  const elapsedMs = performance.now() - startedAt;
+
+  assert.equal(Object.keys(positions).length, syntheticNodes.length);
+
+  const media = syntheticNodes.filter((node) => node.type === "media");
+  const occupied = new Set(
+    media.map((node) => `${positions[node.id].x}:${positions[node.id].y}`),
+  );
+
+  assert.equal(occupied.size, media.length);
+  assert.ok(elapsedMs < 1000, `1000-node layout took ${elapsedMs.toFixed(1)}ms`);
 });

@@ -16,6 +16,7 @@ const NETWORK_ASPECT_RATIO = 1.77;
 const INTERSTITIAL_STEP = 42;
 const MIN_MEDIA_GAP = 48;
 const MIN_CONNECTION_GAP = 18;
+const SPECTRAL_LAYOUT_MAX_MEDIA = 300;
 
 function canonicalDate(node) {
   return String(
@@ -294,6 +295,29 @@ function assignProjectedPointsToHexes(mediaNodes, projection, features) {
   return positions;
 }
 
+function assignLargeNetworkToHexes(mediaNodes, connectionNodes) {
+  const cells = generateHexCells(mediaNodes.length);
+  const mediaDegree = new Map(mediaNodes.map((node) => [node.id, 0]));
+
+  for (const connection of connectionNodes) {
+    for (const mediaId of connection.connectedMediaIds || []) {
+      if (mediaDegree.has(mediaId)) {
+        mediaDegree.set(mediaId, mediaDegree.get(mediaId) + 1);
+      }
+    }
+  }
+
+  const ordered = [...mediaNodes].sort(
+    (a, b) =>
+      mediaDegree.get(b.id) - mediaDegree.get(a.id) || compareNodes(a, b),
+  );
+
+  return ordered.reduce((positions, node, index) => {
+    positions[node.id] = hexToPoint(cells[index]);
+    return positions;
+  }, {});
+}
+
 function getConnectionCandidates(connected, node) {
   const candidates = [];
 
@@ -449,17 +473,24 @@ export function buildStructuredNetworkLayout(nodes) {
   }
 
   const features = buildFeatureSets(mediaNodes, connectionNodes);
-  const similarityMatrix = buildSimilarityMatrix(mediaNodes, features);
-  const projection = spectralProjection(similarityMatrix);
-  const mediaPositions = assignProjectedPointsToHexes(
-    mediaNodes,
-    projection,
-    features,
-  );
-  const positions = Object.fromEntries(
-    mediaNodes.map((node, index) => [node.id, mediaPositions[index]]),
-  );
+  let positions;
 
+  if (mediaNodes.length > SPECTRAL_LAYOUT_MAX_MEDIA) {
+    positions = assignLargeNetworkToHexes(mediaNodes, connectionNodes);
+  } else {
+    const similarityMatrix = buildSimilarityMatrix(mediaNodes, features);
+    const projection = spectralProjection(similarityMatrix);
+    const mediaPositions = assignProjectedPointsToHexes(
+      mediaNodes,
+      projection,
+      features,
+    );
+    positions = Object.fromEntries(
+      mediaNodes.map((node, index) => [node.id, mediaPositions[index]]),
+    );
+  }
+
+  const mediaPositions = mediaNodes.map((node) => positions[node.id]);
   Object.assign(
     positions,
     placeConnectionNodes(connectionNodes, mediaNodes, mediaPositions),
