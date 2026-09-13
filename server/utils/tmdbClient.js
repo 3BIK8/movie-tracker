@@ -87,10 +87,12 @@ export async function tmdbFetch(endpoint) {
 
       if (response.ok) {
         const data = await response.json();
-        recordTmdbRequestEnd(requestMetrics, {
-          success: true,
-          durationMs: performance.now() - requestMetrics.startedAt,
-        });
+        if (requestMetrics) {
+          recordTmdbRequestEnd(requestMetrics, {
+            success: true,
+            durationMs: performance.now() - requestMetrics.startedAt,
+          });
+        }
         return data;
       }
 
@@ -107,10 +109,12 @@ export async function tmdbFetch(endpoint) {
         },
       );
 
-      recordTmdbRequestEnd(requestMetrics, {
-        success: false,
-        durationMs: performance.now() - requestMetrics.startedAt,
-      });
+      if (requestMetrics) {
+        recordTmdbRequestEnd(requestMetrics, {
+          success: false,
+          durationMs: performance.now() - requestMetrics.startedAt,
+        });
+      }
 
       if (!retryable) {
         throw lastError;
@@ -126,7 +130,7 @@ export async function tmdbFetch(endpoint) {
         await delay(retryAfter ?? getBackoffMilliseconds(attempt));
       }
     } catch (error) {
-      if (!(error instanceof TmdbRequestError)) {
+      if (!(error instanceof TmdbRequestError) && requestMetrics) {
         recordTmdbRequestEnd(requestMetrics, {
           success: false,
           durationMs: performance.now() - requestMetrics.startedAt,
