@@ -30,9 +30,9 @@ function Person({ personId, role, personName, onPersonClick }) {
     }
   }, [personId, role, page]);
 
-  // This effect intentionally starts an external data request that updates view state.
-  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
+    // This effect intentionally starts an external data request that updates view state.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadCredits();
   }, [loadCredits]);
 
