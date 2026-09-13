@@ -71,21 +71,20 @@ export function recordRecommendationsShown(recommendations) {
 export function recordRecommendationInteraction(type, id, event, metadata = {}) {
   const ledger = readLedger();
   const key = normalizeKey(type, id);
-  const timestamp = new Date().toISOString();
-
   const exposures = ledger.exposures.filter((exposure) => exposure.key === key);
+  const exposure = exposures[exposures.length - 1];
 
-  for (const exposure of exposures) {
-    exposure.interactions.push({
-      event,
-      timestamp,
-      ...metadata,
-    });
+  if (!exposure) {
+    return;
   }
 
-  if (exposures.length > 0) {
-    writeLedger(ledger);
-  }
+  exposure.interactions.push({
+    event,
+    timestamp: new Date().toISOString(),
+    ...metadata,
+  });
+
+  writeLedger(ledger);
 }
 
 export function recordRecommendationsSkipped(recommendations) {
