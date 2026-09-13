@@ -8,12 +8,24 @@ const MAX_ENRICHMENT_MULTIPLIER = 6;
 const MIN_SOURCE_BUDGET = 20;
 const MAX_SOURCE_BUDGET = 48;
 
+let enrichmentBudgetOverride = null;
+
 export function getDiscoveryPageCount(sourceType) {
   return DISCOVERY_PAGE_LIMITS[sourceType] || 1;
 }
 
+export function setEnrichmentBudgetOverride(budget) {
+  enrichmentBudgetOverride =
+    Number.isInteger(budget) && budget > 0 ? budget : null;
+}
+
 export function getEnrichmentBudget(limit) {
   const normalizedLimit = Number.isInteger(limit) && limit > 0 ? limit : 100;
+
+  if (enrichmentBudgetOverride !== null) {
+    return enrichmentBudgetOverride;
+  }
+
   return normalizedLimit * MAX_ENRICHMENT_MULTIPLIER;
 }
 
