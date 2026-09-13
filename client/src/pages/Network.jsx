@@ -5,10 +5,7 @@ import { useNetworkGraph } from "./network/useNetworkGraph";
 import ConnectionExplorer from "./network/ConnectionExplorer";
 import NetworkMinimap from "./network/NetworkMinimap";
 import NetworkDetailsPanel from "../components/network/NetworkDetailsPanel";
-import {
-  CONNECTION_TYPES,
-  CONNECTION_LABELS,
-} from "../constants/connectionTypes";
+import { CONNECTION_TYPES, CONNECTION_LABELS } from "../constants/connectionTypes";
 
 function NetworkView() {
   const { history } = useWatchHistory();
@@ -16,74 +13,40 @@ function NetworkView() {
   const [showMetadata, setShowMetadata] = useState(true);
   const [titleSearch, setTitleSearch] = useState("");
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [activeTypes, setActiveTypes] = useState(
-    new Set(["actor", "director", "genre", "franchise", "decade"]),
-  );
+  const [activeTypes, setActiveTypes] = useState(new Set(["actor", "director", "genre", "franchise", "decade"]));
   const [focusedConnection, setFocusedConnection] = useState(null);
 
   const {
-    containerRef,
-    cyRef,
-    networkData,
-    selectedNode,
-    loading,
-    error,
-    setSelectedNode,
-    resetNetwork: resetGraph,
-    fitGraph,
-    zoomIn,
-    zoomOut,
-    focusNodeById,
-    searchMedia,
-  } = useNetworkGraph({
-    history,
-    activeTypes,
-    focusedConnection,
-    showMetadata,
-    onConnectionFocus: setFocusedConnection,
-  });
+    containerRef, cyRef, cyVersion, networkData, selectedNode, loading, error,
+    setSelectedNode, resetNetwork: resetGraph, fitGraph, zoomIn, zoomOut,
+    focusNodeById, searchMedia,
+  } = useNetworkGraph({ history, activeTypes, focusedConnection, showMetadata, onConnectionFocus: setFocusedConnection });
 
   useEffect(() => {
     function handleFullscreenChange() {
       setIsFullscreen(document.fullscreenElement === networkShellRef.current);
     }
-
     document.addEventListener("fullscreenchange", handleFullscreenChange);
     return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
   }, []);
 
-  const { connectionSearch, setConnectionSearch, filteredConnections } =
-    useConnectionSearch(networkData, activeTypes);
-
-  const connectionNodes = useMemo(
-    () => networkData?.nodes?.filter((node) => node.type === "connection") || [],
-    [networkData],
-  );
-
+  const { connectionSearch, setConnectionSearch, filteredConnections } = useConnectionSearch(networkData, activeTypes);
+  const connectionNodes = useMemo(() => networkData?.nodes?.filter((node) => node.type === "connection") || [], [networkData]);
   const visibleConnectionCount = useMemo(
-    () =>
-      connectionNodes.filter((node) => showMetadata && activeTypes.has(node.connectionType))
-        .length,
+    () => connectionNodes.filter((node) => showMetadata && activeTypes.has(node.connectionType)).length,
     [connectionNodes, activeTypes, showMetadata],
   );
-
   const titleSuggestions = useMemo(() => {
     const query = titleSearch.trim().toLowerCase();
     if (!query || !networkData?.nodes) return [];
-
     return networkData.nodes
       .filter((node) => node.type === "media")
-      .map((node) => ({
-        ...node,
-        searchTitle: String(node.title || node.displayLabel || node.label || ""),
-      }))
+      .map((node) => ({ ...node, searchTitle: String(node.title || node.displayLabel || node.label || "") }))
       .filter((node) => node.searchTitle.toLowerCase().includes(query))
       .sort((a, b) => {
         const aTitle = a.searchTitle.toLowerCase();
         const bTitle = b.searchTitle.toLowerCase();
-        const aStarts = aTitle.startsWith(query) ? 0 : 1;
-        const bStarts = bTitle.startsWith(query) ? 0 : 1;
-        return aStarts - bStarts || aTitle.localeCompare(bTitle);
+        return (aTitle.startsWith(query) ? 0 : 1) - (bTitle.startsWith(query) ? 0 : 1) || aTitle.localeCompare(bTitle);
       })
       .slice(0, 8);
   }, [networkData, titleSearch]);
@@ -91,73 +54,31 @@ function NetworkView() {
   function toggleType(type) {
     setActiveTypes((current) => {
       const next = new Set(current);
-      if (next.has(type)) next.delete(type);
-      else next.add(type);
-
-      if (
-        focusedConnection &&
-        focusedConnection.connectionType === type &&
-        !next.has(type)
-      ) {
-        setFocusedConnection(null);
-      }
-
+      if (next.has(type)) next.delete(type); else next.add(type);
+      if (focusedConnection && focusedConnection.connectionType === type && !next.has(type)) setFocusedConnection(null);
       return next;
     });
   }
 
-  const focusConnection = useCallback(
-    (connection) => {
-      const connectedMedia = (connection.connectedMediaIds || [])
-        .map((id) => networkData?.nodes?.find((node) => node.id === id))
-        .filter(Boolean);
+  const focusConnection = useCallback((connection) => {
+    const connectedMedia = (connection.connectedMediaIds || []).map((id) => networkData?.nodes?.find((node) => node.id === id)).filter(Boolean);
+    setShowMetadata(true);
+    setActiveTypes((current) => new Set(current).add(connection.connectionType));
+    setFocusedConnection(connection);
+    setConnectionSearch("");
+    setSelectedNode({ node: connection, connectedMedia });
+  }, [networkData, setSelectedNode, setConnectionSearch]);
 
-      setShowMetadata(true);
-      setActiveTypes((current) => new Set(current).add(connection.connectionType));
-      setFocusedConnection(connection);
-      setConnectionSearch("");
-      setSelectedNode({ node: connection, connectedMedia });
-    },
-    [networkData, setSelectedNode, setConnectionSearch],
-  );
-
-  function clearConnectionFocus() {
-    setFocusedConnection(null);
-    setSelectedNode(null);
-  }
-
-  function resetNetwork() {
-    setFocusedConnection(null);
-    setTitleSearch("");
-    resetGraph();
-  }
-
-  function focusSelectedNode() {
-    const nodeId = selectedNode?.node?.id;
-    if (nodeId) focusNodeById(nodeId);
-  }
-
-  function handleTitleSearch(event) {
-    event.preventDefault();
-    const match = searchMedia(titleSearch);
-    if (match) setTitleSearch(match.title || match.displayLabel || "");
-  }
-
-  function selectTitleSuggestion(node) {
-    setTitleSearch(node.searchTitle);
-    searchMedia(node.searchTitle);
-  }
+  function clearConnectionFocus() { setFocusedConnection(null); setSelectedNode(null); }
+  function resetNetwork() { setFocusedConnection(null); setTitleSearch(""); resetGraph(); }
+  function focusSelectedNode() { const nodeId = selectedNode?.node?.id; if (nodeId) focusNodeById(nodeId); }
+  function handleTitleSearch(event) { event.preventDefault(); const match = searchMedia(titleSearch); if (match) setTitleSearch(match.title || match.displayLabel || ""); }
+  function selectTitleSuggestion(node) { setTitleSearch(node.searchTitle); searchMedia(node.searchTitle); }
 
   async function toggleFullscreen() {
     const element = networkShellRef.current;
     if (!element) return;
-
-    if (document.fullscreenElement) {
-      await document.exitFullscreen();
-    } else {
-      await element.requestFullscreen();
-    }
-
+    if (document.fullscreenElement) await document.exitFullscreen(); else await element.requestFullscreen();
     requestAnimationFrame(() => cyRef.current?.resize());
     requestAnimationFrame(() => fitGraph(90));
   }
@@ -172,15 +93,7 @@ function NetworkView() {
       <header className="network-header">
         <div>
           <h1>My Watch Network</h1>
-          <p>
-            {historyCount} titles in your watch history
-            {networkData && (
-              <>
-                {" · "}showing {shownTitles} of {totalHistory}
-                {" · "}{visibleConnectionCount} visible shared connections
-              </>
-            )}
-          </p>
+          <p>{historyCount} titles in your watch history{networkData && <> {" · "}showing {shownTitles} of {totalHistory}{" · "}{visibleConnectionCount} visible shared connections</>}</p>
         </div>
         <button className="network-reset" onClick={resetNetwork}>Reset View</button>
       </header>
@@ -188,34 +101,15 @@ function NetworkView() {
       <div className="network-layout">
         <aside className="network-controls">
           <h2>Connections</h2>
-
           {CONNECTION_TYPES.map((connection) => (
             <label className="network-filter" key={connection.id}>
-              <input
-                type="checkbox"
-                checked={showMetadata && activeTypes.has(connection.id)}
-                onChange={() => toggleType(connection.id)}
-                disabled={!showMetadata}
-              />
+              <input type="checkbox" checked={showMetadata && activeTypes.has(connection.id)} onChange={() => toggleType(connection.id)} disabled={!showMetadata} />
               <span className={`network-color network-color-${connection.id}`} />
               {connection.label}
             </label>
           ))}
-
-          <ConnectionExplorer
-            connectionSearch={connectionSearch}
-            setConnectionSearch={setConnectionSearch}
-            filteredConnections={filteredConnections}
-            focusedConnection={focusedConnection}
-            onFocusConnection={focusConnection}
-            onClearFocus={clearConnectionFocus}
-          />
-
-          <div className="network-help">
-            <p>Click a node to inspect and highlight its neighborhood.</p>
-            <p>Use Find title to center the graph on a watched title.</p>
-            <p>Drag to pan and scroll to zoom. The minimap appears on larger graphs.</p>
-          </div>
+          <ConnectionExplorer connectionSearch={connectionSearch} setConnectionSearch={setConnectionSearch} filteredConnections={filteredConnections} focusedConnection={focusedConnection} onFocusConnection={focusConnection} onClearFocus={clearConnectionFocus} />
+          <div className="network-help"><p>Click a node to inspect and highlight its neighborhood.</p><p>Use Find title to center the graph on a watched title.</p><p>Drag to pan and scroll to zoom. The minimap appears on larger graphs.</p></div>
         </aside>
 
         <div ref={networkShellRef} className="network-container">
@@ -223,49 +117,17 @@ function NetworkView() {
             <form className="network-title-search" onSubmit={handleTitleSearch}>
               <label htmlFor="network-title-search">Find title</label>
               <div className="network-title-search-input-wrap">
-                <input
-                  id="network-title-search"
-                  value={titleSearch}
-                  onChange={(event) => setTitleSearch(event.target.value)}
-                  placeholder="Search watched titles…"
-                  autoComplete="off"
-                />
+                <input id="network-title-search" value={titleSearch} onChange={(event) => setTitleSearch(event.target.value)} placeholder="Search watched titles…" autoComplete="off" />
                 <button type="submit">Find</button>
-                {titleSuggestions.length > 0 && (
-                  <div className="network-title-suggestions" role="listbox">
-                    {titleSuggestions.map((node) => (
-                      <button
-                        type="button"
-                        key={node.id}
-                        role="option"
-                        aria-selected="false"
-                        className="network-title-suggestion"
-                        onMouseDown={(event) => event.preventDefault()}
-                        onClick={() => selectTitleSuggestion(node)}
-                      >
-                        <span className="network-title-suggestion-title">
-                          {node.searchTitle}
-                        </span>
-                        {node.releaseDate && (
-                          <span className="network-title-suggestion-year">
-                            {String(node.releaseDate).slice(0, 4)}
-                          </span>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                )}
+                {titleSuggestions.length > 0 && <div className="network-title-suggestions" role="listbox">{titleSuggestions.map((node) => <button type="button" key={node.id} role="option" aria-selected="false" className="network-title-suggestion" onMouseDown={(event) => event.preventDefault()} onClick={() => selectTitleSuggestion(node)}><span className="network-title-suggestion-title">{node.searchTitle}</span>{node.releaseDate && <span className="network-title-suggestion-year">{String(node.releaseDate).slice(0, 4)}</span>}</button>)}</div>}
               </div>
             </form>
-
             <div className="network-tool-row">
               <button type="button" onClick={zoomOut} aria-label="Zoom out" title="Zoom out">−</button>
               <button type="button" onClick={() => fitGraph(90)} aria-label="Fit graph" title="Fit graph">⌂</button>
               <button type="button" onClick={zoomIn} aria-label="Zoom in" title="Zoom in">+</button>
               <button type="button" onClick={focusSelectedNode} aria-label="Focus selected node" title="Focus selected node" disabled={!selectedNode?.node}>◎</button>
-              <button type="button" onClick={() => setShowMetadata((value) => !value)} aria-label="Toggle metadata" title="Toggle metadata">
-                {showMetadata ? "◉" : "○"}
-              </button>
+              <button type="button" onClick={() => setShowMetadata((value) => !value)} aria-label="Toggle metadata" title="Toggle metadata">{showMetadata ? "◉" : "○"}</button>
               <button type="button" onClick={resetNetwork} aria-label="Reset network" title="Reset network">↻</button>
               <button type="button" onClick={toggleFullscreen} aria-label="Toggle fullscreen" title="Toggle fullscreen">⛶</button>
             </div>
@@ -273,30 +135,14 @@ function NetworkView() {
 
           {loading && <div className="network-overlay">Building network...</div>}
           {error && <div className="network-overlay error">{error}</div>}
-          {!historyCount && !loading && (
-            <div className="network-overlay">Add some titles to your library first.</div>
-          )}
-          {historyCount > 0 && !loading && !error && networkData && !shownTitles && (
-            <div className="network-overlay">No enriched titles are available for the network.</div>
-          )}
-          {focusedConnection && !loading && (
-            <div className="network-focus-indicator">
-              <span>Focused on</span>
-              <strong>
-                {CONNECTION_LABELS[focusedConnection.connectionType] || focusedConnection.connectionType}: {focusedConnection.label}
-              </strong>
-            </div>
-          )}
-
+          {!historyCount && !loading && <div className="network-overlay">Add some titles to your library first.</div>}
+          {historyCount > 0 && !loading && !error && networkData && !shownTitles && <div className="network-overlay">No enriched titles are available for the network.</div>}
+          {focusedConnection && !loading && <div className="network-focus-indicator"><span>Focused on</span><strong>{CONNECTION_LABELS[focusedConnection.connectionType] || focusedConnection.connectionType}: {focusedConnection.label}</strong></div>}
           <div ref={containerRef} className="network-graph" />
-          <NetworkMinimap cyRef={cyRef} />
+          <NetworkMinimap cyRef={cyRef} cyVersion={cyVersion} />
         </div>
 
-        <NetworkDetailsPanel
-          node={selectedNode?.node}
-          connectedMedia={selectedNode?.connectedMedia}
-          onConnectionFocus={focusConnection}
-        />
+        <NetworkDetailsPanel node={selectedNode?.node} connectedMedia={selectedNode?.connectedMedia} onConnectionFocus={focusConnection} />
       </div>
     </section>
   );
