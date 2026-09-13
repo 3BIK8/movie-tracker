@@ -78,29 +78,73 @@ function addScores(results) {
   });
 }
 
-export async function discoverMedia({ type = "movie", query = "", year = "", genre = "", language = "", minRating = "", maxRating = "", sort = "popularity", page = 1 }) {
+async function discoverFilteredSearch({ type, query, year, genre, language, minRating, maxRating, sort, page }) {
   const appPage = Math.max(Number(page) || 1, 1);
-  const offset = (appPage - 1) * APP_PAGE_SIZE;
+  const targetCount = appPage * APP_PAGE_SIZE;
+  const filteredResults = [];
+  let sourceTotal = 0;
+  let exhausted = false;
 
-  if (query) {
-    const tmdbStartPage = Math.floor(offset / TMDB_PAGE_SIZE) + 1;
-    const offsetInsidePage = offset % TMDB_PAGE_SIZE;
-    const pagesNeeded = Math.ceil((offsetInsidePage + APP_PAGE_SIZE) / TMDB_PAGE_SIZE);
-    const tmdbEndPage = Math.min(tmdbStartPage + pagesNeeded - 1, TMDB_MAX_PAGES);
-    let allResults = [];
-    let sourceTotal = 0;
+  for (let tmdbPage = 1; tmdbPage <= TMDB_MAX_PAGES; tmdbPage += 1) {
+    const data = await fetchTmdbPage({
+      type,
+      query,
+      year,
+      genre,
+      language,
+      minRating,
+      maxRating,
+      sort,
+      page: tmdbPage,
+    });
 
-    for (let tmdbPage = tmdbStartPage; tmdbPage <= tmdbEndPage; tmdbPage++) {
-      const data = await fetchTmdbPage({ type, query, year, genre, language, minRating, maxRating, sort, page: tmdbPage });
-      allResults.push(...(data.results || []));
-      sourceTotal = data.total_results || sourceTotal;
+    sourceTotal = Number(data.total_results) || sourceTotal;
+    filteredResults.push(...(data.results || []));
+
+    if (filteredResults.length >= targetCount) {
+      break;
     }
 
-    const results = addScores(allResults.slice(offsetInsidePage, offsetInsidePage + APP_PAGE_SIZE));
-    const estimatedFilteredPages = Math.max(1, Math.ceil(Math.min(sourceTotal, TMDB_MAX_PAGES * TMDB_PAGE_SIZE) / APP_PAGE_SIZE));
-    return { page: appPage, total_pages: estimatedFilteredPages, total_results: sourceTotal, results };
+    if (!data.results?.length || tmdbPage >= (Number(data.total_pages) || TMDB_MAX_PAGES)) {
+      exhausted = true;
+      break;
+    }
   }
 
+  const sortedResults = sortSearchResults(filteredResults, sort);
+  const start = (appPage - 1) * APP_PAGE_SIZE;
+  const results = addScores(sortedResults.slice(start, start + APP_PAGE_SIZE));
+  const hasMore = results.length === APP_PAGE_SIZE && !exhausted;
+  const totalPages = hasMore
+    ? appPage + 1
+    : Math.max(appPage, Math.ceil(sortedResults.length / APP_PAGE_SIZE));
+
+  return {
+    page: appPage,
+    total_pages: totalPages,
+    total_results: exhausted ? sortedResults.length : Math.max(sortedResults.length, sourceTotal),
+    results,
+    has_more: hasMore,
+  };
+}
+
+export async function discoverMedia({ type = "movie", query = "", year = "", genre = "", language = "", minRating = "", maxRating = "", sort = "popularity", page = 1 }) {
+  if (query) {
+    return discoverFilteredSearch({
+      type,
+      query,
+      year,
+      genre,
+      language,
+      minRating,
+      maxRating,
+      sort,
+      page,
+    });
+  }
+
+  const appPage = Math.max(Number(page) || 1, 1);
+  const offset = (appPage - 1) * APP_PAGE_SIZE;
   const tmdbStartPage = Math.floor(offset / TMDB_PAGE_SIZE) + 1;
   const offsetInsidePage = offset % TMDB_PAGE_SIZE;
   const pagesNeeded = Math.ceil((offsetInsidePage + APP_PAGE_SIZE) / TMDB_PAGE_SIZE);
