@@ -288,6 +288,8 @@ async function generateExplorationCandidates(
     },
     EXPLORATION_DISCOVERY_CONCURRENCY,
   );
+
+  return { queryCount: queries.length };
 }
 
 function getStrongConnections(profile, limit = getSourceBudget(profile)) {
@@ -438,17 +440,25 @@ function calculateCandidateEvidence(candidate) {
   );
 }
 
+function elapsedMs(startedAt) {
+  return Math.round(performance.now() - startedAt);
+}
+
 export async function generateCandidates(
   profile,
   history,
   mediaType,
   limit = 100,
+  diagnostics = null,
 ) {
+  const phaseDiagnostics = diagnostics || {};
   const sourceBudget = getSourceBudget(profile);
   const strongConnections = getStrongConnections(profile, sourceBudget);
   const knownIds = getKnownMediaIds(history);
   const candidates = new Map();
 
+  phaseDiagnostics.sourceCount = strongConnections.length;
+  phaseDiagnostics.sourceDiscoveryStarted = performance.now();
   await mapWithConcurrency(
     strongConnections,
     async (source) => {
@@ -463,40 +473,71 @@ export async function generateCandidates(
     },
     SOURCE_DISCOVERY_CONCURRENCY,
   );
+  phaseDiagnostics.sourceDiscoveryMs = elapsedMs(
+    phaseDiagnostics.sourceDiscoveryStarted,
+  );
+  delete phaseDiagnostics.sourceDiscoveryStarted;
+  phaseDiagnostics.directCandidates = candidates.size;
 
+  const multiHopStartedAt = performance.now();
   const directCandidates = [...candidates.values()];
   const multiHopResults = await discoverMultiHopCandidates(
     directCandidates,
     mediaType,
   );
+  phaseDiagnostics.multiHopMs = elapsedMs(multiHopStartedAt);
+  phaseDiagnostics.multiHopDiscovered = multiHopResults.length;
 
   for (const { media, source } of multiHopResults) {
     addCandidate(candidates, media, source, mediaType);
   }
 
+  const historyStartedAt = performance.now();
   const historyExploration = await generateHistoryExplorationCandidates(
     candidates,
     mediaType,
     history,
   );
+  phaseDiagnostics.historyExplorationMs = elapsedMs(historyStartedAt);
+  phaseDiagnostics.historyExplorationSources = historyExploration.sourceCount;
+  phaseDiagnostics.watchedHistoryItems = historyExploration.watchedHistoryItems;
+  phaseDiagnostics.historyConnectionCount = historyExploration.historyConnectionCount;
 
-  await generateExplorationCandidates(candidates, mediaType, profile, history);
+  const explorationStartedAt = performance.now();
+  const exploration = await generateExplorationCandidates(
+    candidates,
+    mediaType,
+    profile,
+    history,
+  );
+  phaseDiagnostics.explorationDiscoveryMs = elapsedMs(explorationStartedAt);
+  phaseDiagnostics.explorationQueryCount = exploration.queryCount;
 
+  const deduplicationStartedAt = performance.now();
   const discovered = [...candidates.values()].filter(
     (candidate) =>
       !knownIds.has(createCandidateKey(candidate.type, candidate.id)),
   );
   const enrichmentInput = selectCandidatesForEnrichment(discovered, limit);
+  phaseDiagnostics.deduplicationMs = elapsedMs(deduplicationStartedAt);
+  phaseDiagnostics.discovered = discovered.length;
+  phaseDiagnostics.enrichmentInput = enrichmentInput.length;
+
+  const enrichmentStartedAt = performance.now();
   const enriched = await enrichCandidates(enrichmentInput);
+  phaseDiagnostics.enrichmentMs = elapsedMs(enrichmentStartedAt);
+  phaseDiagnostics.enriched = enriched.length;
+
+  const selectionStartedAt = performance.now();
   const exploitation = enriched.filter(
     (candidate) => candidate.pool === "exploitation",
   );
-  const exploration = enriched.filter(
+  const explorationCandidates = enriched.filter(
     (candidate) => candidate.pool === "exploration",
   );
   const explorationLimit = Math.min(
     Math.floor(limit * 0.4),
-    exploration.length,
+    explorationCandidates.length,
   );
 
   const exploitationLimit = Math.min(
@@ -514,27 +555,28 @@ export async function generateCandidates(
     .slice(0, exploitationLimit);
 
   const selectedExploration = selectExplorationCandidates(
-    exploration,
+    explorationCandidates,
     explorationLimit,
   );
   const output = [...rankedExploitation, ...selectedExploration];
+  phaseDiagnostics.selectionMs = elapsedMs(selectionStartedAt);
 
+  const validationStartedAt = performance.now();
   validateCandidateOutput(output, { mediaType, limit, knownIds });
+  phaseDiagnostics.validationMs = elapsedMs(validationStartedAt);
+
+  phaseDiagnostics.exploitation = exploitation.length;
+  phaseDiagnostics.exploration = explorationCandidates.length;
+  phaseDiagnostics.exploitationPool = rankedExploitation.length;
+  phaseDiagnostics.explorationPool = selectedExploration.length;
+  phaseDiagnostics.total = Object.entries(phaseDiagnostics)
+    .filter(([key, value]) => key.endsWith("Ms") && key !== "total")
+    .reduce((sum, [, value]) => sum + value, 0);
 
   console.log("CANDIDATE COUNTS:", {
     mediaType,
     sourceBudget,
-    historyExplorationSources: historyExploration.sourceCount,
-    watchedHistoryItems: historyExploration.watchedHistoryItems,
-    historyConnectionCount: historyExploration.historyConnectionCount,
-    discovered: discovered.length,
-    multiHopDiscovered: multiHopResults.length,
-    enrichmentInput: enrichmentInput.length,
-    enriched: enriched.length,
-    exploitation: exploitation.length,
-    exploration: exploration.length,
-    exploitationPool: rankedExploitation.length,
-    explorationPool: selectedExploration.length,
+    ...phaseDiagnostics,
   });
 
   return output;

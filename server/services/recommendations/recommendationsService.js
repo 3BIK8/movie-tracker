@@ -94,25 +94,33 @@ export async function analyzeWatchHistory(history, feedback = null) {
   const profileMs = Date.now() - profileStartedAt;
 
   const candidateGenerationStartedAt = Date.now();
-  const { candidates, tmdbMetrics: candidateTmdbMetrics } =
+  const { candidates, tmdbMetrics: candidateTmdbMetrics, candidateDiagnostics } =
     await runWithTmdbMetrics(async () => {
+      const movieDiagnostics = {};
+      const tvDiagnostics = {};
       const [movieCandidates, tvCandidates] = await Promise.all([
         generateCandidates(
           profile.movies.connections,
           enrichedHistory,
           "movie",
           RECOMMENDATION_LIMIT,
+          movieDiagnostics,
         ),
         generateCandidates(
           profile.tv.connections,
           enrichedHistory,
           "tv",
           RECOMMENDATION_LIMIT,
+          tvDiagnostics,
         ),
       ]);
 
       return {
         candidates: [movieCandidates, tvCandidates],
+        candidateDiagnostics: {
+          movies: movieDiagnostics,
+          tv: tvDiagnostics,
+        },
         tmdbMetrics: getTmdbMetrics(),
       };
     });
@@ -230,6 +238,7 @@ export async function analyzeWatchHistory(history, feedback = null) {
           (item) => item.type === "movie" && item.status === "watched" && item.rating,
         ).length,
         candidateCounts: moviePools.counts,
+        candidatePhases: candidateDiagnostics.movies,
         finalExploitation: safeMovies.filter(
           (item) => item.pool === "exploitation",
         ).length,
@@ -243,6 +252,7 @@ export async function analyzeWatchHistory(history, feedback = null) {
           (item) => item.type === "tv" && item.status === "watched" && item.rating,
         ).length,
         candidateCounts: tvPools.counts,
+        candidatePhases: candidateDiagnostics.tv,
         finalExploitation: safeTv.filter(
           (item) => item.pool === "exploitation",
         ).length,
