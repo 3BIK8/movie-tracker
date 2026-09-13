@@ -6,6 +6,7 @@ import { NETWORK_STYLES } from "./networkStyles";
 import { filterGraphElements } from "./filterGraphElements";
 import { buildEdgeCurveDistance, buildStructuredNetworkLayout } from "./structuredNetworkLayout";
 import { attachGraphEventListeners } from "./cytoscapeEvents";
+import { searchNetworkMedia } from "./networkMediaSearch";
 
 const STRUCTURED_NETWORK_LAYOUT = { name: "preset", fit: true, padding: 70 };
 
@@ -161,13 +162,8 @@ export function useNetworkGraph({ history, activeTypes, focusedConnection, showM
     return true;
   }
 
-  function searchMedia(query) {
-    const normalized = String(query || "").trim().toLowerCase();
-    if (!normalized || !networkDataRef.current) return null;
-    const match = networkDataRef.current.nodes
-      .filter((node) => node.type === "media")
-      .sort((a, b) => String(a.title || a.label || a.id).localeCompare(String(b.title || b.label || b.id)))
-      .find((node) => String(node.title || node.displayLabel || node.label || "").toLowerCase().includes(normalized));
+  function searchMedia(query, limit = 20) {
+    const match = searchNetworkMedia(networkDataRef.current?.nodes, query, limit)[0];
     if (!match) return null;
     focusNodeById(match.id);
     setSelectedNode({ node: match, connectedMedia: [] });
