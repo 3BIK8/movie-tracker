@@ -231,7 +231,12 @@ export function buildGraph(mediaRecords, tasteProfile = null) {
     });
 
     for (const mediaId of mediaIds) {
-      if (!addEdge(edges, mediaId, connectionId)) {
+      if (
+        !addEdge(edges, mediaId, connectionId, {
+          type: "relationship",
+          connectionType: connection.type,
+        })
+      ) {
         break;
       }
     }
