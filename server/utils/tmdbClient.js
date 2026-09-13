@@ -3,6 +3,11 @@ import {
   TMDB_TIMEOUT_MS,
   TMDB_MAX_ATTEMPTS,
 } from "../config/tmdb.js";
+import {
+  recordTmdbRequestEnd,
+  recordTmdbRequestStart,
+  recordTmdbRetry,
+} from "./tmdbMetrics.js";
 
 export class TmdbRequestError extends Error {
   constructor(message, { status, retryable = false, cause } = {}) {
@@ -70,6 +75,8 @@ export async function tmdbFetch(endpoint) {
   let lastError;
 
   for (let attempt = 1; attempt <= TMDB_MAX_ATTEMPTS; attempt++) {
+    const requestMetrics = recordTmdbRequestStart(endpoint);
+
     try {
       const response = await fetchWithTimeout(`${TMDB_URL}${endpoint}`, {
         headers: {
@@ -79,10 +86,18 @@ export async function tmdbFetch(endpoint) {
       });
 
       if (response.ok) {
-        return response.json();
+        const data = await response.json();
+        if (requestMetrics) {
+          recordTmdbRequestEnd(requestMetrics, {
+            success: true,
+            durationMs: performance.now() - requestMetrics.startedAt,
+          });
+        }
+        return data;
       }
 
-      const retryable = response.status === 408 ||
+      const retryable =
+        response.status === 408 ||
         response.status === 429 ||
         response.status >= 500;
 
@@ -94,6 +109,13 @@ export async function tmdbFetch(endpoint) {
         },
       );
 
+      if (requestMetrics) {
+        recordTmdbRequestEnd(requestMetrics, {
+          success: false,
+          durationMs: performance.now() - requestMetrics.startedAt,
+        });
+      }
+
       if (!retryable) {
         throw lastError;
       }
@@ -104,9 +126,17 @@ export async function tmdbFetch(endpoint) {
           : null;
 
       if (attempt < TMDB_MAX_ATTEMPTS) {
+        recordTmdbRetry();
         await delay(retryAfter ?? getBackoffMilliseconds(attempt));
       }
     } catch (error) {
+      if (!(error instanceof TmdbRequestError) && requestMetrics) {
+        recordTmdbRequestEnd(requestMetrics, {
+          success: false,
+          durationMs: performance.now() - requestMetrics.startedAt,
+        });
+      }
+
       if (error instanceof TmdbRequestError && !error.retryable) {
         throw error;
       }
@@ -117,6 +147,7 @@ export async function tmdbFetch(endpoint) {
       });
 
       if (attempt < TMDB_MAX_ATTEMPTS) {
+        recordTmdbRetry();
         await delay(getBackoffMilliseconds(attempt));
       }
     }

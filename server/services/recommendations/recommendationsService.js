@@ -11,6 +11,10 @@ import { mixRecommendationPools } from "./recommendationMixer.js";
 import { validateRecommendationOutput } from "./recommendationInvariants.js";
 import { createMediaKey, normalizeWatchHistory } from "../../utils/mediaIdentity.js";
 import { mapWithConcurrency } from "../../utils/runWithConcurrency.js";
+import {
+  getTmdbMetrics,
+  runWithTmdbMetrics,
+} from "../../utils/tmdbMetrics.js";
 
 const RECOMMENDATION_LIMIT = 100;
 const HISTORY_ENRICHMENT_CONCURRENCY = 6;
@@ -90,20 +94,29 @@ export async function analyzeWatchHistory(history, feedback = null) {
   const profileMs = Date.now() - profileStartedAt;
 
   const candidateGenerationStartedAt = Date.now();
-  const [movieCandidates, tvCandidates] = await Promise.all([
-    generateCandidates(
-      profile.movies.connections,
-      enrichedHistory,
-      "movie",
-      RECOMMENDATION_LIMIT,
-    ),
-    generateCandidates(
-      profile.tv.connections,
-      enrichedHistory,
-      "tv",
-      RECOMMENDATION_LIMIT,
-    ),
-  ]);
+  const { candidates, tmdbMetrics: candidateTmdbMetrics } =
+    await runWithTmdbMetrics(async () => {
+      const [movieCandidates, tvCandidates] = await Promise.all([
+        generateCandidates(
+          profile.movies.connections,
+          enrichedHistory,
+          "movie",
+          RECOMMENDATION_LIMIT,
+        ),
+        generateCandidates(
+          profile.tv.connections,
+          enrichedHistory,
+          "tv",
+          RECOMMENDATION_LIMIT,
+        ),
+      ]);
+
+      return {
+        candidates: [movieCandidates, tvCandidates],
+        tmdbMetrics: getTmdbMetrics(),
+      };
+    });
+  const [movieCandidates, tvCandidates] = candidates;
   const candidateGenerationMs = Date.now() - candidateGenerationStartedAt;
 
   const rankingStartedAt = Date.now();
@@ -241,6 +254,7 @@ export async function analyzeWatchHistory(history, feedback = null) {
         historyEnrichment: historyEnrichmentMs,
         profile: profileMs,
         candidateGeneration: candidateGenerationMs,
+        candidateTmdb: candidateTmdbMetrics,
         ranking: rankingMs,
         total: Date.now() - pipelineStartedAt,
       },
