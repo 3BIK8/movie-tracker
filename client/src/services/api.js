@@ -11,10 +11,20 @@ async function request(url, fallbackMessage, options = {}) {
       return null;
     }
 
+    const contentType = response.headers.get("content-type") || "";
+    if (!contentType.includes("application/json")) {
+      throw new Error(`${fallbackMessage} The server returned a non-JSON response.`);
+    }
+
     return response.json();
   }
 
-  const payload = await response.json().catch(() => null);
+  const contentType = response.headers.get("content-type") || "";
+  let payload = null;
+
+  if (contentType.includes("application/json")) {
+    payload = await response.json().catch(() => null);
+  }
 
   throw new Error(payload?.message || fallbackMessage);
 }
