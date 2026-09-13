@@ -66,10 +66,13 @@ function getSignal(tasteProfile, mediaType, type, value) {
   ] || null;
 }
 
-function getPersonalEvidence(tasteProfile, mediaRecords, mediaIds, type, value) {
-  const recordsById = new Map(
-    mediaRecords.map((record) => [record.mediaNode.id, record]),
-  );
+function getPersonalEvidence(
+  tasteProfile,
+  recordsById,
+  mediaIds,
+  type,
+  value,
+) {
   const evidenceByType = {};
 
   for (const mediaId of mediaIds) {
@@ -198,6 +201,9 @@ function buildConnectionMap(mediaRecords) {
 export function buildGraph(mediaRecords, tasteProfile = null) {
   const nodes = new Map();
   const edges = new Map();
+  const recordsById = new Map(
+    mediaRecords.map((record) => [record.mediaNode.id, record]),
+  );
   const connections = buildConnectionMap(mediaRecords);
 
   for (const record of mediaRecords) {
@@ -222,7 +228,7 @@ export function buildGraph(mediaRecords, tasteProfile = null) {
       connectedMediaIds: mediaIds,
       personalEvidence: getPersonalEvidence(
         tasteProfile,
-        mediaRecords,
+        recordsById,
         mediaIds,
         connection.type,
         connection.value,
