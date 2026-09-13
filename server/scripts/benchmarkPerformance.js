@@ -1,3 +1,5 @@
+import "dotenv/config";
+
 import { getWatchHistory } from "../repositories/watchHistoryRepository.js";
 import { analyzeWatchHistory } from "../services/recommendations/recommendationsService.js";
 import { buildNetwork } from "../services/recommendations/networkService.js";
