@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import MovieCard from "../components/MovieCard";
 import Pagination from "../components/Pagination";
 import { discoverPerson } from "../services/api";
@@ -11,22 +11,26 @@ function Person({ personId, role, personName, onPersonClick }) {
   const [expandedId, setExpandedId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const requestIdRef = useRef(0);
 
   const loadCredits = useCallback(async () => {
     if (!personId) return;
 
+    const requestId = ++requestIdRef.current;
     setLoading(true);
     setError(null);
 
     try {
       const result = await discoverPerson({ personId, role, page });
+      if (requestId !== requestIdRef.current) return;
       setItems(result.results || []);
       setTotalPages(Math.max(1, result.total_pages || 1));
     } catch (requestError) {
+      if (requestId !== requestIdRef.current) return;
       console.error(requestError);
       setError(requestError.message || "Unable to load person's credits.");
     } finally {
-      setLoading(false);
+      if (requestId === requestIdRef.current) setLoading(false);
     }
   }, [personId, role, page]);
 
