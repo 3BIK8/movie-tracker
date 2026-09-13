@@ -30,6 +30,8 @@ function Person({ personId, role, personName, onPersonClick }) {
     }
   }, [personId, role, page]);
 
+  // This effect intentionally starts an external data request that updates view state.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
     void loadCredits();
   }, [loadCredits]);
@@ -53,9 +55,7 @@ function Person({ personId, role, personName, onPersonClick }) {
   return (
     <section className="person-view">
       <header className="person-header">
-        <button type="button" onClick={() => window.history.back()}>
-          ← Back
-        </button>
+        <button type="button" onClick={() => window.history.back()}>← Back</button>
         <div>
           <h1>{personName || "Person"}</h1>
           <p>{role === "director" ? "Director credits" : "Acting credits"}</p>
@@ -64,10 +64,7 @@ function Person({ personId, role, personName, onPersonClick }) {
 
       {loading && <div className="status-message">Loading credits…</div>}
       {error && <div className="status-message error">{error}</div>}
-
-      {!loading && !error && items.length === 0 && (
-        <div className="status-message">No credits found.</div>
-      )}
+      {!loading && !error && items.length === 0 && <div className="status-message">No credits found.</div>}
 
       {!loading && !error && items.length > 0 && (
         <>
@@ -75,7 +72,6 @@ function Person({ personId, role, personName, onPersonClick }) {
             {items.map((item) => {
               const type = item.media_type === "tv" ? "tv" : "movie";
               const cardId = `${type}-${item.id}`;
-
               return (
                 <MovieCard
                   key={cardId}
@@ -88,14 +84,7 @@ function Person({ personId, role, personName, onPersonClick }) {
               );
             })}
           </div>
-
-          <Pagination
-            page={page}
-            pageInput={pageInput}
-            totalPages={totalPages}
-            onPageChange={handlePageChange}
-            onPageInputChange={handlePageInputChange}
-          />
+          <Pagination page={page} pageInput={pageInput} totalPages={totalPages} onPageChange={handlePageChange} onPageInputChange={handlePageInputChange} />
         </>
       )}
     </section>
