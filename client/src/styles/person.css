@@ -1,0 +1,25 @@
+.person-view {
+  width: min(1400px, 100%);
+  margin: 0 auto;
+}
+
+.person-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.person-header button {
+  flex: 0 0 auto;
+}
+
+.person-header h1,
+.person-header p {
+  margin: 0;
+}
+
+.person-header p {
+  margin-top: 0.25rem;
+  opacity: 0.7;
+}

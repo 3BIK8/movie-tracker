@@ -45,12 +45,15 @@ function getSnapshot(cy) {
   };
 }
 
-export default function NetworkMinimap({ cyRef }) {
+export default function NetworkMinimap({ cyRef, cyVersion }) {
   const [snapshot, setSnapshot] = useState(null);
 
   useEffect(() => {
     const cy = cyRef.current;
-    if (!cy) return undefined;
+    if (!cy) {
+      setSnapshot(null);
+      return undefined;
+    }
 
     let frame = 0;
     const update = () => {
@@ -65,7 +68,7 @@ export default function NetworkMinimap({ cyRef }) {
       cancelAnimationFrame(frame);
       cy.removeListener("pan zoom resize", update);
     };
-  }, [cyRef]);
+  }, [cyRef, cyVersion]);
 
   if (!snapshot || snapshot.nodes.length < MINIMAP_THRESHOLD) return null;
 
@@ -85,13 +88,7 @@ export default function NetworkMinimap({ cyRef }) {
   }
 
   return (
-    <button
-      type="button"
-      className="network-minimap"
-      onClick={moveTo}
-      aria-label="Navigate network overview"
-      title="Click to navigate"
-    >
+    <button type="button" className="network-minimap" onClick={moveTo} aria-label="Navigate network overview" title="Click to navigate">
       <svg viewBox="0 0 100 100" preserveAspectRatio="none">
         {snapshot.nodes.map((node) => (
           <circle
@@ -99,11 +96,7 @@ export default function NetworkMinimap({ cyRef }) {
             cx={((node.x - snapshot.extent.minX) / snapshot.extent.width) * 100}
             cy={((node.y - snapshot.extent.minY) / snapshot.extent.height) * 100}
             r={node.type === "media" ? 1.1 : 0.5}
-            className={
-              node.type === "media"
-                ? "network-minimap-media"
-                : "network-minimap-connection"
-            }
+            className={node.type === "media" ? "network-minimap-media" : "network-minimap-connection"}
           />
         ))}
         {snapshot.viewport && (

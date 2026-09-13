@@ -1,6 +1,6 @@
 import { compactRecommendationFeedback } from "./recommendationFeedbackPayload";
 
-const API_URL = "http://localhost:5000/api";
+const API_URL = (import.meta.env.VITE_API_URL || "/api").replace(/\/+$/, "");
 const WATCH_HISTORY_MIGRATION_BATCH_SIZE = 10;
 
 async function request(url, fallbackMessage, options = {}) {

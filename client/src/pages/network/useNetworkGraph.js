@@ -1,77 +1,56 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 import { useEffect, useRef, useState } from "react";
 import cytoscape from "cytoscape";
 import { getWatchHistoryNetwork } from "../../services/api";
 import { NETWORK_STYLES } from "./networkStyles";
 import { filterGraphElements } from "./filterGraphElements";
-import {
-  buildEdgeCurveDistance,
-  buildStructuredNetworkLayout,
-} from "./structuredNetworkLayout";
+import { buildEdgeCurveDistance, buildStructuredNetworkLayout } from "./structuredNetworkLayout";
 import { attachGraphEventListeners } from "./cytoscapeEvents";
+import { searchNetworkMedia } from "./networkMediaSearch";
 
-const STRUCTURED_NETWORK_LAYOUT = {
-  name: "preset",
-  fit: true,
-  padding: 70,
-};
+const STRUCTURED_NETWORK_LAYOUT = { name: "preset", fit: true, padding: 70 };
 
-export function useNetworkGraph({
-  history,
-  activeTypes,
-  focusedConnection,
-  showMetadata,
-  onConnectionFocus,
-}) {
+export function useNetworkGraph({ history, activeTypes, focusedConnection, showMetadata, onConnectionFocus }) {
   const containerRef = useRef(null);
   const cyRef = useRef(null);
   const networkDataRef = useRef(null);
   const layoutActiveRef = useRef(false);
   const pendingFitRef = useRef(null);
-
   const [networkData, setNetworkData] = useState(null);
   const [selectedNode, setSelectedNode] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [cyVersion, setCyVersion] = useState(0);
 
   useEffect(() => {
     const historyItems = Object.values(history);
-
     if (!historyItems.length) {
       networkDataRef.current = null;
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setNetworkData(null);
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSelectedNode(null);
       return;
     }
 
     let cancelled = false;
-
     async function loadNetwork() {
       try {
         setLoading(true);
         setError("");
         setSelectedNode(null);
-
         const data = await getWatchHistoryNetwork(historyItems);
         if (cancelled) return;
-
         networkDataRef.current = data;
         setNetworkData(data);
       } catch (err) {
         console.error(err);
-        if (!cancelled) {
-          setError(err.message || "Unable to build watch-history network.");
-        }
+        if (!cancelled) setError(err.message || "Unable to build watch-history network.");
       } finally {
         if (!cancelled) setLoading(false);
       }
     }
 
     void loadNetwork();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [history]);
 
   useEffect(() => {
@@ -83,17 +62,9 @@ export function useNetworkGraph({
       previousCy.destroy();
     }
 
-    const projection = filterGraphElements(
-      networkData,
-      activeTypes,
-      focusedConnection,
-      showMetadata,
-    );
+    const projection = filterGraphElements(networkData, activeTypes, focusedConnection, showMetadata);
     const positions = buildStructuredNetworkLayout(projection.nodes);
-    const mediaPositions = projection.nodes
-      .filter((node) => node.type === "media")
-      .map((node) => positions[node.id])
-      .filter(Boolean);
+    const mediaPositions = projection.nodes.filter((node) => node.type === "media").map((node) => positions[node.id]).filter(Boolean);
     const center = mediaPositions.reduce(
       (point, position) => ({
         x: point.x + position.x / Math.max(mediaPositions.length, 1),
@@ -106,20 +77,14 @@ export function useNetworkGraph({
     layoutActiveRef.current = true;
 
     const elements = [
-      ...projection.nodes.map((node) => ({
-        data: node,
-        position: positions[node.id],
-      })),
+      ...projection.nodes.map((node) => ({ data: node, position: positions[node.id] })),
       ...projection.edges.map((edge) => {
         const source = positions[edge.source];
         const target = positions[edge.target];
         return {
           data: {
             ...edge,
-            curveDistance:
-              source && target
-                ? buildEdgeCurveDistance(source, target, center)
-                : 0,
+            curveDistance: source && target ? buildEdgeCurveDistance(source, target, center) : 0,
           },
         };
       }),
@@ -150,6 +115,7 @@ export function useNetworkGraph({
     });
     cy.on("destroy", detachGraphEventListeners);
     cyRef.current = cy;
+    setCyVersion((value) => value + 1);
 
     return () => {
       if (cyRef.current === cy) {
@@ -158,15 +124,12 @@ export function useNetworkGraph({
       }
       cy.stop();
       cy.destroy();
-      if (cyRef.current === cy) cyRef.current = null;
+      if (cyRef.current === cy) {
+        cyRef.current = null;
+        setCyVersion((value) => value + 1);
+      }
     };
-  }, [
-    networkData,
-    activeTypes,
-    focusedConnection,
-    showMetadata,
-    onConnectionFocus,
-  ]);
+  }, [networkData, activeTypes, focusedConnection, showMetadata, onConnectionFocus]);
 
   function fitGraph(padding = 80) {
     const cy = cyRef.current;
@@ -177,19 +140,13 @@ export function useNetworkGraph({
   function zoomIn() {
     const cy = cyRef.current;
     if (!cy) return;
-    cy.zoom({ level: Math.min(cy.zoom() * 1.25, cy.maxZoom()), renderedPosition: {
-      x: cy.width() / 2,
-      y: cy.height() / 2,
-    } });
+    cy.zoom({ level: Math.min(cy.zoom() * 1.25, cy.maxZoom()), renderedPosition: { x: cy.width() / 2, y: cy.height() / 2 } });
   }
 
   function zoomOut() {
     const cy = cyRef.current;
     if (!cy) return;
-    cy.zoom({ level: Math.max(cy.zoom() / 1.25, cy.minZoom()), renderedPosition: {
-      x: cy.width() / 2,
-      y: cy.height() / 2,
-    } });
+    cy.zoom({ level: Math.max(cy.zoom() / 1.25, cy.minZoom()), renderedPosition: { x: cy.width() / 2, y: cy.height() / 2 } });
   }
 
   function focusNodeById(id) {
@@ -197,30 +154,16 @@ export function useNetworkGraph({
     if (!cy) return false;
     const node = cy.getElementById(id);
     if (!node.length) return false;
-
     cy.elements().removeClass("dimmed").removeClass("highlighted");
     node.addClass("highlighted");
     node.connectedEdges().addClass("highlighted");
     node.connectedNodes().addClass("highlighted");
-    cy.animate({ center: { eles: node }, zoom: Math.max(cy.zoom(), 1.4) }, {
-      duration: 220,
-    });
+    cy.animate({ center: { eles: node }, zoom: Math.max(cy.zoom(), 1.4) }, { duration: 220 });
     return true;
   }
 
-  function searchMedia(query) {
-    const normalized = String(query || "").trim().toLowerCase();
-    if (!normalized || !networkDataRef.current) return null;
-
-    const match = networkDataRef.current.nodes
-      .filter((node) => node.type === "media")
-      .sort((a, b) => String(a.title || a.label || a.id).localeCompare(String(b.title || b.label || b.id)))
-      .find((node) =>
-        String(node.title || node.displayLabel || node.label || "")
-          .toLowerCase()
-          .includes(normalized),
-      );
-
+  function searchMedia(query, limit = 20) {
+    const match = searchNetworkMedia(networkDataRef.current?.nodes, query, limit)[0];
     if (!match) return null;
     focusNodeById(match.id);
     setSelectedNode({ node: match, connectedMedia: [] });
@@ -231,18 +174,11 @@ export function useNetworkGraph({
     setSelectedNode(null);
     const cy = cyRef.current;
     if (!cy) return;
-
-    cy.elements()
-      .removeClass("dimmed")
-      .removeClass("highlighted")
-      .removeClass("show-label")
-      .removeClass("filtered-out");
-
+    cy.elements().removeClass("dimmed").removeClass("highlighted").removeClass("show-label").removeClass("filtered-out");
     const fitAllNodes = () => {
       if (cyRef.current !== cy) return;
       cy.fit(cy.nodes(), 100);
     };
-
     if (layoutActiveRef.current) pendingFitRef.current = fitAllNodes;
     else fitAllNodes();
   }
@@ -250,6 +186,7 @@ export function useNetworkGraph({
   return {
     containerRef,
     cyRef,
+    cyVersion,
     networkData,
     selectedNode,
     loading,
