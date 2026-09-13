@@ -21,7 +21,6 @@ function RecommendationsView({ onPersonClick }) {
   const loadRecommendations = useCallback(async (options = {}) => {
     const { showLoading = true } = options;
     const requestId = ++requestSequence.current;
-
     if (showLoading) setIsLoading(true);
     setError(null);
 
@@ -30,7 +29,6 @@ function RecommendationsView({ onPersonClick }) {
       const history = Object.values(getWatchHistory());
       const feedback = getRecommendationFeedback();
       const result = await getRecommendations(history, feedback);
-
       if (requestId !== requestSequence.current) return;
 
       const nextRecommendations = result.recommendations || { movies: [], tv: [] };
@@ -54,6 +52,8 @@ function RecommendationsView({ onPersonClick }) {
     }
   }, []);
 
+  // This effect intentionally starts an external data request that updates view state.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
     void loadRecommendations();
   }, [loadRecommendations]);
@@ -98,7 +98,6 @@ function RecommendationsView({ onPersonClick }) {
   function handleExpand(id) {
     const isOpening = expandedId !== id;
     setExpandedId((current) => (current === id ? null : id));
-
     if (isOpening) {
       const separatorIndex = id.indexOf("-");
       recordRecommendationInteraction(id.slice(0, separatorIndex), id.slice(separatorIndex + 1), "opened");
@@ -125,14 +124,7 @@ function RecommendationsView({ onPersonClick }) {
         <>
           <div className="movie-grid">
             {visibleItems.map((item) => (
-              <MovieCard
-                key={`${activeType}-${item.id}`}
-                item={item}
-                type={activeType}
-                isExpanded={expandedId === `${activeType}-${item.id}`}
-                onExpand={handleExpand}
-                onPersonClick={onPersonClick}
-              />
+              <MovieCard key={`${activeType}-${item.id}`} item={item} type={activeType} isExpanded={expandedId === `${activeType}-${item.id}`} onExpand={handleExpand} onPersonClick={onPersonClick} />
             ))}
           </div>
           <Pagination page={currentPage} pageInput={pageInput} totalPages={totalPages} onPageChange={changePage} onPageInputChange={setPageInput} />
