@@ -52,9 +52,9 @@ function RecommendationsView({ onPersonClick }) {
     }
   }, []);
 
-  // This effect intentionally starts an external data request that updates view state.
-  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
+    // This effect intentionally starts an external data request that updates view state.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadRecommendations();
   }, [loadRecommendations]);
 
