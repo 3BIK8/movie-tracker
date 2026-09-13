@@ -14,6 +14,7 @@ export const WATCH_HISTORY_UPDATED = "watch-history-updated";
 let historyCache = {};
 let initialized = false;
 let initializationPromise = null;
+const mutationQueues = new Map();
 
 function normalizeMediaType(type) {
   return typeof type === "string" ? type.trim().toLowerCase() : "";
@@ -105,6 +106,19 @@ function clearLegacyHistory() {
 
 function emitHistoryUpdated() {
   window.dispatchEvent(new Event(WATCH_HISTORY_UPDATED));
+}
+
+function enqueueMutation(key, mutation) {
+  const previous = mutationQueues.get(key) || Promise.resolve();
+  const current = previous.catch(() => undefined).then(mutation);
+  const cleanup = current.finally(() => {
+    if (mutationQueues.get(key) === cleanup) {
+      mutationQueues.delete(key);
+    }
+  });
+
+  mutationQueues.set(key, cleanup);
+  return current;
 }
 
 export async function initializeWatchHistory() {
@@ -211,99 +225,105 @@ async function persistHistoryItem(key, item) {
   emitHistoryUpdated();
 }
 
-export async function setWatchStatus(item, type, status, metadata = {}) {
+export function setWatchStatus(item, type, status, metadata = {}) {
   const normalizedType = normalizeMediaType(type);
   const normalizedId = normalizeMediaId(item.id);
   const key = `${normalizedType}-${normalizedId}`;
 
   if (!normalizedType || !normalizedId) {
-    return;
+    return Promise.resolve();
   }
 
-  const existing = historyCache[key] || {};
-  const previousStatus = existing.status || null;
-  const timestamp = nowIso();
+  return enqueueMutation(key, async () => {
+    const existing = historyCache[key] || {};
+    const previousStatus = existing.status || null;
+    const timestamp = nowIso();
 
-  if (previousStatus === status) {
-    historyCache[key] = {
-      ...existing,
-      status: null,
-      updatedAt: timestamp,
-      statusChangedAt: timestamp,
-      lastInteractedAt: timestamp,
-    };
-  } else {
-    const next = createBaseItem(item, type, existing, metadata);
+    if (previousStatus === status) {
+      historyCache[key] = {
+        ...existing,
+        status: null,
+        rating: null,
+        ratingUpdatedAt: null,
+        updatedAt: timestamp,
+        statusChangedAt: timestamp,
+        lastInteractedAt: timestamp,
+      };
+    } else {
+      const next = createBaseItem(item, type, existing, metadata);
 
-    historyCache[key] = {
-      ...next,
-      status,
-      statusChangedAt: timestamp,
-      rating: status === "watched" ? existing.rating || null : null,
-      ratingUpdatedAt:
-        status === "watched" ? existing.ratingUpdatedAt || null : null,
-      favorite: existing.favorite === true,
-      favoriteAt: existing.favoriteAt || null,
-    };
-  }
-
-  try {
-    await persistHistoryItem(key, historyCache[key]);
-  } catch (error) {
-    console.error("Unable to persist watch status", error);
-    historyCache[key] = existing;
-    if (!existing.status && existing.favorite !== true) {
-      delete historyCache[key];
+      historyCache[key] = {
+        ...next,
+        status,
+        statusChangedAt: timestamp,
+        rating: status === "watched" ? existing.rating || null : null,
+        ratingUpdatedAt:
+          status === "watched" ? existing.ratingUpdatedAt || null : null,
+        favorite: existing.favorite === true,
+        favoriteAt: existing.favoriteAt || null,
+      };
     }
-    emitHistoryUpdated();
-    throw error;
-  }
 
-  recordRecommendationInteraction(normalizedType, normalizedId, "status", {
-    status,
-    previousStatus,
+    try {
+      await persistHistoryItem(key, historyCache[key]);
+    } catch (error) {
+      console.error("Unable to persist watch status", error);
+      historyCache[key] = existing;
+      if (!existing.status && existing.favorite !== true) {
+        delete historyCache[key];
+      }
+      emitHistoryUpdated();
+      throw error;
+    }
+
+    recordRecommendationInteraction(normalizedType, normalizedId, "status", {
+      status: historyCache[key]?.status || null,
+      previousStatus,
+    });
   });
 }
 
-export async function setWatchFavorite(item, type, metadata = {}) {
+export function setWatchFavorite(item, type, metadata = {}) {
   const normalizedType = normalizeMediaType(type);
   const normalizedId = normalizeMediaId(item.id);
   const key = `${normalizedType}-${normalizedId}`;
 
   if (!normalizedType || !normalizedId) {
-    return;
+    return Promise.resolve();
   }
 
-  const existing = historyCache[key] || {};
-  const next = createBaseItem(item, type, existing, metadata);
-  const timestamp = nowIso();
-  const favorite = existing.favorite !== true;
+  return enqueueMutation(key, async () => {
+    const existing = historyCache[key] || {};
+    const next = createBaseItem(item, type, existing, metadata);
+    const timestamp = nowIso();
+    const favorite = existing.favorite !== true;
 
-  historyCache[key] = {
-    ...next,
-    status: existing.status || null,
-    rating: existing.status === "watched" ? existing.rating || null : null,
-    favorite,
-    favoriteAt: favorite ? timestamp : null,
-  };
+    historyCache[key] = {
+      ...next,
+      status: existing.status || null,
+      rating: existing.status === "watched" ? existing.rating || null : null,
+      favorite,
+      favoriteAt: favorite ? timestamp : null,
+    };
 
-  try {
-    await persistHistoryItem(key, historyCache[key]);
-  } catch (error) {
-    console.error("Unable to persist favorite", error);
-    historyCache[key] = existing;
-    if (!existing.status && existing.favorite !== true) {
-      delete historyCache[key];
+    try {
+      await persistHistoryItem(key, historyCache[key]);
+    } catch (error) {
+      console.error("Unable to persist favorite", error);
+      historyCache[key] = existing;
+      if (!existing.status && existing.favorite !== true) {
+        delete historyCache[key];
+      }
+      emitHistoryUpdated();
+      throw error;
     }
-    emitHistoryUpdated();
-    throw error;
-  }
 
-  recordRecommendationInteraction(
-    normalizedType,
-    normalizedId,
-    favorite ? "favorite" : "unfavorite",
-  );
+    recordRecommendationInteraction(
+      normalizedType,
+      normalizedId,
+      favorite ? "favorite" : "unfavorite",
+    );
+  });
 }
 
 export function getWatchFavorite(type, id) {
@@ -362,35 +382,42 @@ export function getWatchRating(type, id) {
   return item.rating || null;
 }
 
-export async function setWatchRating(type, id, rating) {
+export function setWatchRating(type, id, rating) {
   const normalizedType = normalizeMediaType(type);
   const normalizedId = normalizeMediaId(id);
   const key = `${normalizedType}-${normalizedId}`;
-  const existing = historyCache[key];
 
-  if (!existing || existing.status !== "watched") {
-    return;
+  if (!normalizedType || !normalizedId) {
+    return Promise.resolve();
   }
 
-  const timestamp = nowIso();
+  return enqueueMutation(key, async () => {
+    const existing = historyCache[key];
 
-  historyCache[key] = {
-    ...existing,
-    rating: existing.rating === rating ? null : rating,
-    ratingUpdatedAt: timestamp,
-    updatedAt: timestamp,
-    lastInteractedAt: timestamp,
-  };
+    if (!existing || existing.status !== "watched") {
+      return;
+    }
 
-  try {
-    await persistHistoryItem(key, historyCache[key]);
-  } catch (error) {
-    historyCache[key] = existing;
-    emitHistoryUpdated();
-    throw error;
-  }
+    const timestamp = nowIso();
 
-  recordRecommendationInteraction(normalizedType, normalizedId, "rating", {
-    rating: historyCache[key]?.rating || null,
+    historyCache[key] = {
+      ...existing,
+      rating: existing.rating === rating ? null : rating,
+      ratingUpdatedAt: timestamp,
+      updatedAt: timestamp,
+      lastInteractedAt: timestamp,
+    };
+
+    try {
+      await persistHistoryItem(key, historyCache[key]);
+    } catch (error) {
+      historyCache[key] = existing;
+      emitHistoryUpdated();
+      throw error;
+    }
+
+    recordRecommendationInteraction(normalizedType, normalizedId, "rating", {
+      rating: historyCache[key]?.rating || null,
+    });
   });
 }
