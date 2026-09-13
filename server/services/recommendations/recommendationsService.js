@@ -12,9 +12,8 @@ import { validateRecommendationOutput } from "./recommendationInvariants.js";
 import { createMediaKey, normalizeWatchHistory } from "../../utils/mediaIdentity.js";
 import { mapWithConcurrency } from "../../utils/runWithConcurrency.js";
 import {
-  diffTmdbMetrics,
-  resetTmdbMetrics,
-  snapshotTmdbMetrics,
+  getTmdbMetrics,
+  runWithTmdbMetrics,
 } from "../../utils/tmdbMetrics.js";
 
 const RECOMMENDATION_LIMIT = 100;
@@ -94,34 +93,31 @@ export async function analyzeWatchHistory(history, feedback = null) {
   const tvExplorationRatio = calculateExplorationRatio(profile.tv.strength);
   const profileMs = Date.now() - profileStartedAt;
 
-  resetTmdbMetrics();
   const candidateGenerationStartedAt = Date.now();
-  const [movieCandidates, tvCandidates] = await Promise.all([
-    generateCandidates(
-      profile.movies.connections,
-      enrichedHistory,
-      "movie",
-      RECOMMENDATION_LIMIT,
-    ),
-    generateCandidates(
-      profile.tv.connections,
-      enrichedHistory,
-      "tv",
-      RECOMMENDATION_LIMIT,
-    ),
-  ]);
+  const { candidates, tmdbMetrics: candidateTmdbMetrics } =
+    await runWithTmdbMetrics(async () => {
+      const [movieCandidates, tvCandidates] = await Promise.all([
+        generateCandidates(
+          profile.movies.connections,
+          enrichedHistory,
+          "movie",
+          RECOMMENDATION_LIMIT,
+        ),
+        generateCandidates(
+          profile.tv.connections,
+          enrichedHistory,
+          "tv",
+          RECOMMENDATION_LIMIT,
+        ),
+      ]);
+
+      return {
+        candidates: [movieCandidates, tvCandidates],
+        tmdbMetrics: getTmdbMetrics(),
+      };
+    });
+  const [movieCandidates, tvCandidates] = candidates;
   const candidateGenerationMs = Date.now() - candidateGenerationStartedAt;
-  const candidateTmdbMetrics = diffTmdbMetrics(
-    {
-      requests: 0,
-      successes: 0,
-      failures: 0,
-      retries: 0,
-      totalMs: 0,
-      byCategory: {},
-    },
-    snapshotTmdbMetrics(),
-  );
 
   const rankingStartedAt = Date.now();
   const [scoredMovies, scoredTv] = [
