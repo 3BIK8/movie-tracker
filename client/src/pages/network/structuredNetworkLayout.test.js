@@ -47,6 +47,15 @@ function distance(a, b) {
   return Math.hypot(a.x - b.x, a.y - b.y);
 }
 
+function createSyntheticMediaNodes(count) {
+  return Array.from({ length: count }, (_, index) => ({
+    id: `media-${index + 1}`,
+    type: "media",
+    title: `Title ${index + 1}`,
+    releaseDate: `${1950 + (index % 75)}-01-01`,
+  }));
+}
+
 test("layout is deterministic regardless of input order", () => {
   const first = buildStructuredNetworkLayout(nodes);
   const second = buildStructuredNetworkLayout([...nodes].reverse());
@@ -100,4 +109,25 @@ test("edge curve distance is deterministic and points outward", () => {
 
   assert.ok(Math.abs(first - 18) < 0.1);
   assert.equal(first, second);
+});
+
+test("layout scales to 500 watched titles without losing deterministic positions", () => {
+  const syntheticNodes = createSyntheticMediaNodes(500);
+  const startedAt = performance.now();
+  const positions = buildStructuredNetworkLayout(syntheticNodes);
+  const elapsedMs = performance.now() - startedAt;
+
+  assert.equal(Object.keys(positions).length, 500);
+
+  const occupied = new Set(
+    syntheticNodes.map((node) => `${positions[node.id].x}:${positions[node.id].y}`),
+  );
+  assert.equal(occupied.size, 500);
+
+  for (const node of syntheticNodes) {
+    assert.ok(Number.isFinite(positions[node.id].x));
+    assert.ok(Number.isFinite(positions[node.id].y));
+  }
+
+  assert.ok(elapsedMs < 3000, `500-node layout took ${elapsedMs.toFixed(1)}ms`);
 });

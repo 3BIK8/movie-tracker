@@ -9,8 +9,6 @@ import { normalizeRecommendationFeedback } from "../services/recommendations/fee
 import { normalizeWatchHistory } from "../utils/mediaIdentity.js";
 
 const router = express.Router();
-const DEFAULT_NETWORK_WINDOW = 150;
-const MAX_NETWORK_WINDOW = 200;
 
 function isValidationError(error) {
   return error instanceof TypeError || error?.name === "ValidationError";
@@ -22,22 +20,6 @@ function validateOptionalClientHistory(body, validator) {
   }
 
   validator(body.history);
-}
-
-function parseNetworkWindow(value) {
-  if (value === undefined) {
-    return DEFAULT_NETWORK_WINDOW;
-  }
-
-  const parsed = Number(value);
-
-  if (!Number.isInteger(parsed) || parsed < 1 || parsed > MAX_NETWORK_WINDOW) {
-    throw new TypeError(
-      `Network window must be an integer between 1 and ${MAX_NETWORK_WINDOW}.`,
-    );
-  }
-
-  return parsed;
 }
 
 router.post("/analyze", async (req, res) => {
@@ -77,21 +59,19 @@ router.post("/network", async (req, res) => {
   try {
     validateOptionalClientHistory(req.body, validateNetworkHistory);
 
-    const limit = parseNetworkWindow(req.query.limit);
     const historyReadStartedAt = Date.now();
     const history = getWatchHistory();
     const totalHistory = getWatchHistoryCount();
     const databaseReadMs = Date.now() - historyReadStartedAt;
-    const networkHistory = history.slice(0, limit);
-    const result = await buildNetwork(networkHistory);
+    const result = await buildNetwork(history);
 
     res.json({
       ...result,
       meta: {
         ...result.meta,
         totalHistory,
-        networkWindow: limit,
-        hasMoreHistory: limit < totalHistory,
+        networkWindow: totalHistory,
+        hasMoreHistory: false,
         timingMs: {
           ...result.meta.timingMs,
           databaseRead: databaseReadMs,

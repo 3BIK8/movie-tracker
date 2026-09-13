@@ -109,11 +109,9 @@ export async function migrateWatchHistoryToDatabase(history) {
   };
 }
 
-export async function getWatchHistoryNetwork({ limit = 150 } = {}) {
-  const params = new URLSearchParams({ limit: String(limit) });
-
+export async function getWatchHistoryNetwork() {
   return request(
-    `${API_URL}/recommendations/network?${params.toString()}`,
+    `${API_URL}/recommendations/network`,
     "Unable to load watch-history network.",
     { method: "POST" },
   );

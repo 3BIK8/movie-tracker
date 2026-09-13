@@ -7,7 +7,6 @@ import { normalizeMediaRef } from "../../utils/mediaIdentity.js";
 import { mapWithConcurrency } from "../../utils/runWithConcurrency.js";
 
 const NETWORK_ENRICHMENT_CONCURRENCY = 6;
-const MAX_NETWORK_HISTORY_ITEMS = 400;
 
 function normalizeRating(value) {
   if (typeof value !== "string") {
@@ -33,20 +32,13 @@ function normalizeEvidence(item) {
     ratingUpdatedAt:
       typeof item.ratingUpdatedAt === "string" ? item.ratingUpdatedAt : null,
     favoriteAt: typeof item.favoriteAt === "string" ? item.favoriteAt : null,
-    lastInteractedAt:
-      typeof item.lastInteractedAt === "string" ? item.lastInteractedAt : null,
+    lastInteractedAt: typeof item.lastInteractedAt === "string" ? item.lastInteractedAt : null,
   };
 }
 
 export function validateNetworkHistory(history) {
   if (!Array.isArray(history)) {
     throw new TypeError("Network history must be an array.");
-  }
-
-  if (history.length > MAX_NETWORK_HISTORY_ITEMS) {
-    throw new TypeError(
-      `Network history cannot contain more than ${MAX_NETWORK_HISTORY_ITEMS} items.`,
-    );
   }
 
   const seen = new Set();
