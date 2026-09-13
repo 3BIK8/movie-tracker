@@ -513,13 +513,13 @@ export async function generateCandidates(
   phaseDiagnostics.explorationDiscoveryMs = elapsedMs(explorationStartedAt);
   phaseDiagnostics.explorationQueryCount = exploration.queryCount;
 
-  const filteringStartedAt = performance.now();
+  const deduplicationStartedAt = performance.now();
   const discovered = [...candidates.values()].filter(
     (candidate) =>
       !knownIds.has(createCandidateKey(candidate.type, candidate.id)),
   );
   const enrichmentInput = selectCandidatesForEnrichment(discovered, limit);
-  phaseDiagnostics.filteringMs = elapsedMs(filteringStartedAt);
+  phaseDiagnostics.deduplicationMs = elapsedMs(deduplicationStartedAt);
   phaseDiagnostics.discovered = discovered.length;
   phaseDiagnostics.enrichmentInput = enrichmentInput.length;
 
