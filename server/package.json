@@ -9,7 +9,8 @@
   "scripts": {
     "dev": "node --watch server.js",
     "test": "node --test",
-    "benchmark": "node scripts/benchmarkPerformance.js"
+    "benchmark": "node scripts/benchmarkPerformance.js",
+    "benchmark:enrichment": "node scripts/benchmarkEnrichmentYield.js"
   },
   "engines": {
     "node": ">=22.5.0"
