@@ -67,6 +67,27 @@ function NetworkView() {
     [connectionNodes, activeTypes, showMetadata],
   );
 
+  const titleSuggestions = useMemo(() => {
+    const query = titleSearch.trim().toLowerCase();
+    if (!query || !networkData?.nodes) return [];
+
+    return networkData.nodes
+      .filter((node) => node.type === "media")
+      .map((node) => ({
+        ...node,
+        searchTitle: String(node.title || node.displayLabel || node.label || ""),
+      }))
+      .filter((node) => node.searchTitle.toLowerCase().includes(query))
+      .sort((a, b) => {
+        const aTitle = a.searchTitle.toLowerCase();
+        const bTitle = b.searchTitle.toLowerCase();
+        const aStarts = aTitle.startsWith(query) ? 0 : 1;
+        const bStarts = bTitle.startsWith(query) ? 0 : 1;
+        return aStarts - bStarts || aTitle.localeCompare(bTitle);
+      })
+      .slice(0, 8);
+  }, [networkData, titleSearch]);
+
   function toggleType(type) {
     setActiveTypes((current) => {
       const next = new Set(current);
@@ -122,6 +143,11 @@ function NetworkView() {
     if (match) setTitleSearch(match.title || match.displayLabel || "");
   }
 
+  function selectTitleSuggestion(node) {
+    setTitleSearch(node.searchTitle);
+    searchMedia(node.searchTitle);
+  }
+
   async function toggleFullscreen() {
     const element = networkShellRef.current;
     if (!element) return;
@@ -161,39 +187,8 @@ function NetworkView() {
 
       <div className="network-layout">
         <aside className="network-controls">
-          <h2>Network</h2>
-
-          <div className="network-tool-group">
-            <div className="network-tool-row">
-              <button type="button" onClick={zoomOut} title="Zoom out" aria-label="Zoom out">−</button>
-              <button type="button" onClick={() => fitGraph(90)} title="Fit graph" aria-label="Fit graph">⌂</button>
-              <button type="button" onClick={zoomIn} title="Zoom in" aria-label="Zoom in">+</button>
-              <button type="button" onClick={focusSelectedNode} title="Focus selected node" aria-label="Focus selected node" disabled={!selectedNode?.node}>Focus</button>
-            </div>
-            <div className="network-tool-row">
-              <button type="button" onClick={() => setShowMetadata((value) => !value)}>
-                {showMetadata ? "Hide metadata" : "Show metadata"}
-              </button>
-              <button type="button" onClick={toggleFullscreen}>
-                {isFullscreen ? "Exit fullscreen" : "Fullscreen"}
-              </button>
-            </div>
-          </div>
-
-          <form className="network-title-search" onSubmit={handleTitleSearch}>
-            <label htmlFor="network-title-search">Find title</label>
-            <div>
-              <input
-                id="network-title-search"
-                value={titleSearch}
-                onChange={(event) => setTitleSearch(event.target.value)}
-                placeholder="Search watched titles…"
-              />
-              <button type="submit">Find</button>
-            </div>
-          </form>
-
           <h2>Connections</h2>
+
           {CONNECTION_TYPES.map((connection) => (
             <label className="network-filter" key={connection.id}>
               <input
@@ -225,12 +220,55 @@ function NetworkView() {
 
         <div ref={networkShellRef} className="network-container">
           <div className="network-toolbar">
-            <button type="button" onClick={zoomOut} aria-label="Zoom out" title="Zoom out">−</button>
-            <button type="button" onClick={zoomIn} aria-label="Zoom in" title="Zoom in">+</button>
-            <button type="button" onClick={() => fitGraph(90)} aria-label="Fit graph" title="Fit graph">⌂</button>
-            <button type="button" onClick={focusSelectedNode} aria-label="Focus selected node" title="Focus selected node" disabled={!selectedNode?.node}>◎</button>
-            <button type="button" onClick={resetNetwork} aria-label="Reset network" title="Reset network">↻</button>
-            <button type="button" onClick={toggleFullscreen} aria-label="Toggle fullscreen" title="Toggle fullscreen">⛶</button>
+            <form className="network-title-search" onSubmit={handleTitleSearch}>
+              <label htmlFor="network-title-search">Find title</label>
+              <div className="network-title-search-input-wrap">
+                <input
+                  id="network-title-search"
+                  value={titleSearch}
+                  onChange={(event) => setTitleSearch(event.target.value)}
+                  placeholder="Search watched titles…"
+                  autoComplete="off"
+                />
+                <button type="submit">Find</button>
+                {titleSuggestions.length > 0 && (
+                  <div className="network-title-suggestions" role="listbox">
+                    {titleSuggestions.map((node) => (
+                      <button
+                        type="button"
+                        key={node.id}
+                        role="option"
+                        aria-selected="false"
+                        className="network-title-suggestion"
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => selectTitleSuggestion(node)}
+                      >
+                        <span className="network-title-suggestion-title">
+                          {node.searchTitle}
+                        </span>
+                        {node.releaseDate && (
+                          <span className="network-title-suggestion-year">
+                            {String(node.releaseDate).slice(0, 4)}
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </form>
+
+            <div className="network-tool-row">
+              <button type="button" onClick={zoomOut} aria-label="Zoom out" title="Zoom out">−</button>
+              <button type="button" onClick={() => fitGraph(90)} aria-label="Fit graph" title="Fit graph">⌂</button>
+              <button type="button" onClick={zoomIn} aria-label="Zoom in" title="Zoom in">+</button>
+              <button type="button" onClick={focusSelectedNode} aria-label="Focus selected node" title="Focus selected node" disabled={!selectedNode?.node}>◎</button>
+              <button type="button" onClick={() => setShowMetadata((value) => !value)} aria-label="Toggle metadata" title="Toggle metadata">
+                {showMetadata ? "◉" : "○"}
+              </button>
+              <button type="button" onClick={resetNetwork} aria-label="Reset network" title="Reset network">↻</button>
+              <button type="button" onClick={toggleFullscreen} aria-label="Toggle fullscreen" title="Toggle fullscreen">⛶</button>
+            </div>
           </div>
 
           {loading && <div className="network-overlay">Building network...</div>}
