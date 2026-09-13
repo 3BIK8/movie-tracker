@@ -8,9 +8,7 @@ import { generateCandidates } from "../services/recommendations/candidateService
 import { scoreCandidates } from "../services/recommendations/recommendationScorer.js";
 import { applyTemporalScoring } from "../services/recommendations/temporalRecommendationScoring.js";
 import { isGroundedExploitation } from "../services/recommendations/recommendationsService.js";
-import {
-  setEnrichmentBudgetOverride,
-} from "../services/recommendations/candidateRetrievalPolicy.js";
+import { setEnrichmentBudgetOverride } from "../services/recommendations/candidateRetrievalPolicy.js";
 import { createMediaKey, normalizeWatchHistory } from "../utils/mediaIdentity.js";
 import { mapWithConcurrency } from "../utils/runWithConcurrency.js";
 
@@ -63,10 +61,10 @@ function summarizeScores(candidates) {
 
 function getProvenance(candidate) {
   const hasDirect = candidate.sources.some(
-    (source) => source.pool !== "exploration" && source.type !== "exploration",
+    (source) => source.type !== "multiHop" && source.type !== "exploration",
   );
   const hasMultiHop = candidate.sources.some(
-    (source) => source.type === "multiHop" || source.type === "multi_hop",
+    (source) => source.type === "multiHop",
   );
   const hasHistoryExploration = candidate.sources.some(
     (source) => source.pool === "exploration" && source.type !== "exploration",
@@ -103,12 +101,13 @@ function summarizeProvenance(candidates) {
 
 function analyzeYield(scored, grounded) {
   const final = grounded.slice(0, RECOMMENDATION_LIMIT);
-  const finalKeys = new Set(
-    final.map((candidate) => createMediaKey(candidate.type, candidate.id)),
+  const finalKeys = final.map((candidate) =>
+    createMediaKey(candidate.type, candidate.id),
   );
+  const finalKeySet = new Set(finalKeys);
   const discarded = scored.filter(
     (candidate) =>
-      !finalKeys.has(createMediaKey(candidate.type, candidate.id)),
+      !finalKeySet.has(createMediaKey(candidate.type, candidate.id)),
   );
 
   return {
@@ -121,9 +120,7 @@ function analyzeYield(scored, grounded) {
     groundedScoreDistribution: summarizeScores(grounded),
     discardedScoreDistribution: summarizeScores(discarded),
     provenance: summarizeProvenance(final),
-    finalKeys: final.map((candidate) =>
-      createMediaKey(candidate.type, candidate.id),
-    ),
+    finalKeys,
   };
 }
 
@@ -232,10 +229,18 @@ async function main() {
   const { enrichedHistory } = await enrichHistory(history);
   const profile = analyzeHistory(enrichedHistory);
 
-  const [movies, tv] = await Promise.all([
-    benchmarkMediaType("movie", profile.movies.connections, enrichedHistory, budgets),
-    benchmarkMediaType("tv", profile.tv.connections, enrichedHistory, budgets),
-  ]);
+  const movies = await benchmarkMediaType(
+    "movie",
+    profile.movies.connections,
+    enrichedHistory,
+    budgets,
+  );
+  const tv = await benchmarkMediaType(
+    "tv",
+    profile.tv.connections,
+    enrichedHistory,
+    budgets,
+  );
 
   setEnrichmentBudgetOverride(null);
 
