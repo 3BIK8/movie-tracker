@@ -45,10 +45,7 @@ function RecommendationsView({ onPersonClick }) {
       };
 
       setRecommendations(filteredRecommendations);
-      recordRecommendationsShown([
-        ...filteredRecommendations.movies,
-        ...filteredRecommendations.tv,
-      ]);
+      recordRecommendationsShown([...filteredRecommendations.movies, ...filteredRecommendations.tv]);
       setPage(1);
       setPageInput("1");
       setExpandedId(null);
@@ -62,6 +59,8 @@ function RecommendationsView({ onPersonClick }) {
   }, []);
 
   useEffect(() => {
+    // This effect intentionally starts an external data request that updates view state.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadRecommendations();
   }, [loadRecommendations]);
 
