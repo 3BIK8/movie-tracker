@@ -1,0 +1,97 @@
+import { db } from "../db/database.js";
+
+const USER_ID = 1;
+const MAX_EXPOSURES = 1000;
+const EXPOSURE_LOOKBACK_DAYS = 90;
+
+function ensureExposureStorage() {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS recommendation_exposures (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      media_type TEXT NOT NULL CHECK (media_type IN ('movie', 'tv')),
+      tmdb_id TEXT NOT NULL,
+      generation_id TEXT NOT NULL,
+      shown_at TEXT NOT NULL,
+      UNIQUE (user_id, media_type, tmdb_id, generation_id),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_recommendation_exposures_user_media_shown
+      ON recommendation_exposures(user_id, media_type, shown_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_recommendation_exposures_user_shown
+      ON recommendation_exposures(user_id, shown_at DESC);
+  `);
+}
+
+export function recordRecommendationExposures(recommendations, generationId) {
+  if (!generationId || !Array.isArray(recommendations)) return;
+  ensureExposureStorage();
+
+  const insert = db.prepare(`
+    INSERT OR IGNORE INTO recommendation_exposures
+      (user_id, media_type, tmdb_id, generation_id, shown_at)
+    VALUES (?, ?, ?, ?, ?)
+  `);
+  const shownAt = new Date().toISOString();
+
+  db.exec("BEGIN");
+  try {
+    for (const recommendation of recommendations) {
+      if (!["movie", "tv"].includes(recommendation?.type)) continue;
+      if (!/^\d+$/.test(String(recommendation?.id ?? ""))) continue;
+      insert.run(USER_ID, recommendation.type, String(recommendation.id), generationId, shownAt);
+    }
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+
+  pruneRecommendationExposures();
+}
+
+export function getRecommendationExposures(mediaType = null) {
+  const cutoff = new Date(Date.now() - EXPOSURE_LOOKBACK_DAYS * 86_400_000).toISOString();
+
+  try {
+    const rows = mediaType
+      ? db.prepare(`
+          SELECT media_type, tmdb_id, generation_id, shown_at
+          FROM recommendation_exposures
+          WHERE user_id = ? AND media_type = ? AND shown_at >= ?
+          ORDER BY shown_at DESC
+        `).all(USER_ID, mediaType, cutoff)
+      : db.prepare(`
+          SELECT media_type, tmdb_id, generation_id, shown_at
+          FROM recommendation_exposures
+          WHERE user_id = ? AND shown_at >= ?
+          ORDER BY shown_at DESC
+        `).all(USER_ID, cutoff);
+
+    return rows.map((row) => ({
+      type: row.media_type,
+      id: row.tmdb_id,
+      generationId: row.generation_id,
+      exposedAt: row.shown_at,
+      connections: [],
+      interactions: [],
+    }));
+  } catch (error) {
+    if (String(error?.message || "").includes("no such table: recommendation_exposures")) return [];
+    throw error;
+  }
+}
+
+function pruneRecommendationExposures() {
+  db.prepare(`
+    DELETE FROM recommendation_exposures
+    WHERE user_id = ?
+      AND id NOT IN (
+        SELECT id
+        FROM recommendation_exposures
+        WHERE user_id = ?
+        ORDER BY shown_at DESC
+        LIMIT ?
+      )
+  `).run(USER_ID, USER_ID, MAX_EXPOSURES);
+}

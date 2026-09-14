@@ -3,7 +3,13 @@ import MovieCard from "../components/MovieCard";
 import Pagination from "../components/Pagination";
 import { getRecommendations } from "../services/api";
 import { getWatchHistory, WATCH_HISTORY_UPDATED } from "../services/watchlist";
-import { finalizeIgnoredRecommendations, getRecommendationFeedback, recordRecommendationInteraction, recordRecommendationsShown, recordRecommendationsSkipped } from "../services/recommendationFeedback";
+import {
+  finalizeIgnoredRecommendations,
+  getRecommendationFeedback,
+  recordRecommendationInteraction,
+  recordRecommendationsShown,
+  recordRecommendationsSkipped,
+} from "../services/recommendationFeedback";
 import { filterDisplayedRecommendations } from "../services/recommendationDisplayFilter";
 
 const PAGE_SIZE = 20;
@@ -100,15 +106,36 @@ function RecommendationsView({ onPersonClick }) {
     setExpandedId((current) => (current === id ? null : id));
     if (isOpening) {
       const separatorIndex = id.indexOf("-");
-      recordRecommendationInteraction(id.slice(0, separatorIndex), id.slice(separatorIndex + 1), "opened");
+      recordRecommendationInteraction(
+        id.slice(0, separatorIndex),
+        id.slice(separatorIndex + 1),
+        "opened",
+      );
     }
+  }
+
+  function handleNotInterested(item) {
+    recordRecommendationInteraction(activeType, item.id, "not_interested");
+    recordRecommendationsSkipped([item]);
+    setRecommendations((current) => ({
+      ...current,
+      [recommendationKey]: current[recommendationKey].filter(
+        (candidate) => String(candidate.id) !== String(item.id),
+      ),
+    }));
+    setExpandedId(null);
   }
 
   return (
     <section className="recommendations-view">
       <header className="recommendations-header">
-        <div><h1>Recommendations</h1><p>Recommendations based on what you have watched and rated.</p></div>
-        <button type="button" onClick={() => loadRecommendations()} disabled={isLoading}>{isLoading ? "Analyzing…" : "Refresh"}</button>
+        <div>
+          <h1>Recommendations</h1>
+          <p>Recommendations based on what you have watched and rated.</p>
+        </div>
+        <button type="button" onClick={() => loadRecommendations()} disabled={isLoading}>
+          {isLoading ? "Analyzing…" : "Refresh"}
+        </button>
       </header>
 
       <div className="recommendation-controls">
@@ -118,16 +145,43 @@ function RecommendationsView({ onPersonClick }) {
 
       {error && <div className="recommendations-error">{error}</div>}
       {isLoading && <div className="recommendations-loading">Generating recommendations…</div>}
-      {!isLoading && !error && visibleItems.length === 0 && <div className="recommendations-empty"><p>No recommendations yet.</p><p>Watch and rate more movies or series to give the system more information.</p></div>}
+      {!isLoading && !error && visibleItems.length === 0 && (
+        <div className="recommendations-empty">
+          <p>No recommendations yet.</p>
+          <p>Watch and rate more movies or series to give the system more information.</p>
+        </div>
+      )}
 
       {!isLoading && visibleItems.length > 0 && (
         <>
           <div className="movie-grid">
             {visibleItems.map((item) => (
-              <MovieCard key={`${activeType}-${item.id}`} item={item} type={activeType} isExpanded={expandedId === `${activeType}-${item.id}`} onExpand={handleExpand} onPersonClick={onPersonClick} />
+              <div key={`${activeType}-${item.id}`} className="recommendation-card-wrap">
+                <MovieCard
+                  item={item}
+                  type={activeType}
+                  isExpanded={expandedId === `${activeType}-${item.id}`}
+                  onExpand={handleExpand}
+                  onPersonClick={onPersonClick}
+                />
+                <button
+                  type="button"
+                  className="recommendation-not-interested"
+                  onClick={() => handleNotInterested(item)}
+                  aria-label={`Not interested in ${item.title || item.name}`}
+                >
+                  Not interested
+                </button>
+              </div>
             ))}
           </div>
-          <Pagination page={currentPage} pageInput={pageInput} totalPages={totalPages} onPageChange={changePage} onPageInputChange={setPageInput} />
+          <Pagination
+            page={currentPage}
+            pageInput={pageInput}
+            totalPages={totalPages}
+            onPageChange={changePage}
+            onPageInputChange={setPageInput}
+          />
         </>
       )}
     </section>

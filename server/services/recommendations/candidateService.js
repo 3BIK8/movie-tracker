@@ -4,10 +4,7 @@ import { getMediaMetadata } from "./mediaMetadataService.js";
 import { getMediaConnections } from "./connectionExtractor.js";
 import { mapWithConcurrency } from "../../utils/runWithConcurrency.js";
 import { buildExplorationQueries } from "./explorationStrategy.js";
-import {
-  createMediaKey,
-  normalizeMediaRef,
-} from "../../utils/mediaIdentity.js";
+import { createMediaKey, normalizeMediaRef } from "../../utils/mediaIdentity.js";
 import { compareCandidatesByEvidence } from "./candidateOrdering.js";
 import { validateCandidateOutput } from "./candidateInvariants.js";
 import {
@@ -19,18 +16,21 @@ import { discoverMultiHopCandidates } from "./multiHopCandidateRetrieval.js";
 import { getHistoryExplorationSources } from "./historyExplorationSources.js";
 
 const MAX_SOURCES_PER_TYPE = {
-  franchises: 8,
-  directors: 8,
-  actors: 12,
+  franchises: 6,
+  directors: 6,
+  actors: 6,
   genres: 6,
-  studios: 4,
-  keywords: 8,
+  studios: 5,
+  keywords: 6,
 };
 
+const MAX_PERSON_CAST_CREDITS = 60;
+const MAX_PERSON_CREW_CREDITS = 40;
 const EXPLORATION_BATCHES = 6;
 const SOURCE_DISCOVERY_CONCURRENCY = 6;
 const EXPLORATION_DISCOVERY_CONCURRENCY = 3;
 const CANDIDATE_ENRICHMENT_CONCURRENCY = 6;
+const EXPLORATION_ROTATION_HOURS = 6;
 
 function stableHash(value) {
   let hash = 2166136261;
@@ -65,15 +65,16 @@ function createExplorationSeed(history, mediaType) {
     )
     .sort()
     .join("|");
-  return `${mediaType}:${historyFingerprint}`;
+  const rotation = Math.floor(
+    Date.now() / (EXPLORATION_ROTATION_HOURS * 3_600_000),
+  );
+  return `${mediaType}:${rotation}:${historyFingerprint}`;
 }
 
 function addCandidate(candidates, media, source, mediaType) {
   if (!media?.id) return;
-
   const ref = normalizeMediaRef(mediaType, media.id);
   const candidate = { ...media, ...ref };
-
   if (!isValidCandidate(candidate)) return;
 
   const key = createCandidateKey(candidate.type, candidate.id);
@@ -118,111 +119,83 @@ function addCandidate(candidates, media, source, mediaType) {
 
 async function discoverMovieCredits(candidates, source) {
   const data = await tmdbFetch(`/person/${source.value}/movie_credits`);
-  for (const media of data.cast || [])
+  for (const media of (data.cast || []).slice(0, MAX_PERSON_CAST_CREDITS)) {
     addCandidate(candidates, media, source, "movie");
-  for (const media of data.crew || []) {
-    if (media.job === "Director")
-      addCandidate(candidates, media, source, "movie");
+  }
+  for (const media of (data.crew || [])
+    .filter((item) => item.job === "Director")
+    .slice(0, MAX_PERSON_CREW_CREDITS)) {
+    addCandidate(candidates, media, source, "movie");
   }
 }
 
 async function discoverTvCredits(candidates, source) {
   if (source.type === "actors") return;
   const data = await tmdbFetch(`/person/${source.value}/tv_credits`);
-  for (const media of data.cast || [])
+  for (const media of (data.cast || []).slice(0, MAX_PERSON_CAST_CREDITS)) {
     addCandidate(candidates, media, source, "tv");
-  for (const media of data.crew || []) {
-    if (["Director", "Creator"].includes(media.job)) {
-      addCandidate(candidates, media, source, "tv");
-    }
+  }
+  for (const media of (data.crew || [])
+    .filter((item) => ["Director", "Creator"].includes(item.job))
+    .slice(0, MAX_PERSON_CREW_CREDITS)) {
+    addCandidate(candidates, media, source, "tv");
   }
 }
 
 async function discoverByPerson(candidates, source, mediaType) {
-  if (mediaType === "movie") {
-    await discoverMovieCredits(candidates, source);
-    return;
-  }
-  await discoverTvCredits(candidates, source);
+  if (mediaType === "movie") return discoverMovieCredits(candidates, source);
+  return discoverTvCredits(candidates, source);
 }
 
 async function discoverByPagedDiscover(candidates, source, mediaType, parameter) {
   const pageCount = getDiscoveryPageCount(source.type);
-
   for (let page = 1; page <= pageCount; page += 1) {
     const data = await tmdbFetch(
       `/discover/${mediaType}?${parameter}=${source.value}&page=${page}`,
     );
-
-    for (const media of data.results || []) {
-      addCandidate(candidates, media, source, mediaType);
-    }
-
-    if (!data.total_pages || page >= data.total_pages) {
-      break;
-    }
+    for (const media of data.results || []) addCandidate(candidates, media, source, mediaType);
+    if (!data.total_pages || page >= data.total_pages) break;
   }
 }
 
 async function discoverByGenre(candidates, source, mediaType) {
-  await discoverByPagedDiscover(candidates, source, mediaType, "with_genres");
+  return discoverByPagedDiscover(candidates, source, mediaType, "with_genres");
 }
-
 async function discoverByStudio(candidates, source, mediaType) {
-  await discoverByPagedDiscover(
-    candidates,
-    source,
-    mediaType,
-    "with_companies",
-  );
+  return discoverByPagedDiscover(candidates, source, mediaType, "with_companies");
 }
-
 async function discoverByKeyword(candidates, source, mediaType) {
-  await discoverByPagedDiscover(
-    candidates,
-    source,
-    mediaType,
-    "with_keywords",
-  );
+  return discoverByPagedDiscover(candidates, source, mediaType, "with_keywords");
 }
-
 async function discoverByFranchise(candidates, source) {
   const data = await tmdbFetch(`/collection/${source.value}`);
-  for (const media of data.parts || [])
+  for (const media of (data.parts || []).slice(0, 60)) {
     addCandidate(candidates, media, source, "movie");
+  }
 }
 
 async function generateFromSource(candidates, source, mediaType) {
   switch (source.type) {
     case "actors":
     case "directors":
-      await discoverByPerson(candidates, source, mediaType);
-      break;
+      return discoverByPerson(candidates, source, mediaType);
     case "genres":
-      await discoverByGenre(candidates, source, mediaType);
-      break;
+      return discoverByGenre(candidates, source, mediaType);
     case "studios":
-      await discoverByStudio(candidates, source, mediaType);
-      break;
+      return discoverByStudio(candidates, source, mediaType);
     case "keywords":
-      await discoverByKeyword(candidates, source, mediaType);
-      break;
+      return discoverByKeyword(candidates, source, mediaType);
     case "franchises":
-      if (mediaType === "movie") await discoverByFranchise(candidates, source);
-      break;
+      if (mediaType === "movie") return discoverByFranchise(candidates, source);
+      return undefined;
     default:
-      break;
+      return undefined;
   }
 }
 
-async function generateHistoryExplorationCandidates(
-  candidates,
-  mediaType,
-  history,
-) {
-  const historySources = getHistoryExplorationSources(history, mediaType);
+async function generateHistoryExplorationCandidates(candidates, mediaType, history) {
   const { sources, watchedHistoryItems, historyConnectionCount } =
-    historySources;
+    getHistoryExplorationSources(history, mediaType);
 
   await mapWithConcurrency(
     sources,
@@ -239,19 +212,10 @@ async function generateHistoryExplorationCandidates(
     SOURCE_DISCOVERY_CONCURRENCY,
   );
 
-  return {
-    sourceCount: sources.length,
-    watchedHistoryItems,
-    historyConnectionCount,
-  };
+  return { sourceCount: sources.length, watchedHistoryItems, historyConnectionCount };
 }
 
-async function generateExplorationCandidates(
-  candidates,
-  mediaType,
-  profile,
-  history,
-) {
+async function generateExplorationCandidates(candidates, mediaType, profile, history) {
   const queries = buildExplorationQueries(
     mediaType,
     profile,
@@ -294,7 +258,6 @@ async function generateExplorationCandidates(
 
 function getStrongConnections(profile, limit = getSourceBudget(profile)) {
   const connections = [];
-
   for (const type of Object.keys(MAX_SOURCES_PER_TYPE)) {
     const values = profile[type] || {};
     const sources = Object.entries(values)
@@ -311,25 +274,21 @@ function getStrongConnections(profile, limit = getSourceBudget(profile)) {
         evidenceScore: data.evidenceScore,
         confidence: data.confidence,
       }))
-      .sort((a, b) => {
-        if (b.evidenceScore !== a.evidenceScore)
-          return b.evidenceScore - a.evidenceScore;
-        if (b.appearances !== a.appearances)
-          return b.appearances - a.appearances;
-        return `${a.type}:${a.value}`.localeCompare(`${b.type}:${b.value}`);
-      })
+      .sort((a, b) =>
+        b.evidenceScore !== a.evidenceScore
+          ? b.evidenceScore - a.evidenceScore
+          : `${a.type}:${a.value}`.localeCompare(`${b.type}:${b.value}`),
+      )
       .slice(0, MAX_SOURCES_PER_TYPE[type]);
-
     connections.push(...sources);
   }
 
   return connections
-    .sort((a, b) => {
-      if (b.evidenceScore !== a.evidenceScore)
-        return b.evidenceScore - a.evidenceScore;
-      if (b.appearances !== a.appearances) return b.appearances - a.appearances;
-      return `${a.type}:${a.value}`.localeCompare(`${b.type}:${b.value}`);
-    })
+    .sort((a, b) =>
+      b.evidenceScore !== a.evidenceScore
+        ? b.evidenceScore - a.evidenceScore
+        : `${a.type}:${a.value}`.localeCompare(`${b.type}:${b.value}`),
+    )
     .slice(0, limit);
 }
 
@@ -357,6 +316,7 @@ async function enrichCandidates(candidates) {
           language: metadata.language,
           rating: metadata.rating,
           tmdbRating: metadata.rating,
+          voteCount: metadata.voteCount,
           popularity: metadata.popularity,
           connections: getMediaConnections(metadata),
         };
@@ -377,48 +337,35 @@ async function enrichCandidates(candidates) {
 }
 
 function getExplorationSourceGroup(source) {
-  if (source.pool === "exploration") {
-    return `history:${source.type}`;
-  }
-
-  if (source.type === "exploration") {
-    return source.value.split(":")[0];
-  }
-
+  if (source.pool === "exploration") return `history:${source.type}`;
+  if (source.type === "exploration") return source.value.split(":")[0];
   return "unknown";
 }
 
 function selectExplorationCandidates(candidates, limit) {
   const byStrategy = new Map();
-
   for (const candidate of candidates) {
-    const strategies = candidate.sources
-      .filter(
-        (source) =>
-          source.pool === "exploration" || source.type === "exploration",
-      )
-      .map(getExplorationSourceGroup);
-    const strategy = strategies[0] || "unknown";
-
+    const strategy =
+      candidate.sources
+        .filter((source) => source.pool === "exploration" || source.type === "exploration")
+        .map(getExplorationSourceGroup)[0] || "unknown";
     if (!byStrategy.has(strategy)) byStrategy.set(strategy, []);
     byStrategy.get(strategy).push(candidate);
   }
 
   for (const group of byStrategy.values()) {
     group.sort((a, b) => {
-      const hashDifference =
+      const difference =
         stableHash(createCandidateKey(a.type, a.id)) -
         stableHash(createCandidateKey(b.type, b.id));
-      if (hashDifference !== 0) return hashDifference;
-      return String(a.title).localeCompare(String(b.title));
+      return difference || String(a.title).localeCompare(String(b.title));
     });
   }
 
   const groups = [...byStrategy.values()];
   const selected = [];
   let index = 0;
-
-  while (selected.length < limit && groups.length > 0) {
+  while (selected.length < limit && groups.length) {
     let added = false;
     for (const group of groups) {
       if (index < group.length && selected.length < limit) {
@@ -429,15 +376,11 @@ function selectExplorationCandidates(candidates, limit) {
     if (!added) break;
     index += 1;
   }
-
   return selected;
 }
 
 function calculateCandidateEvidence(candidate) {
-  return candidate.sources.reduce(
-    (sum, source) => sum + source.evidenceScore,
-    0,
-  );
+  return candidate.sources.reduce((sum, source) => sum + source.evidenceScore, 0);
 }
 
 function elapsedMs(startedAt) {
@@ -465,58 +408,36 @@ export async function generateCandidates(
       try {
         await generateFromSource(candidates, source, mediaType);
       } catch (error) {
-        console.warn(
-          `Candidate source failed: ${source.type}:${source.value}`,
-          error.message,
-        );
+        console.warn(`Candidate source failed: ${source.type}:${source.value}`, error.message);
       }
     },
     SOURCE_DISCOVERY_CONCURRENCY,
   );
-  phaseDiagnostics.sourceDiscoveryMs = elapsedMs(
-    phaseDiagnostics.sourceDiscoveryStarted,
-  );
+  phaseDiagnostics.sourceDiscoveryMs = elapsedMs(phaseDiagnostics.sourceDiscoveryStarted);
   delete phaseDiagnostics.sourceDiscoveryStarted;
   phaseDiagnostics.directCandidates = candidates.size;
 
   const multiHopStartedAt = performance.now();
-  const directCandidates = [...candidates.values()];
-  const multiHopResults = await discoverMultiHopCandidates(
-    directCandidates,
-    mediaType,
-  );
+  const multiHopResults = await discoverMultiHopCandidates([...candidates.values()], mediaType);
   phaseDiagnostics.multiHopMs = elapsedMs(multiHopStartedAt);
   phaseDiagnostics.multiHopDiscovered = multiHopResults.length;
-
-  for (const { media, source } of multiHopResults) {
-    addCandidate(candidates, media, source, mediaType);
-  }
+  for (const { media, source } of multiHopResults) addCandidate(candidates, media, source, mediaType);
 
   const historyStartedAt = performance.now();
-  const historyExploration = await generateHistoryExplorationCandidates(
-    candidates,
-    mediaType,
-    history,
-  );
+  const historyExploration = await generateHistoryExplorationCandidates(candidates, mediaType, history);
   phaseDiagnostics.historyExplorationMs = elapsedMs(historyStartedAt);
   phaseDiagnostics.historyExplorationSources = historyExploration.sourceCount;
   phaseDiagnostics.watchedHistoryItems = historyExploration.watchedHistoryItems;
   phaseDiagnostics.historyConnectionCount = historyExploration.historyConnectionCount;
 
   const explorationStartedAt = performance.now();
-  const exploration = await generateExplorationCandidates(
-    candidates,
-    mediaType,
-    profile,
-    history,
-  );
+  const exploration = await generateExplorationCandidates(candidates, mediaType, profile, history);
   phaseDiagnostics.explorationDiscoveryMs = elapsedMs(explorationStartedAt);
   phaseDiagnostics.explorationQueryCount = exploration.queryCount;
 
   const deduplicationStartedAt = performance.now();
   const discovered = [...candidates.values()].filter(
-    (candidate) =>
-      !knownIds.has(createCandidateKey(candidate.type, candidate.id)),
+    (candidate) => !knownIds.has(createCandidateKey(candidate.type, candidate.id)),
   );
   const enrichmentInput = selectCandidatesForEnrichment(discovered, limit);
   phaseDiagnostics.deduplicationMs = elapsedMs(deduplicationStartedAt);
@@ -529,21 +450,10 @@ export async function generateCandidates(
   phaseDiagnostics.enriched = enriched.length;
 
   const selectionStartedAt = performance.now();
-  const exploitation = enriched.filter(
-    (candidate) => candidate.pool === "exploitation",
-  );
-  const explorationCandidates = enriched.filter(
-    (candidate) => candidate.pool === "exploration",
-  );
-  const explorationLimit = Math.min(
-    Math.floor(limit * 0.4),
-    explorationCandidates.length,
-  );
-
-  const exploitationLimit = Math.min(
-    limit - explorationLimit,
-    exploitation.length,
-  );
+  const exploitation = enriched.filter((candidate) => candidate.pool === "exploitation");
+  const explorationCandidates = enriched.filter((candidate) => candidate.pool === "exploration");
+  const explorationLimit = Math.min(Math.floor(limit * 0.4), explorationCandidates.length);
+  const exploitationLimit = Math.min(limit - explorationLimit, exploitation.length);
 
   const rankedExploitation = exploitation
     .map((candidate) => ({
@@ -554,17 +464,13 @@ export async function generateCandidates(
     .sort(compareCandidatesByEvidence)
     .slice(0, exploitationLimit);
 
-  const selectedExploration = selectExplorationCandidates(
-    explorationCandidates,
-    explorationLimit,
-  );
+  const selectedExploration = selectExplorationCandidates(explorationCandidates, explorationLimit);
   const output = [...rankedExploitation, ...selectedExploration];
   phaseDiagnostics.selectionMs = elapsedMs(selectionStartedAt);
 
   const validationStartedAt = performance.now();
   validateCandidateOutput(output, { mediaType, limit, knownIds });
   phaseDiagnostics.validationMs = elapsedMs(validationStartedAt);
-
   phaseDiagnostics.exploitation = exploitation.length;
   phaseDiagnostics.exploration = explorationCandidates.length;
   phaseDiagnostics.exploitationPool = rankedExploitation.length;
@@ -573,11 +479,6 @@ export async function generateCandidates(
     .filter(([key, value]) => key.endsWith("Ms") && key !== "total")
     .reduce((sum, [, value]) => sum + value, 0);
 
-  console.log("CANDIDATE COUNTS:", {
-    mediaType,
-    sourceBudget,
-    ...phaseDiagnostics,
-  });
-
+  console.log("CANDIDATE COUNTS:", { mediaType, sourceBudget, ...phaseDiagnostics });
   return output;
 }

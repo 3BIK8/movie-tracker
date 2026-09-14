@@ -23,7 +23,7 @@ function writeLedger(ledger) {
 
 function hasMeaningfulInteraction(exposure) {
   return (exposure.interactions || []).some((interaction) =>
-    ["opened", "status", "rating", "favorite"].includes(interaction.event),
+    ["opened", "status", "rating", "favorite", "not_interested"].includes(interaction.event),
   );
 }
 
@@ -34,14 +34,9 @@ export function recordRecommendationsShown(recommendations) {
   for (const recommendation of recommendations || []) {
     const key = normalizeKey(recommendation.type, recommendation.id);
     const existing = ledger.exposures.find(
-      (exposure) =>
-        exposure.key === key &&
-        exposure.generationId === recommendation.generationId,
+      (exposure) => exposure.key === key && exposure.generationId === recommendation.generationId,
     );
-
-    if (existing) {
-      continue;
-    }
+    if (existing) continue;
 
     ledger.exposures.push({
       key,
@@ -55,9 +50,7 @@ export function recordRecommendationsShown(recommendations) {
       year: recommendation.year ?? null,
       popularity: recommendation.popularity ?? null,
       language: recommendation.language ?? null,
-      connections: Array.isArray(recommendation.connections)
-        ? recommendation.connections
-        : [],
+      connections: Array.isArray(recommendation.connections) ? recommendation.connections : [],
       generationId: recommendation.generationId || timestamp,
       exposedAt: timestamp,
       interactions: [],
@@ -73,17 +66,9 @@ export function recordRecommendationInteraction(type, id, event, metadata = {}) 
   const key = normalizeKey(type, id);
   const exposures = ledger.exposures.filter((exposure) => exposure.key === key);
   const exposure = exposures[exposures.length - 1];
+  if (!exposure) return;
 
-  if (!exposure) {
-    return;
-  }
-
-  exposure.interactions.push({
-    event,
-    timestamp: new Date().toISOString(),
-    ...metadata,
-  });
-
+  exposure.interactions.push({ event, timestamp: new Date().toISOString(), ...metadata });
   writeLedger(ledger);
 }
 
@@ -93,52 +78,30 @@ export function recordRecommendationsSkipped(recommendations) {
 
   for (const recommendation of recommendations || []) {
     const key = normalizeKey(recommendation.type, recommendation.id);
-    const exposure = [...ledger.exposures]
-      .reverse()
-      .find(
-        (candidate) =>
-          candidate.key === key &&
-          candidate.generationId === recommendation.generationId,
-      );
-
-    if (!exposure || hasMeaningfulInteraction(exposure)) {
-      continue;
-    }
-
-    exposure.interactions.push({
-      event: "skipped",
-      timestamp,
-    });
+    const exposure = [...ledger.exposures].reverse().find(
+      (candidate) => candidate.key === key && candidate.generationId === recommendation.generationId,
+    );
+    if (!exposure || hasMeaningfulInteraction(exposure)) continue;
+    exposure.interactions.push({ event: "skipped", timestamp });
   }
 
   writeLedger(ledger);
 }
 
-export function finalizeIgnoredRecommendations(
-  now = Date.now(),
-  ignoreAfterDays = DEFAULT_IGNORE_AFTER_DAYS,
-) {
+export function finalizeIgnoredRecommendations(now = Date.now(), ignoreAfterDays = DEFAULT_IGNORE_AFTER_DAYS) {
   const ledger = readLedger();
   const threshold = now - ignoreAfterDays * 86_400_000;
 
   for (const exposure of ledger.exposures) {
     const exposedAt = Date.parse(exposure.exposedAt);
-
     if (
       !Number.isFinite(exposedAt) ||
       exposedAt > threshold ||
       hasMeaningfulInteraction(exposure) ||
-      (exposure.interactions || []).some(
-        (interaction) => interaction.event === "ignored",
-      )
-    ) {
-      continue;
-    }
+      (exposure.interactions || []).some((interaction) => interaction.event === "ignored")
+    ) continue;
 
-    exposure.interactions.push({
-      event: "ignored",
-      timestamp: new Date(now).toISOString(),
-    });
+    exposure.interactions.push({ event: "ignored", timestamp: new Date(now).toISOString() });
   }
 
   writeLedger(ledger);
