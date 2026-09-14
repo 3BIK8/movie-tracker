@@ -12,6 +12,7 @@ export function normalizeMedia(data, type) {
     id: person.id,
     name: person.name,
     profile_path: person.profile_path,
+    order: Number.isInteger(person.order) ? person.order : null,
   }));
 
   const directors =
@@ -37,29 +38,21 @@ export function normalizeMedia(data, type) {
   return {
     id: String(data.id),
     type: normalizedType,
-
     title: normalizedType === "movie" ? data.title : data.name,
-
     year: getYear(data, normalizedType),
-
     overview: data.overview || "",
-
     poster_path: data.poster_path || null,
     backdrop_path: data.backdrop_path || null,
-
     actors: cast,
     directors,
-
     genres: (data.genres || []).map((genre) => ({
       id: genre.id,
       name: genre.name,
     })),
-
     keywords: keywords.map((keyword) => ({
       id: keyword.id,
       name: keyword.name,
     })),
-
     franchises: data.belongs_to_collection
       ? [
           {
@@ -70,16 +63,14 @@ export function normalizeMedia(data, type) {
           },
         ]
       : [],
-
     studios: (data.production_companies || []).map((company) => ({
       id: company.id,
       name: company.name,
       logo_path: company.logo_path || null,
     })),
-
     language: data.original_language || null,
-
     rating: data.vote_average ?? null,
+    voteCount: data.vote_count ?? null,
     popularity: data.popularity ?? null,
   };
 }
