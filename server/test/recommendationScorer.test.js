@@ -133,3 +133,42 @@ test("scores remain finite under repeated evidence", () => {
   assert.ok(Number.isFinite(result.contextScore));
   assert.ok(Number.isFinite(result.historyAnchorScore));
 });
+
+test("repeated actor evidence does not grow with the square root of appearances", () => {
+  const single = scoreCandidate(
+    candidate({ connections: [actor("a")] }),
+    [historyItem({ id: 1, rating: "S", connections: [actor("a")] })],
+  );
+
+  const repeated = scoreCandidate(
+    candidate({ connections: [actor("a")] }),
+    Array.from({ length: 100 }, (_, index) =>
+      historyItem({ id: index + 1, rating: "S", connections: [actor("a")] }),
+    ),
+  );
+
+  assert.ok(repeated.recommendationScore > single.recommendationScore);
+  assert.ok(repeated.recommendationScore < single.recommendationScore * 2);
+});
+
+test("previously exposed recommendations receive a novelty penalty", () => {
+  const input = candidate({ id: 200, connections: [actor("a")] });
+  const history = [historyItem({ rating: "S", connections: [actor("a")] })];
+
+  const baseline = rankCandidates([input], history)[0];
+  const exposed = rankCandidates([input], history, {
+    exposures: [
+      {
+        type: "movie",
+        id: "200",
+        exposedAt: new Date().toISOString(),
+        connections: [actor("a")],
+        interactions: [],
+      },
+    ],
+  })[0];
+
+  assert.equal(exposed.exposureCount, 1);
+  assert.ok(exposed.exposurePenalty > 0);
+  assert.ok(exposed.recommendationScore < baseline.recommendationScore);
+});
