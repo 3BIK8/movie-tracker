@@ -51,31 +51,35 @@ export function recordRecommendationExposures(recommendations, generationId) {
 }
 
 export function getRecommendationExposures(mediaType = null) {
-  ensureExposureStorage();
   const cutoff = new Date(Date.now() - EXPOSURE_LOOKBACK_DAYS * 86_400_000).toISOString();
 
-  const rows = mediaType
-    ? db.prepare(`
-        SELECT media_type, tmdb_id, generation_id, shown_at
-        FROM recommendation_exposures
-        WHERE user_id = ? AND media_type = ? AND shown_at >= ?
-        ORDER BY shown_at DESC
-      `).all(USER_ID, mediaType, cutoff)
-    : db.prepare(`
-        SELECT media_type, tmdb_id, generation_id, shown_at
-        FROM recommendation_exposures
-        WHERE user_id = ? AND shown_at >= ?
-        ORDER BY shown_at DESC
-      `).all(USER_ID, cutoff);
+  try {
+    const rows = mediaType
+      ? db.prepare(`
+          SELECT media_type, tmdb_id, generation_id, shown_at
+          FROM recommendation_exposures
+          WHERE user_id = ? AND media_type = ? AND shown_at >= ?
+          ORDER BY shown_at DESC
+        `).all(USER_ID, mediaType, cutoff)
+      : db.prepare(`
+          SELECT media_type, tmdb_id, generation_id, shown_at
+          FROM recommendation_exposures
+          WHERE user_id = ? AND shown_at >= ?
+          ORDER BY shown_at DESC
+        `).all(USER_ID, cutoff);
 
-  return rows.map((row) => ({
-    type: row.media_type,
-    id: row.tmdb_id,
-    generationId: row.generation_id,
-    exposedAt: row.shown_at,
-    connections: [],
-    interactions: [],
-  }));
+    return rows.map((row) => ({
+      type: row.media_type,
+      id: row.tmdb_id,
+      generationId: row.generation_id,
+      exposedAt: row.shown_at,
+      connections: [],
+      interactions: [],
+    }));
+  } catch (error) {
+    if (String(error?.message || "").includes("no such table: recommendation_exposures")) return [];
+    throw error;
+  }
 }
 
 function pruneRecommendationExposures() {
