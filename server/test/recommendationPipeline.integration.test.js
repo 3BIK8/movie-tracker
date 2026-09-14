@@ -1,7 +1,16 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-import { analyzeWatchHistory } from "../services/recommendations/recommendationsService.js";
+const TEST_DATABASE_PATH = path.join(
+  path.dirname(fileURLToPath(import.meta.url)),
+  `../data/recommendation-pipeline-${process.pid}.sqlite`,
+);
+process.env.DATABASE_PATH = TEST_DATABASE_PATH;
+
+const { analyzeWatchHistory } = await import("../services/recommendations/recommendationsService.js");
 
 const originalFetch = global.fetch;
 const originalToken = process.env.TMDB_TOKEN;
@@ -128,5 +137,12 @@ test("recommendation pipeline preserves identity, provenance, diversity, and nov
     global.fetch = originalFetch;
     if (originalToken === undefined) delete process.env.TMDB_TOKEN;
     else process.env.TMDB_TOKEN = originalToken;
+    try {
+      fs.rmSync(TEST_DATABASE_PATH, { force: true });
+      fs.rmSync(`${TEST_DATABASE_PATH}-wal`, { force: true });
+      fs.rmSync(`${TEST_DATABASE_PATH}-shm`, { force: true });
+    } catch {
+      // Best-effort cleanup; CI workspaces are ephemeral.
+    }
   }
 });
