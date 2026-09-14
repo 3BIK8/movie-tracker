@@ -6,11 +6,7 @@ const RATING_WEIGHTS = {
   D: -1.0,
 };
 
-const FEEDBACK_WEIGHTS = {
-  skipped: -0.15,
-  ignored: -0.25,
-};
-
+const FEEDBACK_WEIGHTS = { skipped: -0.15, ignored: -0.25 };
 const CHANNEL_WEIGHTS = {
   franchise: 0.9,
   actor: 0.7,
@@ -21,7 +17,6 @@ const CHANNEL_WEIGHTS = {
   decade: 0.2,
   language: 0.1,
 };
-
 const CHANNEL_CAPS = { ...CHANNEL_WEIGHTS };
 const STRONG_CONNECTION_TYPES = new Set(["franchise", "actor", "studio", "director"]);
 const SUPPORT_CONNECTION_TYPES = new Set(["genre", "keyword"]);
@@ -38,11 +33,9 @@ const DIMINISHING_RETURNS = [1, 0.55, 0.3, 0.18];
 function getConnectionKey(connection) {
   return `${connection.type}:${connection.value}`;
 }
-
 function isIgnoredConnection(type, mediaType) {
   return mediaType === "tv" && type === "actor";
 }
-
 function getEvidenceClass(type) {
   if (STRONG_CONNECTION_TYPES.has(type)) return "strong";
   if (SUPPORT_CONNECTION_TYPES.has(type)) return "support";
@@ -103,7 +96,8 @@ function buildConnectionModel(ratedHistory, feedback = null, mediaType = null) {
 
   for (const data of model.values()) {
     data.confidence = data.appearances / (data.appearances + 2);
-    data.preference = (data.totalScore / data.appearances) * data.confidence;
+    const average = data.totalScore / data.appearances;
+    data.preference = average * (0.35 + 0.5 * data.confidence);
   }
   return model;
 }
@@ -118,13 +112,11 @@ function aggregateChannelEvidence(evidence, type) {
     .sort((a, b) => Math.abs(b.normalizedScore) - Math.abs(a.normalizedScore));
   let positive = 0;
   let negative = 0;
-
   for (let index = 0; index < values.length; index += 1) {
     const contribution = values[index].normalizedScore * (DIMINISHING_RETURNS[index] || 0.12);
     if (contribution > 0) positive += contribution;
     else negative += Math.abs(contribution);
   }
-
   const cap = CHANNEL_CAPS[type] ?? 0;
   return {
     positiveScore: Math.min(positive * cap, cap),
@@ -134,8 +126,7 @@ function aggregateChannelEvidence(evidence, type) {
 
 function getExposurePenalty(candidate, feedback) {
   const exposures = (feedback?.exposures || []).filter(
-    (exposure) =>
-      exposure.type === candidate.type && String(exposure.id) === String(candidate.id),
+    (exposure) => exposure.type === candidate.type && String(exposure.id) === String(candidate.id),
   );
   if (!exposures.length) return { count: 0, weightedCount: 0, multiplier: 1, penalty: 0 };
 
@@ -150,17 +141,8 @@ function getExposurePenalty(candidate, feedback) {
     const ageDays = Math.max(0, (now - timestamp) / 86_400_000);
     weightedCount += Math.pow(0.5, ageDays / EXPOSURE_DECAY_DAYS);
   }
-
-  const multiplier = Math.max(
-    MIN_EXPOSURE_MULTIPLIER,
-    1 - weightedCount * EXPOSURE_MULTIPLIER_STEP,
-  );
-  return {
-    count: exposures.length,
-    weightedCount,
-    multiplier,
-    penalty: 1 - multiplier,
-  };
+  const multiplier = Math.max(MIN_EXPOSURE_MULTIPLIER, 1 - weightedCount * EXPOSURE_MULTIPLIER_STEP);
+  return { count: exposures.length, weightedCount, multiplier, penalty: 1 - multiplier };
 }
 
 function calculateQualityBonus(candidate) {
@@ -187,13 +169,11 @@ function buildMatchedHistory(candidate, ratedHistory, connectionEvidence) {
     if (historyItem.type !== candidate.type) continue;
     const matched = positive.filter((evidence) =>
       (historyItem.connections || []).some(
-        (connection) =>
-          connection.type === evidence.type && connection.value === evidence.value,
+        (connection) => connection.type === evidence.type && connection.value === evidence.value,
       ),
     );
     if (!matched.length) continue;
-    const key = `${historyItem.type}:${historyItem.id}`;
-    matches.set(key, {
+    matches.set(`${historyItem.type}:${historyItem.id}`, {
       title: historyItem.title,
       rating: historyItem.rating,
       score: matched.reduce((sum, item) => sum + item.score, 0),
@@ -213,10 +193,7 @@ function buildMatchedHistory(candidate, ratedHistory, connectionEvidence) {
 
 export function scoreCandidate(candidate, ratedHistory, connectionModel = null, feedback = null) {
   const relevantHistory = ratedHistory.filter(
-    (item) =>
-      item.type === candidate.type &&
-      item.status === "watched" &&
-      RATING_WEIGHTS[item.rating] !== undefined,
+    (item) => item.type === candidate.type && item.status === "watched" && RATING_WEIGHTS[item.rating] !== undefined,
   );
   const model = connectionModel || buildConnectionModel(relevantHistory, feedback, candidate.type);
   const connectionEvidence = [];
@@ -260,9 +237,7 @@ export function scoreCandidate(candidate, ratedHistory, connectionModel = null, 
   const rawScore = basePositiveScore - negativeScore;
   const exposedScore = rawScore * exposure.multiplier;
   const hardNegative = hasHardNegative(candidate, model);
-  const finalScore = hardNegative
-    ? Math.min(exposedScore, -Math.max(negativeScore, 1))
-    : exposedScore;
+  const finalScore = hardNegative ? Math.min(exposedScore, -Math.max(negativeScore, 1)) : exposedScore;
 
   connectionEvidence.sort((a, b) => Math.abs(b.score) - Math.abs(a.score));
   const matchedHistory = buildMatchedHistory(candidate, relevantHistory, connectionEvidence);
@@ -305,19 +280,12 @@ export function scoreCandidate(candidate, ratedHistory, connectionModel = null, 
 export function rankCandidates(candidates, ratedHistory, feedback = null) {
   const mediaTypes = new Set(candidates.map((candidate) => candidate.type).filter(Boolean));
   const isolatedHistory = ratedHistory.filter(
-    (item) =>
-      mediaTypes.has(item.type) &&
-      item.status === "watched" &&
-      RATING_WEIGHTS[item.rating] !== undefined,
+    (item) => mediaTypes.has(item.type) && item.status === "watched" && RATING_WEIGHTS[item.rating] !== undefined,
   );
   const models = new Map();
   for (const type of mediaTypes) {
-    models.set(
-      type,
-      buildConnectionModel(isolatedHistory.filter((item) => item.type === type), feedback, type),
-    );
+    models.set(type, buildConnectionModel(isolatedHistory.filter((item) => item.type === type), feedback, type));
   }
-
   return candidates
     .map((candidate) => scoreCandidate(candidate, isolatedHistory, models.get(candidate.type), feedback))
     .sort((a, b) =>
