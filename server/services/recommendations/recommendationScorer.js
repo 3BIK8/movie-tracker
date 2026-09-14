@@ -11,6 +11,10 @@ const FEEDBACK_WEIGHTS = {
   ignored: -0.25,
 };
 
+const EXPOSURE_PENALTY_STEP = 0.35;
+const MAX_EXPOSURE_PENALTY = 1.5;
+const EXPOSURE_DECAY_DAYS = 14;
+
 /*
  * Recommendation hierarchy
  *
@@ -108,8 +112,55 @@ function getConnectionKey(connection) {
   return `${connection.type}:${connection.value}`;
 }
 
+/*
+ * Connection confidence already increases with repeated observations.
+ * Multiplying by sqrt(appearances) again double-counted repetition and made
+ * prolific actors disproportionately powerful. Keep repetition represented
+ * by confidence alone so a connection gets more trustworthy without its
+ * score growing without bound merely because it appears in many titles.
+ */
 function diminishingReturns(count) {
-  return Math.sqrt(count);
+  return count > 0 ? 1 : 0;
+}
+
+function getExposurePenalty(candidate, feedback) {
+  if (!feedback?.exposures?.length) {
+    return { count: 0, penalty: 0 };
+  }
+
+  const key = getConnectionKey({
+    type: candidate.type,
+    value: candidate.id,
+  });
+  const now = Date.now();
+  let weightedExposureCount = 0;
+
+  for (const exposure of feedback.exposures) {
+    if (getConnectionKey({ type: exposure.type, value: exposure.id }) !== key) {
+      continue;
+    }
+
+    const exposedAt = Date.parse(exposure.exposedAt);
+    if (!Number.isFinite(exposedAt)) {
+      weightedExposureCount += 1;
+      continue;
+    }
+
+    const ageDays = Math.max(0, (now - exposedAt) / 86_400_000);
+    const decay = Math.pow(0.5, ageDays / EXPOSURE_DECAY_DAYS);
+    weightedExposureCount += decay;
+  }
+
+  return {
+    count: feedback.exposures.filter(
+      (exposure) =>
+        getConnectionKey({ type: exposure.type, value: exposure.id }) === key,
+    ).length,
+    penalty: Math.min(
+      MAX_EXPOSURE_PENALTY,
+      weightedExposureCount * EXPOSURE_PENALTY_STEP,
+    ),
+  };
 }
 
 /*
@@ -574,7 +625,7 @@ function buildMatchedHistory(
   });
 }
 
-export function scoreCandidate(candidate, ratedHistory, connectionModel) {
+export function scoreCandidate(candidate, ratedHistory, connectionModel, feedback = null) {
   const relevantHistory = ratedHistory.filter(
     (item) =>
       item.type === candidate.type &&
@@ -583,7 +634,7 @@ export function scoreCandidate(candidate, ratedHistory, connectionModel) {
   );
 
   const relevantConnectionModel =
-    connectionModel || buildConnectionModel(relevantHistory);
+    connectionModel || buildConnectionModel(relevantHistory, feedback, candidate.type);
 
   const strongEvidence = [];
   const genreEvidence = [];
@@ -653,6 +704,7 @@ export function scoreCandidate(candidate, ratedHistory, connectionModel) {
   }
 
   const historyAnchor = calculateHistoryAnchor(candidate, relevantHistory);
+  const exposure = getExposurePenalty(candidate, feedback);
 
   const positiveScore =
     positiveStrongScore +
@@ -664,10 +716,11 @@ export function scoreCandidate(candidate, ratedHistory, connectionModel) {
     negativeStrongScore + genreScore.negativeScore + contextScore.negativeScore;
 
   const recommendationScore = positiveScore - negativeScore;
+  const scoreWithExposurePenalty = recommendationScore - exposure.penalty;
   const hardNegative = hasHardNegative(candidate, relevantConnectionModel);
   const finalScore = hardNegative
-    ? Math.min(recommendationScore, -Math.max(negativeScore, 1))
-    : recommendationScore;
+    ? Math.min(scoreWithExposurePenalty, -Math.max(negativeScore, 1))
+    : scoreWithExposurePenalty;
 
   const meaningfulPositiveEvidence =
     positiveStrongScore > 0 || genreScore.positiveScore > 0;
@@ -695,6 +748,8 @@ export function scoreCandidate(candidate, ratedHistory, connectionModel) {
     contextScore: contextScore.positiveScore - contextScore.negativeScore,
     historyAnchorScore: historyAnchor.score,
     hardNegative,
+    exposureCount: exposure.count,
+    exposurePenalty: exposure.penalty,
     sourceEvidence: connectionEvidence.reduce(
       (sum, evidence) => sum + Math.abs(evidence.score),
       0,
@@ -708,6 +763,7 @@ export function scoreCandidate(candidate, ratedHistory, connectionModel) {
       context: contextScore.positiveScore - contextScore.negativeScore,
       historyAnchor: historyAnchor.score,
       negative: negativeScore,
+      exposurePenalty: exposure.penalty,
       final: finalScore,
     },
   };
@@ -732,7 +788,7 @@ export function rankCandidates(candidates, ratedHistory, feedback = null) {
         feedback,
         candidate.type,
       );
-      return scoreCandidate(candidate, isolatedHistory, connectionModel);
+      return scoreCandidate(candidate, isolatedHistory, connectionModel, feedback);
     })
     .sort((a, b) => b.recommendationScore - a.recommendationScore);
 }
