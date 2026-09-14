@@ -4,8 +4,28 @@ const USER_ID = 1;
 const MAX_EXPOSURES = 1000;
 const EXPOSURE_LOOKBACK_DAYS = 90;
 
+function ensureExposureStorage() {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS recommendation_exposures (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      media_type TEXT NOT NULL CHECK (media_type IN ('movie', 'tv')),
+      tmdb_id TEXT NOT NULL,
+      generation_id TEXT NOT NULL,
+      shown_at TEXT NOT NULL,
+      UNIQUE (user_id, media_type, tmdb_id, generation_id),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_recommendation_exposures_user_media_shown
+      ON recommendation_exposures(user_id, media_type, shown_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_recommendation_exposures_user_shown
+      ON recommendation_exposures(user_id, shown_at DESC);
+  `);
+}
+
 export function recordRecommendationExposures(recommendations, generationId) {
   if (!generationId || !Array.isArray(recommendations)) return;
+  ensureExposureStorage();
 
   const insert = db.prepare(`
     INSERT OR IGNORE INTO recommendation_exposures
@@ -19,14 +39,7 @@ export function recordRecommendationExposures(recommendations, generationId) {
     for (const recommendation of recommendations) {
       if (!["movie", "tv"].includes(recommendation?.type)) continue;
       if (!/^\d+$/.test(String(recommendation?.id ?? ""))) continue;
-
-      insert.run(
-        USER_ID,
-        recommendation.type,
-        String(recommendation.id),
-        generationId,
-        shownAt,
-      );
+      insert.run(USER_ID, recommendation.type, String(recommendation.id), generationId, shownAt);
     }
     db.exec("COMMIT");
   } catch (error) {
@@ -38,9 +51,8 @@ export function recordRecommendationExposures(recommendations, generationId) {
 }
 
 export function getRecommendationExposures(mediaType = null) {
-  const cutoff = new Date(
-    Date.now() - EXPOSURE_LOOKBACK_DAYS * 86_400_000,
-  ).toISOString();
+  ensureExposureStorage();
+  const cutoff = new Date(Date.now() - EXPOSURE_LOOKBACK_DAYS * 86_400_000).toISOString();
 
   const rows = mediaType
     ? db.prepare(`
