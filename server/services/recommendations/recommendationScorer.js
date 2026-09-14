@@ -11,38 +11,26 @@ const FEEDBACK_WEIGHTS = {
   ignored: -0.25,
 };
 
-const EXPOSURE_PENALTY_STEP = 0.35;
-const MAX_EXPOSURE_PENALTY = 1.5;
-const EXPOSURE_DECAY_DAYS = 14;
+const CHANNEL_WEIGHTS = {
+  franchise: 0.9,
+  actor: 0.7,
+  studio: 0.45,
+  director: 0.4,
+  genre: 0.65,
+  keyword: 0.5,
+  decade: 0.2,
+  language: 0.1,
+};
 
-/*
- * Recommendation hierarchy
- *
- * Strong:
- *   franchise > actor > studio > director
- *
- * Supporting:
- *   genre
- *
- * Context:
- *   decade / language
- *
- * Strong relationships should be capable of producing a recommendation
- * on their own. Genres and context should refine a recommendation rather
- * than create a large artificial baseline.
- */
-const CONNECTION_WEIGHTS = {
-  franchise: 3.0,
-  actor: 1.8,
-  studio: 1.0,
-  director: 0.8,
-
-  genre: 0.55,
-
-  decade: 0.15,
-  language: 0.05,
-
-  mediaType: 0,
+const CHANNEL_CAPS = {
+  franchise: 0.9,
+  actor: 0.7,
+  studio: 0.45,
+  director: 0.4,
+  genre: 0.65,
+  keyword: 0.5,
+  decade: 0.2,
+  language: 0.1,
 };
 
 const STRONG_CONNECTION_TYPES = new Set([
@@ -51,143 +39,40 @@ const STRONG_CONNECTION_TYPES = new Set([
   "studio",
   "director",
 ]);
-
-const SUPPORT_CONNECTION_TYPES = new Set(["genre"]);
-
+const SUPPORT_CONNECTION_TYPES = new Set(["genre", "keyword"]);
 const CONTEXT_CONNECTION_TYPES = new Set(["decade", "language"]);
 
-const MAX_GENRE_SCORE = 1.2;
-const MAX_CONTEXT_SCORE = 0.15;
-const MAX_HISTORY_ANCHOR_SCORE = 2.5;
-
-const HISTORY_ANCHOR_WEIGHTS = {
-  franchise: 4.0,
-  actor: 2.0,
-  studio: 1.2,
-  director: 1.0,
-};
-
-const HISTORY_ANCHOR_RATING_MULTIPLIERS = {
-  S: 1.0,
-  A: 0.75,
-  B: 0.35,
-};
-
-const GENRE_DIMINISHING_RETURNS = [1.0, 0.25, 0.1];
-
-const HISTORY_ANCHOR_DIMINISHING_RETURNS = [1.0, 0.6, 0.35];
-
-/*
- * TV actor relationships are deliberately ignored.
- *
- * The user generally does not choose TV shows because of individual actors,
- * and keeping this rule here makes the scorer safe even if mixed history
- * accidentally reaches it.
- */
-function isIgnoredConnection(type, mediaType) {
-  return mediaType === "tv" && type === "actor";
-}
-
-function isStrongConnection(type) {
-  return STRONG_CONNECTION_TYPES.has(type);
-}
-
-function getEvidenceClass(type) {
-  if (STRONG_CONNECTION_TYPES.has(type)) {
-    return "strong";
-  }
-
-  if (SUPPORT_CONNECTION_TYPES.has(type)) {
-    return "support";
-  }
-
-  if (CONTEXT_CONNECTION_TYPES.has(type)) {
-    return "context";
-  }
-
-  return "other";
-}
+const EXPOSURE_DECAY_DAYS = 14;
+const EXPOSURE_MULTIPLIER_STEP = 0.18;
+const MIN_EXPOSURE_MULTIPLIER = 0.15;
+const QUALITY_FLOOR = 5.8;
+const QUALITY_CEILING = 8.5;
+const MAX_QUALITY_BONUS = 0.55;
+const MAX_NEGATIVE_SCORE = 2.5;
+const DIMINISHING_RETURNS = [1, 0.55, 0.3, 0.18];
 
 function getConnectionKey(connection) {
   return `${connection.type}:${connection.value}`;
 }
 
-/*
- * Connection confidence already increases with repeated observations.
- * Multiplying by sqrt(appearances) again double-counted repetition and made
- * prolific actors disproportionately powerful. Keep repetition represented
- * by confidence alone so a connection gets more trustworthy without its
- * score growing without bound merely because it appears in many titles.
- */
-function diminishingReturns(count) {
-  return count > 0 ? 1 : 0;
+function isIgnoredConnection(type, mediaType) {
+  return mediaType === "tv" && type === "actor";
 }
 
-function getExposurePenalty(candidate, feedback) {
-  if (!feedback?.exposures?.length) {
-    return { count: 0, penalty: 0 };
-  }
-
-  const key = getConnectionKey({
-    type: candidate.type,
-    value: candidate.id,
-  });
-  const now = Date.now();
-  let weightedExposureCount = 0;
-
-  for (const exposure of feedback.exposures) {
-    if (getConnectionKey({ type: exposure.type, value: exposure.id }) !== key) {
-      continue;
-    }
-
-    const exposedAt = Date.parse(exposure.exposedAt);
-    if (!Number.isFinite(exposedAt)) {
-      weightedExposureCount += 1;
-      continue;
-    }
-
-    const ageDays = Math.max(0, (now - exposedAt) / 86_400_000);
-    const decay = Math.pow(0.5, ageDays / EXPOSURE_DECAY_DAYS);
-    weightedExposureCount += decay;
-  }
-
-  return {
-    count: feedback.exposures.filter(
-      (exposure) =>
-        getConnectionKey({ type: exposure.type, value: exposure.id }) === key,
-    ).length,
-    penalty: Math.min(
-      MAX_EXPOSURE_PENALTY,
-      weightedExposureCount * EXPOSURE_PENALTY_STEP,
-    ),
-  };
+function getEvidenceClass(type) {
+  if (STRONG_CONNECTION_TYPES.has(type)) return "strong";
+  if (SUPPORT_CONNECTION_TYPES.has(type)) return "support";
+  if (CONTEXT_CONNECTION_TYPES.has(type)) return "context";
+  return "other";
 }
 
-/*
- * Build learned preference for each connection.
- *
- * C-rated items are neutral and therefore contribute nothing.
- * D-rated items create explicit negative preference.
- * Recommendation skips/ignores create weaker implicit negative preference.
- */
 function buildConnectionModel(ratedHistory, feedback = null, mediaType = null) {
   const model = new Map();
 
-  for (const item of ratedHistory) {
-    const ratingWeight = RATING_WEIGHTS[item.rating];
-
-    if (ratingWeight === undefined || ratingWeight === 0) {
-      continue;
-    }
-
-    for (const connection of item.connections || []) {
-      if (isIgnoredConnection(connection.type, item.type)) {
-        continue;
-      }
-
-      const key = getConnectionKey(connection);
-
-      const existing = model.get(key) || {
+  const ensure = (connection) => {
+    const key = getConnectionKey(connection);
+    if (!model.has(key)) {
+      model.set(key, {
         type: connection.type,
         value: connection.value,
         totalScore: 0,
@@ -196,573 +81,273 @@ function buildConnectionModel(ratedHistory, feedback = null, mediaType = null) {
         negativeScore: 0,
         explicitNegativeScore: 0,
         implicitNegativeScore: 0,
-      };
+      });
+    }
+    return model.get(key);
+  };
 
-      existing.totalScore += ratingWeight;
-      existing.appearances += 1;
+  for (const item of ratedHistory) {
+    const weight = RATING_WEIGHTS[item.rating];
+    if (weight === undefined || weight === 0) continue;
 
-      if (ratingWeight > 0) {
-        existing.positiveScore += ratingWeight;
-      } else {
-        existing.negativeScore += Math.abs(ratingWeight);
-        existing.explicitNegativeScore += Math.abs(ratingWeight);
+    for (const connection of item.connections || []) {
+      if (isIgnoredConnection(connection.type, item.type)) continue;
+      const data = ensure(connection);
+      data.totalScore += weight;
+      data.appearances += 1;
+      if (weight > 0) data.positiveScore += weight;
+      else {
+        data.negativeScore += Math.abs(weight);
+        data.explicitNegativeScore += Math.abs(weight);
       }
-
-      model.set(key, existing);
     }
   }
 
   for (const exposure of feedback?.exposures || []) {
-    if (mediaType && exposure.type !== mediaType) {
-      continue;
-    }
+    if (mediaType && exposure.type !== mediaType) continue;
 
     for (const interaction of exposure.interactions || []) {
-      const feedbackWeight = FEEDBACK_WEIGHTS[interaction.event];
-
-      if (feedbackWeight === undefined) {
-        continue;
-      }
+      const weight = FEEDBACK_WEIGHTS[interaction.event];
+      if (weight === undefined) continue;
 
       for (const connection of exposure.connections || []) {
-        if (isIgnoredConnection(connection.type, exposure.type)) {
-          continue;
-        }
-
-        const key = getConnectionKey(connection);
-        const existing = model.get(key) || {
-          type: connection.type,
-          value: connection.value,
-          totalScore: 0,
-          appearances: 0,
-          positiveScore: 0,
-          negativeScore: 0,
-          explicitNegativeScore: 0,
-          implicitNegativeScore: 0,
-        };
-
-        existing.totalScore += feedbackWeight;
-        existing.appearances += 1;
-        existing.negativeScore += Math.abs(feedbackWeight);
-        existing.implicitNegativeScore += Math.abs(feedbackWeight);
-
-        model.set(key, existing);
+        if (isIgnoredConnection(connection.type, exposure.type)) continue;
+        const data = ensure(connection);
+        data.totalScore += weight;
+        data.appearances += 1;
+        data.negativeScore += Math.abs(weight);
+        data.implicitNegativeScore += Math.abs(weight);
       }
     }
   }
 
   for (const data of model.values()) {
-    const average = data.totalScore / data.appearances;
     const confidence = data.appearances / (data.appearances + 2);
-
-    data.preference = average * confidence;
     data.confidence = confidence;
+    data.preference = (data.totalScore / data.appearances) * confidence;
   }
 
   return model;
 }
 
-function getConnectionScore(connectionModel, connection) {
-  const key = getConnectionKey(connection);
-  const data = connectionModel.get(key);
+function getChannelScales(model) {
+  const scales = new Map();
+  for (const data of model.values()) {
+    const weight = CHANNEL_WEIGHTS[data.type] ?? 0;
+    const magnitude = Math.abs(data.preference * weight);
+    scales.set(data.type, Math.max(scales.get(data.type) || 0, magnitude));
+  }
+  return scales;
+}
 
-  if (!data) {
-    return null;
+function scoreConnection(data, scale) {
+  const raw = data.preference * (CHANNEL_WEIGHTS[data.type] ?? 0);
+  if (!scale) return 0;
+  return Math.max(-1, Math.min(1, raw / scale));
+}
+
+function aggregateChannelEvidence(evidence, type, scale) {
+  const values = evidence
+    .filter((item) => item.type === type)
+    .sort((a, b) => Math.abs(b.normalizedScore) - Math.abs(a.normalizedScore));
+
+  let positive = 0;
+  let negative = 0;
+
+  for (let index = 0; index < values.length; index += 1) {
+    const contribution = values[index].normalizedScore * (DIMINISHING_RETURNS[index] || 0.12);
+    if (contribution > 0) positive += contribution;
+    else negative += Math.abs(contribution);
   }
 
-  const connectionWeight = CONNECTION_WEIGHTS[connection.type] ?? 0;
-
-  if (connectionWeight === 0) {
-    return null;
-  }
-
+  const cap = CHANNEL_CAPS[type] ?? scale;
   return {
-    ...connection,
-    preference: data.preference,
-    confidence: data.confidence,
-    appearances: data.appearances,
-    score:
-      data.preference * connectionWeight * diminishingReturns(data.appearances),
+    positiveScore: Math.min(positive * scale, cap),
+    negativeScore: Math.min(negative * scale, cap),
   };
 }
 
-function aggregateGenreEvidence(evidence) {
-  const positive = evidence
-    .filter((item) => item.score > 0)
-    .sort((a, b) => b.score - a.score);
+function getExposurePenalty(candidate, feedback) {
+  const exposures = (feedback?.exposures || []).filter(
+    (exposure) =>
+      exposure.type === candidate.type && String(exposure.id) === String(candidate.id),
+  );
 
-  const negative = evidence
-    .filter((item) => item.score < 0)
-    .map((item) => Math.abs(item.score))
-    .sort((a, b) => b - a);
-
-  let positiveScore = 0;
-
-  for (let index = 0; index < positive.length; index += 1) {
-    const multiplier =
-      GENRE_DIMINISHING_RETURNS[index] ??
-      GENRE_DIMINISHING_RETURNS[GENRE_DIMINISHING_RETURNS.length - 1] /
-        (index + 1);
-
-    positiveScore += positive[index].score * multiplier;
+  if (exposures.length === 0) {
+    return { count: 0, weightedCount: 0, multiplier: 1, penalty: 0 };
   }
 
-  let negativeScore = 0;
-
-  for (let index = 0; index < negative.length; index += 1) {
-    const multiplier =
-      GENRE_DIMINISHING_RETURNS[index] ??
-      GENRE_DIMINISHING_RETURNS[GENRE_DIMINISHING_RETURNS.length - 1] /
-        (index + 1);
-
-    negativeScore += negative[index] * multiplier;
-  }
-
-  return {
-    positiveScore: Math.min(positiveScore, MAX_GENRE_SCORE),
-    negativeScore: Math.min(negativeScore, MAX_GENRE_SCORE),
-  };
-}
-
-function aggregateContextEvidence(evidence) {
-  const positive = evidence
-    .filter((item) => item.score > 0)
-    .reduce((sum, item) => sum + item.score, 0);
-
-  const negative = evidence
-    .filter((item) => item.score < 0)
-    .reduce((sum, item) => sum + Math.abs(item.score), 0);
-
-  return {
-    positiveScore: Math.min(positive, MAX_CONTEXT_SCORE),
-    negativeScore: Math.min(negative, MAX_CONTEXT_SCORE),
-  };
-}
-
-function calculateHistoryAnchor(candidate, ratedHistory) {
-  const anchors = [];
-
-  for (const historyItem of ratedHistory) {
-    if (
-      historyItem.type !== candidate.type ||
-      !HISTORY_ANCHOR_RATING_MULTIPLIERS[historyItem.rating]
-    ) {
+  const now = Date.now();
+  let weightedCount = 0;
+  for (const exposure of exposures) {
+    const timestamp = Date.parse(exposure.exposedAt);
+    if (!Number.isFinite(timestamp)) {
+      weightedCount += 1;
       continue;
     }
-
-    const candidateConnections = new Set(
-      (candidate.connections || [])
-        .filter(
-          (connection) => !isIgnoredConnection(connection.type, candidate.type),
-        )
-        .map(getConnectionKey),
-    );
-
-    let strongScore = 0;
-    const matchedConnections = [];
-
-    for (const connection of historyItem.connections || []) {
-      if (isIgnoredConnection(connection.type, historyItem.type)) {
-        continue;
-      }
-
-      if (!isStrongConnection(connection.type)) {
-        continue;
-      }
-
-      const key = getConnectionKey(connection);
-
-      if (!candidateConnections.has(key)) {
-        continue;
-      }
-
-      const weight = HISTORY_ANCHOR_WEIGHTS[connection.type] ?? 0;
-
-      if (weight === 0) {
-        continue;
-      }
-
-      strongScore += weight;
-
-      matchedConnections.push({
-        type: connection.type,
-        value: connection.value,
-        weight,
-      });
-    }
-
-    if (strongScore <= 0) {
-      continue;
-    }
-
-    const ratingMultiplier =
-      HISTORY_ANCHOR_RATING_MULTIPLIERS[historyItem.rating];
-
-    anchors.push({
-      historyItem,
-      score: strongScore * ratingMultiplier,
-      strongScore,
-      matchedConnections,
-    });
+    const ageDays = Math.max(0, (now - timestamp) / 86_400_000);
+    weightedCount += Math.pow(0.5, ageDays / EXPOSURE_DECAY_DAYS);
   }
 
-  anchors.sort((a, b) => b.score - a.score);
-
-  const selected = anchors.slice(0, 3);
-
-  let anchorScore = 0;
-
-  for (let index = 0; index < selected.length; index += 1) {
-    anchorScore +=
-      selected[index].score * HISTORY_ANCHOR_DIMINISHING_RETURNS[index];
-  }
-
-  anchorScore = Math.min(anchorScore, MAX_HISTORY_ANCHOR_SCORE);
+  const multiplier = Math.max(
+    MIN_EXPOSURE_MULTIPLIER,
+    1 - weightedCount * EXPOSURE_MULTIPLIER_STEP,
+  );
 
   return {
-    score: anchorScore,
-    anchors: selected,
+    count: exposures.length,
+    weightedCount,
+    multiplier,
+    penalty: 1 - multiplier,
   };
 }
 
-function hasHardNegative(candidate, connectionModel) {
+function calculateQualityBonus(candidate) {
+  const rating = Number(candidate.tmdbRating ?? candidate.rating);
+  if (!Number.isFinite(rating) || rating <= QUALITY_FLOOR) return 0;
+  return (
+    Math.min(QUALITY_CEILING, rating) - QUALITY_FLOOR
+  ) / (QUALITY_CEILING - QUALITY_FLOOR) * MAX_QUALITY_BONUS;
+}
+
+function hasHardNegative(candidate, model) {
   for (const connection of candidate.connections || []) {
-    if (!isStrongConnection(connection.type)) {
-      continue;
-    }
-
-    const key = getConnectionKey(connection);
-    const data = connectionModel.get(key);
-
-    if (!data) {
-      continue;
-    }
-
-    if (data.appearances < 2) {
-      continue;
-    }
-
-    if (data.confidence < 0.5) {
-      continue;
-    }
-
-    if (data.explicitNegativeScore <= data.positiveScore) {
-      continue;
-    }
-
-    return true;
+    if (!STRONG_CONNECTION_TYPES.has(connection.type)) continue;
+    const data = model.get(getConnectionKey(connection));
+    if (!data || data.appearances < 2 || data.confidence < 0.5) continue;
+    if (data.explicitNegativeScore > data.positiveScore) return true;
   }
-
   return false;
 }
 
-function calculateMatchStrength(connections) {
-  if (
-    connections.some((connection) =>
-      STRONG_CONNECTION_TYPES.has(connection.type),
-    )
-  ) {
-    return "strong";
-  }
-
-  if (
-    connections.some((connection) =>
-      SUPPORT_CONNECTION_TYPES.has(connection.type),
-    )
-  ) {
-    return "support";
-  }
-
-  if (
-    connections.some((connection) =>
-      CONTEXT_CONNECTION_TYPES.has(connection.type),
-    )
-  ) {
-    return "context";
-  }
-
-  return "weak";
-}
-
-function buildMatchedHistory(
-  candidate,
-  ratedHistory,
-  connectionEvidence,
-  historyAnchor,
-) {
-  const historyMap = new Map();
-  const positiveEvidence = connectionEvidence.filter(
-    (evidence) => evidence.score > 0,
-  );
+function buildMatchedHistory(candidate, ratedHistory, connectionEvidence) {
+  const positive = connectionEvidence.filter((item) => item.score > 0);
+  const matches = new Map();
 
   for (const historyItem of ratedHistory) {
-    if (historyItem.type !== candidate.type) {
-      continue;
-    }
-
-    const matchedConnections = [];
-
-    for (const evidence of positiveEvidence) {
-      if (isIgnoredConnection(evidence.type, candidate.type)) {
-        continue;
-      }
-
-      const hasConnection = historyItem.connections?.some(
+    if (historyItem.type !== candidate.type) continue;
+    const matched = positive.filter((evidence) =>
+      (historyItem.connections || []).some(
         (connection) =>
-          connection.type === evidence.type &&
-          connection.value === evidence.value,
-      );
-
-      if (!hasConnection) {
-        continue;
-      }
-
-      matchedConnections.push({
-        type: evidence.type,
-        value: evidence.value,
-        score: evidence.score,
-        strength: evidence.strength,
-      });
-    }
-
-    if (matchedConnections.length === 0) {
-      continue;
-    }
+          connection.type === evidence.type && connection.value === evidence.value,
+      ),
+    );
+    if (!matched.length) continue;
 
     const key = `${historyItem.type}:${historyItem.id}`;
-    const strongConnections = matchedConnections.filter(
-      (connection) => connection.strength === "strong",
-    );
-    const supportConnections = matchedConnections.filter(
-      (connection) => connection.strength === "support",
-    );
-    const contextConnections = matchedConnections.filter(
-      (connection) => connection.strength === "context",
-    );
-
-    historyMap.set(key, {
+    matches.set(key, {
       title: historyItem.title,
       rating: historyItem.rating,
-      score: matchedConnections.reduce(
-        (sum, connection) => sum + connection.score,
-        0,
-      ),
-      connections: matchedConnections,
-      strongConnections,
-      supportConnections,
-      contextConnections,
-      matchStrength:
-        strongConnections.length > 0
-          ? "strong"
-          : supportConnections.length > 0
-            ? "support"
-            : contextConnections.length > 0
-              ? "context"
-              : "weak",
+      score: matched.reduce((sum, item) => sum + item.score, 0),
+      connections: matched,
+      strongConnections: matched.filter((item) => item.strength === "strong"),
+      supportConnections: matched.filter((item) => item.strength === "support"),
+      contextConnections: matched.filter((item) => item.strength === "context"),
+      matchStrength: matched.some((item) => item.strength === "strong")
+        ? "strong"
+        : matched.some((item) => item.strength === "support")
+          ? "support"
+          : "context",
     });
   }
 
-  for (const anchor of historyAnchor.anchors) {
-    const historyItem = anchor.historyItem;
-    const key = `${historyItem.type}:${historyItem.id}`;
-
-    const existing = historyMap.get(key) || {
-      title: historyItem.title,
-      rating: historyItem.rating,
-      score: 0,
-      connections: [],
-      strongConnections: [],
-      supportConnections: [],
-      contextConnections: [],
-      matchStrength: "weak",
-    };
-
-    existing.anchorScore = anchor.score;
-    existing.anchorStrongScore = anchor.strongScore;
-
-    for (const connection of anchor.matchedConnections) {
-      const alreadyExists = existing.connections.some(
-        (existingConnection) =>
-          existingConnection.type === connection.type &&
-          existingConnection.value === connection.value,
-      );
-
-      if (alreadyExists) {
-        continue;
-      }
-
-      const diagnosticConnection = {
-        type: connection.type,
-        value: connection.value,
-        score: connection.weight,
-        strength: "strong",
-      };
-
-      existing.connections.push(diagnosticConnection);
-      existing.strongConnections.push(diagnosticConnection);
-    }
-
-    existing.matchStrength = "strong";
-    historyMap.set(key, existing);
-  }
-
-  const strengthOrder = {
-    strong: 3,
-    support: 2,
-    context: 1,
-    weak: 0,
-  };
-
-  return [...historyMap.values()].sort((a, b) => {
-    const strengthDifference =
-      strengthOrder[b.matchStrength] - strengthOrder[a.matchStrength];
-
-    if (strengthDifference !== 0) {
-      return strengthDifference;
-    }
-
-    return Math.abs(b.score) - Math.abs(a.score);
-  });
+  return [...matches.values()].sort((a, b) => b.score - a.score);
 }
 
-export function scoreCandidate(candidate, ratedHistory, connectionModel, feedback = null) {
+export function scoreCandidate(candidate, ratedHistory, connectionModel = null, feedback = null) {
   const relevantHistory = ratedHistory.filter(
     (item) =>
       item.type === candidate.type &&
       item.status === "watched" &&
       RATING_WEIGHTS[item.rating] !== undefined,
   );
-
-  const relevantConnectionModel =
-    connectionModel || buildConnectionModel(relevantHistory, feedback, candidate.type);
-
-  const strongEvidence = [];
-  const genreEvidence = [];
-  const contextEvidence = [];
+  const model = connectionModel || buildConnectionModel(relevantHistory, feedback, candidate.type);
+  const scales = getChannelScales(model);
   const connectionEvidence = [];
-  const seenConnections = new Set();
 
   for (const connection of candidate.connections || []) {
-    if (isIgnoredConnection(connection.type, candidate.type)) {
-      continue;
-    }
-
-    const key = getConnectionKey(connection);
-
-    if (seenConnections.has(key)) {
-      continue;
-    }
-
-    seenConnections.add(key);
-
-    const evidence = getConnectionScore(relevantConnectionModel, connection);
-
-    if (!evidence || evidence.score === 0) {
-      continue;
-    }
+    if (isIgnoredConnection(connection.type, candidate.type)) continue;
+    const data = model.get(getConnectionKey(connection));
+    if (!data || data.preference === 0) continue;
 
     const evidenceClass = getEvidenceClass(connection.type);
-    const diagnosticEvidence = {
+    const normalizedScore = scoreConnection(data, scales.get(connection.type));
+    connectionEvidence.push({
       type: connection.type,
       value: connection.value,
-      score: evidence.score,
-      preference: evidence.preference,
-      confidence: evidence.confidence,
-      appearances: evidence.appearances,
+      score: normalizedScore * (CHANNEL_CAPS[connection.type] ?? 0),
+      normalizedScore,
+      preference: data.preference,
+      confidence: data.confidence,
+      appearances: data.appearances,
       primary: evidenceClass === "strong",
       strength: evidenceClass,
-    };
-
-    connectionEvidence.push(diagnosticEvidence);
-
-    if (evidenceClass === "strong") {
-      strongEvidence.push(evidence);
-    } else if (evidenceClass === "support") {
-      genreEvidence.push(diagnosticEvidence);
-    } else if (evidenceClass === "context") {
-      contextEvidence.push(diagnosticEvidence);
-    }
+    });
   }
 
-  let positiveStrongScore = strongEvidence
-    .filter((evidence) => evidence.score > 0)
-    .reduce((sum, evidence) => sum + evidence.score, 0);
-
-  let negativeStrongScore = strongEvidence
-    .filter((evidence) => evidence.score < 0)
-    .reduce((sum, evidence) => sum + Math.abs(evidence.score), 0);
-
-  const genreScore = aggregateGenreEvidence(genreEvidence);
-  const contextScore = aggregateContextEvidence(contextEvidence);
-
-  if (positiveStrongScore <= 0 && genreScore.positiveScore <= 0) {
-    contextScore.positiveScore = 0;
+  const channelScores = {};
+  const channelTypes = new Set(connectionEvidence.map((item) => item.type));
+  for (const type of channelTypes) {
+    channelScores[type] = aggregateChannelEvidence(
+      connectionEvidence,
+      type,
+      CHANNEL_CAPS[type] ?? 0,
+    );
   }
 
-  if (negativeStrongScore <= 0 && genreScore.negativeScore <= 0) {
-    contextScore.negativeScore = 0;
+  let positiveConnectionScore = 0;
+  let negativeConnectionScore = 0;
+  for (const score of Object.values(channelScores)) {
+    positiveConnectionScore += score.positiveScore;
+    negativeConnectionScore += score.negativeScore;
   }
 
-  const historyAnchor = calculateHistoryAnchor(candidate, relevantHistory);
+  const qualityBonus = calculateQualityBonus(candidate);
+  const hasTasteEvidence = positiveConnectionScore > 0;
+  const qualityContribution = hasTasteEvidence ? qualityBonus : 0;
+  const basePositiveScore = positiveConnectionScore + qualityContribution;
+  const negativeScore = Math.min(MAX_NEGATIVE_SCORE, negativeConnectionScore);
   const exposure = getExposurePenalty(candidate, feedback);
-
-  const positiveScore =
-    positiveStrongScore +
-    genreScore.positiveScore +
-    contextScore.positiveScore +
-    historyAnchor.score;
-
-  const negativeScore =
-    negativeStrongScore + genreScore.negativeScore + contextScore.negativeScore;
-
-  const recommendationScore = positiveScore - negativeScore;
-  const scoreWithExposurePenalty = recommendationScore - exposure.penalty;
-  const hardNegative = hasHardNegative(candidate, relevantConnectionModel);
+  const rawScore = basePositiveScore - negativeScore;
+  const exposedScore = rawScore * exposure.multiplier;
+  const hardNegative = hasHardNegative(candidate, model);
   const finalScore = hardNegative
-    ? Math.min(scoreWithExposurePenalty, -Math.max(negativeScore, 1))
-    : scoreWithExposurePenalty;
-
-  const meaningfulPositiveEvidence =
-    positiveStrongScore > 0 || genreScore.positiveScore > 0;
-
-  if (!meaningfulPositiveEvidence) {
-    positiveStrongScore = 0;
-  }
-
-  connectionEvidence.sort((a, b) => Math.abs(b.score) - Math.abs(a.score));
+    ? Math.min(exposedScore, -Math.max(negativeScore, 1))
+    : exposedScore;
 
   const matchedHistory = buildMatchedHistory(
     candidate,
     relevantHistory,
     connectionEvidence,
-    historyAnchor,
   );
+
+  connectionEvidence.sort((a, b) => Math.abs(b.score) - Math.abs(a.score));
 
   return {
     ...candidate,
     recommendationScore: finalScore,
-    positiveScore,
+    positiveScore: basePositiveScore,
     negativeScore,
-    strongScore: positiveStrongScore - negativeStrongScore,
-    genreScore: genreScore.positiveScore - genreScore.negativeScore,
-    contextScore: contextScore.positiveScore - contextScore.negativeScore,
-    historyAnchorScore: historyAnchor.score,
+    strongScore: ["franchise", "actor", "studio", "director"]
+      .reduce((sum, type) => sum + (channelScores[type]?.positiveScore || 0) - (channelScores[type]?.negativeScore || 0), 0),
+    genreScore: (channelScores.genre?.positiveScore || 0) - (channelScores.genre?.negativeScore || 0),
+    contextScore: ["decade", "language"]
+      .reduce((sum, type) => sum + (channelScores[type]?.positiveScore || 0) - (channelScores[type]?.negativeScore || 0), 0),
+    historyAnchorScore: 0,
     hardNegative,
     exposureCount: exposure.count,
     exposurePenalty: exposure.penalty,
-    sourceEvidence: connectionEvidence.reduce(
-      (sum, evidence) => sum + Math.abs(evidence.score),
-      0,
-    ),
+    exposureMultiplier: exposure.multiplier,
+    qualityBonus,
+    sourceEvidence: connectionEvidence.reduce((sum, evidence) => sum + Math.abs(evidence.score), 0),
     sourceCount: connectionEvidence.length,
     matchedHistory,
     connectionEvidence,
     scoreBreakdown: {
-      strong: positiveStrongScore - negativeStrongScore,
-      genres: genreScore.positiveScore - genreScore.negativeScore,
-      context: contextScore.positiveScore - contextScore.negativeScore,
-      historyAnchor: historyAnchor.score,
+      channels: channelScores,
+      quality: qualityContribution,
       negative: negativeScore,
+      exposureMultiplier: exposure.multiplier,
       exposurePenalty: exposure.penalty,
       final: finalScore,
     },
@@ -770,10 +355,7 @@ export function scoreCandidate(candidate, ratedHistory, connectionModel, feedbac
 }
 
 export function rankCandidates(candidates, ratedHistory, feedback = null) {
-  const mediaTypes = new Set(
-    candidates.map((candidate) => candidate.type).filter(Boolean),
-  );
-
+  const mediaTypes = new Set(candidates.map((candidate) => candidate.type).filter(Boolean));
   const isolatedHistory = ratedHistory.filter(
     (item) =>
       mediaTypes.has(item.type) &&
@@ -781,18 +363,34 @@ export function rankCandidates(candidates, ratedHistory, feedback = null) {
       RATING_WEIGHTS[item.rating] !== undefined,
   );
 
+  const models = new Map();
+  for (const type of mediaTypes) {
+    const history = isolatedHistory.filter((item) => item.type === type);
+    models.set(type, buildConnectionModel(history, feedback, type));
+  }
+
   return candidates
-    .map((candidate) => {
-      const connectionModel = buildConnectionModel(
-        isolatedHistory,
-        feedback,
-        candidate.type,
-      );
-      return scoreCandidate(candidate, isolatedHistory, connectionModel, feedback);
-    })
-    .sort((a, b) => b.recommendationScore - a.recommendationScore);
+    .map((candidate) =>
+      scoreCandidate(candidate, isolatedHistory, models.get(candidate.type), feedback),
+    )
+    .sort((a, b) => {
+      if (b.recommendationScore !== a.recommendationScore) {
+        return b.recommendationScore - a.recommendationScore;
+      }
+      return `${a.type}:${a.id}`.localeCompare(`${b.type}:${b.id}`);
+    });
 }
 
 export function scoreCandidates(candidates, ratedHistory, feedback = null) {
   return rankCandidates(candidates, ratedHistory, feedback);
 }
+
+export const RECOMMENDATION_SCORING_POLICY = Object.freeze({
+  channelWeights: CHANNEL_WEIGHTS,
+  channelCaps: CHANNEL_CAPS,
+  qualityFloor: QUALITY_FLOOR,
+  qualityCeiling: QUALITY_CEILING,
+  maxQualityBonus: MAX_QUALITY_BONUS,
+  exposureDecayDays: EXPOSURE_DECAY_DAYS,
+  minExposureMultiplier: MIN_EXPOSURE_MULTIPLIER,
+});
