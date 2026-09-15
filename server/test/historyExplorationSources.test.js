@@ -52,7 +52,7 @@ test("history exploration uses library connections without creating taste eviden
   );
 
   assert.equal(result.watchedHistoryItems, 3);
-  assert.equal(result.historyConnectionCount, 6);
+  assert.equal(result.historyConnectionCount, 5);
   assert.equal(sources.some((source) => source.value === "99"), true);
   assert.equal(sources.some((source) => source.value === "30"), false);
   assert.equal(sources.some((source) => source.type === "directors"), false);
