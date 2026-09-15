@@ -75,19 +75,19 @@ function buildFetchMock() {
         title: hasProfileFilter ? "Movie 2002" : "Movie 3001",
         release_date: "2019-01-01",
         genre_ids: [18],
-        overview: hasProfileFilter ? "Exploitation candidate" : "Exploration candidate",
+        overview: hasProfileFilter ? "Exploitation candidate" : "Generic discovery candidate",
         poster_path: null,
         popularity: 8,
       }] });
     }
     if (endpoint.startsWith("/discover/tv")) {
-      return tmdbResponse({ results: [{ id: 4001, name: "TV 4001", first_air_date: "2021-01-01", genre_ids: [18], overview: "TV exploration candidate", poster_path: null, popularity: 8 }] });
+      return tmdbResponse({ results: [{ id: 4001, name: "TV 4001", first_air_date: "2021-01-01", genre_ids: [18], overview: "Generic discovery candidate", poster_path: null, popularity: 8 }] });
     }
     return tmdbResponse({});
   };
 }
 
-test("recommendation pipeline preserves identity, provenance, diversity, and navigation novelty contracts", async () => {
+test("recommendation pipeline preserves historical identity, provenance, diversity, and navigation novelty contracts", async () => {
   process.env.TMDB_TOKEN = "test-token";
   global.fetch = buildFetchMock();
 
@@ -109,23 +109,15 @@ test("recommendation pipeline preserves identity, provenance, diversity, and nav
     const movies = first.recommendations.movies;
     const tv = first.recommendations.tv;
     assert.ok(movies.length > 0);
-    assert.ok(tv.length > 0);
+    assert.equal(tv.length, 0);
     assert.ok(!movies.some((item) => ["1001", "1002"].includes(item.id)));
-    assert.ok(!tv.some((item) => ["1001", "1002"].includes(item.id)));
     assert.ok(movies.every((item) => item.type === "movie"));
-    assert.ok(tv.every((item) => item.type === "tv"));
-
-    const movieExplorationLimit = Math.floor(100 * first.explorationPolicy.movies.ratio);
-    const tvExplorationLimit = Math.floor(100 * first.explorationPolicy.tv.ratio);
-    assert.ok(movies.filter((item) => item.pool === "exploration").length <= movieExplorationLimit);
-    assert.ok(tv.filter((item) => item.pool === "exploration").length <= tvExplorationLimit);
     assert.ok(movies.every((item) => Number.isFinite(item.recommendationScore)));
     assert.ok(movies.every((item) => Number.isFinite(item.diversityScore)));
-    assert.ok(tv.every((item) => Number.isFinite(item.recommendationScore)));
-    assert.ok(tv.every((item) => Number.isFinite(item.diversityScore)));
     assert.ok(movies.some((item) => item.id === "2001" && item.pool === "exploitation"));
-    assert.ok(movies.some((item) => item.id === "3001" && item.pool === "exploration"));
-    assert.ok(tv.some((item) => item.id === "4001" && item.pool === "exploration"));
+    assert.ok(movies.every((item) => item.id !== "3001"));
+    assert.equal(first.recommendationDiagnostics.watchedHistoryCount, 1);
+    assert.ok(first.recommendationDiagnostics.capacity >= first.recommendationDiagnostics.pageSize * 3);
   } finally {
     global.fetch = originalFetch;
     if (originalToken === undefined) delete process.env.TMDB_TOKEN;
