@@ -112,7 +112,12 @@ function NetworkView() {
             </label>
           ))}
           <ConnectionExplorer connectionSearch={connectionSearch} setConnectionSearch={setConnectionSearch} filteredConnections={filteredConnections} focusedConnection={focusedConnection} onFocusConnection={focusConnection} onClearFocus={clearConnectionFocus} />
-          <div className="network-help"><p>Click a node to inspect and highlight its neighborhood.</p><p>Use Find title to center the graph on a watched title.</p><p>Drag to pan and scroll to zoom. The minimap appears on larger graphs.</p></div>
+          <div className="network-help">
+            <p>Network shows the relationships inside your watch history; it is not another recommendation feed.</p>
+            <p>Click a node to inspect and highlight its neighborhood.</p>
+            <p>Use Find title to center the graph on a watched title.</p>
+            <p>Drag to pan and scroll to zoom. The minimap appears on larger graphs.</p>
+          </div>
         </aside>
 
         <div ref={networkShellRef} className="network-container">
