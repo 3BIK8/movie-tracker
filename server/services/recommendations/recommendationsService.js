@@ -12,7 +12,6 @@ import { validateRecommendationOutput } from "./recommendationInvariants.js";
 import { createMediaKey, normalizeWatchHistory } from "../../utils/mediaIdentity.js";
 import { mapWithConcurrency } from "../../utils/runWithConcurrency.js";
 import { getTmdbMetrics, runWithTmdbMetrics } from "../../utils/tmdbMetrics.js";
-import { getRecommendationExposures, recordRecommendationExposures } from "../../repositories/recommendationExposureRepository.js";
 
 const RECOMMENDATION_LIMIT = 100;
 const HISTORY_ENRICHMENT_CONCURRENCY = 6;
@@ -34,40 +33,6 @@ export function isGroundedExploitation(candidate) {
 
 function enforceRecommendationGrounding(candidates) {
   return candidates.filter(isGroundedExploitation);
-}
-
-function mergeFeedback(clientFeedback, serverExposures) {
-  const clientExposures = Array.isArray(clientFeedback?.exposures)
-    ? clientFeedback.exposures
-    : [];
-  const byKey = new Map();
-
-  for (const exposure of serverExposures) {
-    byKey.set(
-      `${exposure.type}:${exposure.id}:${exposure.generationId || exposure.exposedAt}`,
-      exposure,
-    );
-  }
-
-  for (const exposure of clientExposures) {
-    const key = `${exposure.type}:${exposure.id}:${exposure.generationId || exposure.exposedAt}`;
-    const existing = byKey.get(key);
-    if (existing) {
-      byKey.set(key, {
-        ...existing,
-        ...exposure,
-        connections: exposure.connections || existing.connections || [],
-        interactions: exposure.interactions || existing.interactions || [],
-      });
-    } else {
-      byKey.set(key, exposure);
-    }
-  }
-
-  return {
-    ...(clientFeedback || {}),
-    exposures: [...byKey.values()],
-  };
 }
 
 function calculateAdaptiveDiversityLambda(candidates) {
@@ -99,8 +64,11 @@ function diversifyRecommendationSet(candidates) {
 export async function analyzeWatchHistory(history, feedback = null) {
   const pipelineStartedAt = Date.now();
   const canonicalHistory = normalizeWatchHistory(history);
-  const persistentExposures = getRecommendationExposures();
-  const effectiveFeedback = mergeFeedback(feedback, persistentExposures);
+
+  // Visibility is a client-side event: the server generates a pool of up to 100
+  // items, but it cannot know which page the user actually saw. Only client
+  // feedback for visible pages should enter the navigation-suppression ledger.
+  const effectiveFeedback = feedback || null;
 
   const historyEnrichmentStartedAt = Date.now();
   const enrichedResults = await mapWithConcurrency(
@@ -208,7 +176,6 @@ export async function analyzeWatchHistory(history, feedback = null) {
 
   const finalMovies = attachGenerationId(safeMovies);
   const finalTv = attachGenerationId(safeTv);
-  recordRecommendationExposures([...finalMovies, ...finalTv], generationId);
 
   return {
     profile,
@@ -224,7 +191,7 @@ export async function analyzeWatchHistory(history, feedback = null) {
         candidateCounts: moviePools.counts,
         candidatePhases: candidateDiagnostics.movies,
         diversityLambda: moviePools.lambda,
-        persistentExposureCount: persistentExposures.filter((item) => item.type === "movie").length,
+        feedbackExposureCount: (effectiveFeedback?.exposures || []).filter((item) => item.type === "movie").length,
         finalExploitation: finalMovies.filter((item) => item.pool === "exploitation").length,
         finalExploration: finalMovies.filter((item) => item.pool === "exploration").length,
       },
@@ -234,7 +201,7 @@ export async function analyzeWatchHistory(history, feedback = null) {
         candidateCounts: tvPools.counts,
         candidatePhases: candidateDiagnostics.tv,
         diversityLambda: tvPools.lambda,
-        persistentExposureCount: persistentExposures.filter((item) => item.type === "tv").length,
+        feedbackExposureCount: (effectiveFeedback?.exposures || []).filter((item) => item.type === "tv").length,
         finalExploitation: finalTv.filter((item) => item.pool === "exploitation").length,
         finalExploration: finalTv.filter((item) => item.pool === "exploration").length,
       },

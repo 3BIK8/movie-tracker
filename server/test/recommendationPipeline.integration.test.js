@@ -98,7 +98,8 @@ test("recommendation pipeline preserves identity, provenance, diversity, and nav
     ];
 
     const first = await analyzeWatchHistory(history);
-    const second = await analyzeWatchHistory(history);
+    const visibleFirstPage = first.recommendations.movies.slice(0, 20);
+    const second = await analyzeWatchHistory(history, { exposures: visibleFirstPage });
     const firstRepeated = first.recommendations.movies.find((item) => item.id === "2001");
     const secondRepeated = second.recommendations.movies.find((item) => item.id === "2001");
 
