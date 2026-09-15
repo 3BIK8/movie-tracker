@@ -12,8 +12,12 @@ import { validateRecommendationOutput } from "./recommendationInvariants.js";
 import { createMediaKey, normalizeWatchHistory } from "../../utils/mediaIdentity.js";
 import { mapWithConcurrency } from "../../utils/runWithConcurrency.js";
 import { getTmdbMetrics, runWithTmdbMetrics } from "../../utils/tmdbMetrics.js";
+import {
+  calculateRecommendationCapacity,
+  countRecentRecommendationExposures,
+  RECOMMENDATION_PAGE_SIZE,
+} from "./recommendationCapacity.js";
 
-const RECOMMENDATION_LIMIT = 100;
 const HISTORY_ENRICHMENT_CONCURRENCY = 6;
 const BASE_DIVERSITY_LAMBDA = 0.72;
 const MIN_DIVERSITY_LAMBDA = 0.52;
@@ -22,6 +26,16 @@ const MAX_DIVERSITY_LAMBDA = 0.78;
 function removeKnownRecommendations(recommendations, knownIds) {
   return recommendations.filter(
     (recommendation) => !knownIds.has(createMediaKey(recommendation.type, recommendation.id)),
+  );
+}
+
+// Generic exploration candidates are intentionally excluded here. This endpoint
+// answers "what might I have watched?" rather than "what should I watch next?".
+// History-grounded expansion remains valid because those candidates are derived
+// from connections already present in the user's library.
+function removeGenericExplorationCandidates(candidates) {
+  return candidates.filter((candidate) =>
+    (candidate.sources || []).some((source) => source?.type !== "exploration"),
   );
 }
 
@@ -64,11 +78,12 @@ function diversifyRecommendationSet(candidates) {
 export async function analyzeWatchHistory(history, feedback = null) {
   const pipelineStartedAt = Date.now();
   const canonicalHistory = normalizeWatchHistory(history);
-
-  // Visibility is a client-side event: the server generates a pool of up to 100
-  // items, but it cannot know which page the user actually saw. Only client
-  // feedback for visible pages should enter the navigation-suppression ledger.
   const effectiveFeedback = feedback || null;
+  const recommendationCapacity = calculateRecommendationCapacity({
+    historyCount: canonicalHistory.length,
+    recentExposureCount: countRecentRecommendationExposures(effectiveFeedback),
+    pageSize: RECOMMENDATION_PAGE_SIZE,
+  });
 
   const historyEnrichmentStartedAt = Date.now();
   const enrichedResults = await mapWithConcurrency(
@@ -107,8 +122,8 @@ export async function analyzeWatchHistory(history, feedback = null) {
       const movieDiagnostics = {};
       const tvDiagnostics = {};
       const [movieCandidates, tvCandidates] = await Promise.all([
-        generateCandidates(profile.movies.connections, enrichedHistory, "movie", RECOMMENDATION_LIMIT, movieDiagnostics),
-        generateCandidates(profile.tv.connections, enrichedHistory, "tv", RECOMMENDATION_LIMIT, tvDiagnostics),
+        generateCandidates(profile.movies.connections, enrichedHistory, "movie", recommendationCapacity, movieDiagnostics),
+        generateCandidates(profile.tv.connections, enrichedHistory, "tv", recommendationCapacity, tvDiagnostics),
       ]);
       return {
         candidates: [movieCandidates, tvCandidates],
@@ -117,12 +132,14 @@ export async function analyzeWatchHistory(history, feedback = null) {
       };
     });
   const [movieCandidates, tvCandidates] = candidates;
+  const historicalMovieCandidates = removeGenericExplorationCandidates(movieCandidates);
+  const historicalTvCandidates = removeGenericExplorationCandidates(tvCandidates);
   const candidateGenerationMs = Date.now() - candidateGenerationStartedAt;
 
   const rankingStartedAt = Date.now();
   const [scoredMovies, scoredTv] = [
-    applyTemporalScoring(scoreCandidates(movieCandidates, enrichedHistory, effectiveFeedback), profile.movies),
-    applyTemporalScoring(scoreCandidates(tvCandidates, enrichedHistory, effectiveFeedback), profile.tv),
+    applyTemporalScoring(scoreCandidates(historicalMovieCandidates, enrichedHistory, effectiveFeedback), profile.movies),
+    applyTemporalScoring(scoreCandidates(historicalTvCandidates, enrichedHistory, effectiveFeedback), profile.tv),
   ];
   const groundedMovies = enforceRecommendationGrounding(scoredMovies);
   const groundedTv = enforceRecommendationGrounding(scoredTv);
@@ -145,8 +162,8 @@ export async function analyzeWatchHistory(history, feedback = null) {
 
   const moviePools = rankRecommendationPools(groundedMovies);
   const tvPools = rankRecommendationPools(groundedTv);
-  const diversifiedMovies = mixRecommendationPools(moviePools.exploitation, moviePools.exploration, RECOMMENDATION_LIMIT, movieExplorationRatio);
-  const diversifiedTv = mixRecommendationPools(tvPools.exploitation, tvPools.exploration, RECOMMENDATION_LIMIT, tvExplorationRatio);
+  const diversifiedMovies = mixRecommendationPools(moviePools.exploitation, moviePools.exploration, recommendationCapacity, movieExplorationRatio);
+  const diversifiedTv = mixRecommendationPools(tvPools.exploitation, tvPools.exploration, recommendationCapacity, tvExplorationRatio);
   const rankingMs = Date.now() - rankingStartedAt;
 
   const knownIds = new Set(
@@ -159,13 +176,13 @@ export async function analyzeWatchHistory(history, feedback = null) {
 
   validateRecommendationOutput(safeMovies, {
     mediaType: "movie",
-    limit: RECOMMENDATION_LIMIT,
+    limit: recommendationCapacity,
     knownIds,
     explorationRatio: movieExplorationRatio,
   });
   validateRecommendationOutput(safeTv, {
     mediaType: "tv",
-    limit: RECOMMENDATION_LIMIT,
+    limit: recommendationCapacity,
     knownIds,
     explorationRatio: tvExplorationRatio,
   });
@@ -185,6 +202,9 @@ export async function analyzeWatchHistory(history, feedback = null) {
       tv: { ratio: tvExplorationRatio, strength: profile.tv.strength },
     },
     recommendationDiagnostics: {
+      capacity: recommendationCapacity,
+      pageSize: RECOMMENDATION_PAGE_SIZE,
+      recentExposureCount: countRecentRecommendationExposures(effectiveFeedback),
       movies: {
         historyItems: canonicalHistory.filter((item) => item.type === "movie").length,
         ratedItems: enrichedHistory.filter((item) => item.type === "movie" && item.status === "watched" && item.rating).length,
