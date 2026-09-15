@@ -44,13 +44,12 @@ function RecommendationsView({ onPersonClick }) {
       };
 
       setRecommendations(filteredRecommendations);
-      recordRecommendationsShown([
-        ...filteredRecommendations.movies.slice(0, PAGE_SIZE),
-        ...filteredRecommendations.tv.slice(0, PAGE_SIZE),
-      ]);
       setPage(1);
       setPageInput("1");
       setExpandedId(null);
+
+      const visibleType = activeType === "movie" ? "movies" : "tv";
+      recordRecommendationsShown(filteredRecommendations[visibleType].slice(0, PAGE_SIZE));
     } catch (requestError) {
       if (requestId !== requestSequence.current) return;
       console.error(requestError);
@@ -58,7 +57,7 @@ function RecommendationsView({ onPersonClick }) {
     } finally {
       if (requestId === requestSequence.current) setIsLoading(false);
     }
-  }, []);
+  }, [activeType]);
 
   useEffect(() => {
     // This effect intentionally starts an external data request that updates view state.
@@ -132,7 +131,7 @@ function RecommendationsView({ onPersonClick }) {
       <header className="recommendations-header">
         <div>
           <h1>Recommendations</h1>
-          <p>Recommendations based on what you have watched and rated.</p>
+          <p>Things you might have watched, based on your library and its connections.</p>
         </div>
         <button type="button" onClick={() => loadRecommendations()} disabled={isLoading}>
           {isLoading ? "Analyzing…" : "Refresh"}
@@ -145,7 +144,7 @@ function RecommendationsView({ onPersonClick }) {
       </div>
 
       {error && <div className="recommendations-error">{error}</div>}
-      {isLoading && <div className="recommendations-loading">Generating recommendations…</div>}
+      {isLoading && <div className="recommendations-loading">Analyzing your library…</div>}
       {!isLoading && !error && visibleItems.length === 0 && (
         <div className="recommendations-empty">
           <p>No recommendations yet.</p>
