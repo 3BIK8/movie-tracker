@@ -33,6 +33,7 @@ const CONTEXT_CONNECTION_TYPES = new Set(["decade", "language"]);
 const EXPOSURE_DECAY_DAYS = 14;
 const EXPOSURE_MULTIPLIER_STEP = 0.18;
 const MIN_EXPOSURE_MULTIPLIER = 0.15;
+const IMPRESSION_COOLDOWN_DAYS = 90;
 const QUALITY_FLOOR = 5.8;
 const QUALITY_CEILING = 8.5;
 const MAX_QUALITY_BONUS = 0.8;
@@ -101,6 +102,9 @@ function buildConnectionModel(history, feedback = null, mediaType = null) {
     }
   }
 
+  // Navigation feedback is intentionally not used to build content-level
+  // negative preferences. Seeing and moving past a title means "not now",
+  // not "I dislike this genre/keyword/actor".
   for (const exposure of feedback?.exposures || []) {
     if (mediaType && exposure.type !== mediaType) continue;
     for (const interaction of exposure.interactions || []) {
@@ -212,15 +216,29 @@ function buildMatchedHistory(candidate, history, connectionEvidence) {
   return [...matches.values()].sort((a, b) => b.score - a.score);
 }
 
-function getIgnoredRecommendationKeys(feedback) {
-  const ignored = new Set();
+function getSuppressedRecommendationKeys(feedback, now = Date.now()) {
+  const suppressed = new Set();
+  const cooldownMs = IMPRESSION_COOLDOWN_DAYS * 86_400_000;
+
   for (const exposure of feedback?.exposures || []) {
     if (!["movie", "tv"].includes(exposure?.type)) continue;
-    if ((exposure.interactions || []).some((interaction) => ["ignored", "not_interested"].includes(interaction?.event))) {
-      ignored.add(`${exposure.type}:${String(exposure.id)}`);
+
+    const key = `${exposure.type}:${String(exposure.id)}`;
+    const hasPermanentNegative = (exposure.interactions || []).some(
+      (interaction) => interaction?.event === "not_interested",
+    );
+    if (hasPermanentNegative) {
+      suppressed.add(key);
+      continue;
+    }
+
+    const exposedAt = Date.parse(exposure.exposedAt);
+    if (!Number.isFinite(exposedAt) || now - exposedAt < cooldownMs) {
+      suppressed.add(key);
     }
   }
-  return ignored;
+
+  return suppressed;
 }
 
 export function scoreCandidate(candidate, history, connectionModel = null, feedback = null) {
@@ -310,10 +328,10 @@ export function rankCandidates(candidates, history, feedback = null) {
   for (const type of mediaTypes) {
     models.set(type, buildConnectionModel(isolatedHistory.filter((item) => item.type === type), feedback, type));
   }
-  const ignoredKeys = getIgnoredRecommendationKeys(feedback);
+  const suppressedKeys = getSuppressedRecommendationKeys(feedback);
 
   return candidates
-    .filter((candidate) => !ignoredKeys.has(`${candidate.type}:${String(candidate.id)}`))
+    .filter((candidate) => !suppressedKeys.has(`${candidate.type}:${String(candidate.id)}`))
     .map((candidate) => scoreCandidate(candidate, isolatedHistory, models.get(candidate.type), feedback))
     .sort((a, b) =>
       b.recommendationScore !== a.recommendationScore
@@ -335,4 +353,5 @@ export const RECOMMENDATION_SCORING_POLICY = Object.freeze({
   maxQualityBonus: MAX_QUALITY_BONUS,
   exposureDecayDays: EXPOSURE_DECAY_DAYS,
   minExposureMultiplier: MIN_EXPOSURE_MULTIPLIER,
+  impressionCooldownDays: IMPRESSION_COOLDOWN_DAYS,
 });
