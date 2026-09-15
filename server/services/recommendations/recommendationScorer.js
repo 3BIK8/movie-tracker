@@ -191,6 +191,19 @@ function buildMatchedHistory(candidate, ratedHistory, connectionEvidence) {
   return [...matches.values()].sort((a, b) => b.score - a.score);
 }
 
+function getIgnoredRecommendationKeys(feedback) {
+  const ignored = new Set();
+  for (const exposure of feedback?.exposures || []) {
+    if (!["movie", "tv"].includes(exposure?.type)) continue;
+    if ((exposure.interactions || []).some((interaction) =>
+      ["ignored", "not_interested"].includes(interaction?.event),
+    )) {
+      ignored.add(`${exposure.type}:${String(exposure.id)}`);
+    }
+  }
+  return ignored;
+}
+
 export function scoreCandidate(candidate, ratedHistory, connectionModel = null, feedback = null) {
   const relevantHistory = ratedHistory.filter(
     (item) => item.type === candidate.type && item.status === "watched" && RATING_WEIGHTS[item.rating] !== undefined,
@@ -286,7 +299,10 @@ export function rankCandidates(candidates, ratedHistory, feedback = null) {
   for (const type of mediaTypes) {
     models.set(type, buildConnectionModel(isolatedHistory.filter((item) => item.type === type), feedback, type));
   }
+  const ignoredKeys = getIgnoredRecommendationKeys(feedback);
+
   return candidates
+    .filter((candidate) => !ignoredKeys.has(`${candidate.type}:${String(candidate.id)}`))
     .map((candidate) => scoreCandidate(candidate, isolatedHistory, models.get(candidate.type), feedback))
     .sort((a, b) =>
       b.recommendationScore !== a.recommendationScore

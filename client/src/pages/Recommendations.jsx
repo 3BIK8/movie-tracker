@@ -24,10 +24,9 @@ function RecommendationsView({ onPersonClick }) {
   const [error, setError] = useState(null);
   const requestSequence = useRef(0);
 
-  const loadRecommendations = useCallback(async (options = {}) => {
-    const { showLoading = true } = options;
+  const loadRecommendations = useCallback(async () => {
     const requestId = ++requestSequence.current;
-    if (showLoading) setIsLoading(true);
+    setIsLoading(true);
     setError(null);
 
     try {
@@ -45,7 +44,10 @@ function RecommendationsView({ onPersonClick }) {
       };
 
       setRecommendations(filteredRecommendations);
-      recordRecommendationsShown([...filteredRecommendations.movies, ...filteredRecommendations.tv]);
+      recordRecommendationsShown([
+        ...filteredRecommendations.movies.slice(0, PAGE_SIZE),
+        ...filteredRecommendations.tv.slice(0, PAGE_SIZE),
+      ]);
       setPage(1);
       setPageInput("1");
       setExpandedId(null);
@@ -54,7 +56,7 @@ function RecommendationsView({ onPersonClick }) {
       console.error(requestError);
       setError(requestError.message || "Unable to generate recommendations.");
     } finally {
-      if (requestId === requestSequence.current && showLoading) setIsLoading(false);
+      if (requestId === requestSequence.current) setIsLoading(false);
     }
   }, []);
 
@@ -71,13 +73,11 @@ function RecommendationsView({ onPersonClick }) {
         movies: filterDisplayedRecommendations(current.movies, latestHistory),
         tv: filterDisplayedRecommendations(current.tv, latestHistory),
       }));
-      setExpandedId(null);
-      void loadRecommendations({ showLoading: false });
     };
 
     window.addEventListener(WATCH_HISTORY_UPDATED, handleHistoryUpdate);
     return () => window.removeEventListener(WATCH_HISTORY_UPDATED, handleHistoryUpdate);
-  }, [loadRecommendations]);
+  }, []);
 
   const recommendationKey = activeType === "movie" ? "movies" : "tv";
   const items = recommendations[recommendationKey] || [];
@@ -99,6 +99,8 @@ function RecommendationsView({ onPersonClick }) {
     setPage(target);
     setPageInput(String(target));
     setExpandedId(null);
+    const targetItems = items.slice((target - 1) * PAGE_SIZE, target * PAGE_SIZE);
+    recordRecommendationsShown(targetItems);
   }
 
   function handleExpand(id) {
@@ -116,7 +118,6 @@ function RecommendationsView({ onPersonClick }) {
 
   function handleNotInterested(item) {
     recordRecommendationInteraction(activeType, item.id, "not_interested");
-    recordRecommendationsSkipped([item]);
     setRecommendations((current) => ({
       ...current,
       [recommendationKey]: current[recommendationKey].filter(
