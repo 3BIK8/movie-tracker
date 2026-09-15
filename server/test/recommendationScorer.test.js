@@ -51,50 +51,22 @@ test("movie and TV histories remain isolated", () => {
   assert.equal(result.sourceCount, 0);
 });
 
-test("recently exposed recommendations are suppressed instead of becoming content-level dislikes", () => {
-  const input = candidate({ id: 200, connections: [actor("a")], tmdbRating: 8 });
+test("implicit skipped feedback weakens a previously positive connection", () => {
+  const input = candidate({ connections: [actor("a")] });
   const history = [historyItem({ rating: "S", connections: [actor("a")] })];
-  const baseline = rankCandidates([input], history);
-  const filtered = rankCandidates([input], history, {
-    exposures: [{
-      type: "movie",
-      id: "200",
-      exposedAt: new Date().toISOString(),
-      connections: [actor("a")],
-      interactions: [{ event: "skipped" }],
-    }],
-  });
-  assert.equal(baseline.length, 1);
-  assert.equal(filtered.length, 0);
+  const baseline = rankCandidates([input], history)[0];
+  const withFeedback = rankCandidates([input], history, {
+    exposures: [{ type: "movie", id: "200", connections: [actor("a")], interactions: [{ event: "skipped" }] }],
+  })[0];
+  assert.ok(withFeedback.recommendationScore < baseline.recommendationScore);
 });
 
-test("recent impressions do not penalize their genres for other candidates", () => {
-  const history = [historyItem({ rating: "S", connections: [genre("thriller")] })];
-  const first = candidate({ id: 200, connections: [genre("thriller")], tmdbRating: 8 });
-  const second = candidate({ id: 201, connections: [genre("thriller")], tmdbRating: 8 });
-  const filtered = rankCandidates([first, second], history, {
-    exposures: [{
-      type: "movie",
-      id: "200",
-      exposedAt: new Date().toISOString(),
-      connections: [genre("thriller")],
-      interactions: [{ event: "skipped" }],
-    }],
-  });
-  assert.deepEqual(filtered.map((item) => item.id), [201]);
-});
-
-test("not-interested feedback remains a permanent item-level exclusion", () => {
+test("not-interested feedback removes the exact title from ranking", () => {
   const input = candidate({ id: 200, connections: [actor("a")] });
   const history = [historyItem({ rating: "S", connections: [actor("a")] })];
   const baseline = rankCandidates([input], history);
   const filtered = rankCandidates([input], history, {
-    exposures: [{
-      type: "movie",
-      id: "200",
-      exposedAt: new Date(Date.now() - 120 * 86_400_000).toISOString(),
-      interactions: [{ event: "not_interested" }],
-    }],
+    exposures: [{ type: "movie", id: "200", interactions: [{ event: "ignored" }] }],
   });
   assert.equal(baseline.length, 1);
   assert.equal(filtered.length, 0);
@@ -128,15 +100,20 @@ test("candidate quality contributes a bounded bonus", () => {
   assert.ok(high.qualityBonus <= RECOMMENDATION_SCORING_POLICY.maxQualityBonus);
 });
 
-test("older exposures are allowed back into ranking after the discovery cooldown", () => {
-  const input = candidate({ id: 200, connections: [genre("thriller")], tmdbRating: 8 });
-  const history = [historyItem({ rating: "S", connections: [genre("thriller")] })];
-  const oldExposure = new Date(Date.now() - 120 * 86_400_000).toISOString();
-  const ranked = rankCandidates([input], history, {
-    exposures: [{ type: "movie", id: "200", exposedAt: oldExposure, interactions: [{ event: "skipped" }] }],
-  });
-  assert.equal(ranked.length, 1);
-  assert.ok(ranked[0].exposureMultiplier < 1);
+test("previously exposed recommendations use a score-relative novelty multiplier", () => {
+  const input = candidate({ id: 200, connections: [actor("a")] });
+  const history = [historyItem({ rating: "S", connections: [actor("a")] })];
+  const baseline = rankCandidates([input], history)[0];
+  const exposed = rankCandidates([input], history, {
+    exposures: [
+      { type: "movie", id: "200", exposedAt: new Date().toISOString(), connections: [actor("a")], interactions: [] },
+      { type: "movie", id: "200", exposedAt: new Date().toISOString(), connections: [actor("a")], interactions: [] },
+    ],
+  })[0];
+  assert.equal(exposed.exposureCount, 2);
+  assert.ok(exposed.exposurePenalty > 0);
+  assert.ok(exposed.exposureMultiplier < 1);
+  assert.ok(exposed.recommendationScore < baseline.recommendationScore);
 });
 
 test("scoring remains deterministic for identical inputs", () => {

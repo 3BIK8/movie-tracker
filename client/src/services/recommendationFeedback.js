@@ -1,5 +1,6 @@
 const STORAGE_KEY = "recommendation-feedback";
-const MAX_EXPOSURES = 500;
+const MAX_EXPOSURES = 100;
+const DEFAULT_IGNORE_AFTER_DAYS = 7;
 
 function normalizeKey(type, id) {
   return `${String(type || "").trim().toLowerCase()}:${String(id ?? "").trim()}`;
@@ -23,7 +24,7 @@ function writeLedger(ledger) {
   } catch (error) {
     if (error?.name !== "QuotaExceededError") return;
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ exposures: exposures.slice(-100) }));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ exposures: exposures.slice(-25) }));
     } catch {
       try { localStorage.removeItem(STORAGE_KEY); } catch { /* storage unavailable */ }
     }
@@ -89,14 +90,20 @@ export function recordRecommendationsSkipped(recommendations) {
   writeLedger(ledger);
 }
 
-// Kept for compatibility. An impression is a temporary "not now" signal,
-// not evidence that the user dislikes the movie's characteristics.
-export function finalizeIgnoredRecommendations() {
-  return getRecommendationFeedback();
+export function finalizeIgnoredRecommendations(now = Date.now(), ignoreAfterDays = DEFAULT_IGNORE_AFTER_DAYS) {
+  const ledger = readLedger();
+  const threshold = now - ignoreAfterDays * 86_400_000;
+  for (const exposure of ledger.exposures) {
+    const exposedAt = Date.parse(exposure.exposedAt);
+    if (!Number.isFinite(exposedAt) || exposedAt > threshold || hasMeaningfulInteraction(exposure) || (exposure.interactions || []).some((interaction) => interaction.event === "ignored")) continue;
+    exposure.interactions.push({ event: "ignored", timestamp: new Date(now).toISOString() });
+  }
+  writeLedger(ledger);
+  return ledger;
 }
 
 export function getRecommendationFeedback() {
   return readLedger();
 }
 
-export { MAX_EXPOSURES };
+export { DEFAULT_IGNORE_AFTER_DAYS };

@@ -87,14 +87,7 @@ function buildFetchMock() {
   };
 }
 
-function simplify(result) {
-  return {
-    movies: result.recommendations.movies.map(({ id, type, pool, recommendationScore, diversityScore }) => ({ id, type, pool, recommendationScore, diversityScore })),
-    tv: result.recommendations.tv.map(({ id, type, pool, recommendationScore, diversityScore }) => ({ id, type, pool, recommendationScore, diversityScore })),
-  };
-}
-
-test("recommendation pipeline preserves identity, provenance, diversity, and novelty contracts", async () => {
+test("recommendation pipeline preserves identity, provenance, diversity, and navigation novelty contracts", async () => {
   process.env.TMDB_TOKEN = "test-token";
   global.fetch = buildFetchMock();
 
@@ -110,8 +103,7 @@ test("recommendation pipeline preserves identity, provenance, diversity, and nov
     const secondRepeated = second.recommendations.movies.find((item) => item.id === "2001");
 
     assert.ok(firstRepeated);
-    assert.ok(secondRepeated);
-    assert.ok(secondRepeated.recommendationScore < firstRepeated.recommendationScore);
+    assert.equal(secondRepeated, undefined);
 
     const movies = first.recommendations.movies;
     const tv = first.recommendations.tv;

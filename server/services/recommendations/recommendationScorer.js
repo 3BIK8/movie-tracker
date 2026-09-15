@@ -12,6 +12,8 @@ const LIBRARY_WEIGHTS = {
   not_sure: 0.15,
 };
 
+const FEEDBACK_WEIGHTS = { skipped: -0.15, ignored: -0.25 };
+
 // Personalization is intentionally content-first. Credits are supporting
 // evidence, not taste labels; studios and directors are not taste signals.
 const CHANNEL_CAPS = {
@@ -31,7 +33,6 @@ const CONTEXT_CONNECTION_TYPES = new Set(["decade", "language"]);
 const EXPOSURE_DECAY_DAYS = 14;
 const EXPOSURE_MULTIPLIER_STEP = 0.18;
 const MIN_EXPOSURE_MULTIPLIER = 0.15;
-const IMPRESSION_COOLDOWN_DAYS = 90;
 const QUALITY_FLOOR = 5.8;
 const QUALITY_CEILING = 8.5;
 const MAX_QUALITY_BONUS = 0.8;
@@ -61,7 +62,7 @@ function getRatingAdjustment(item) {
   return RATING_WEIGHTS[item?.rating] ?? 0;
 }
 
-function buildConnectionModel(history, mediaType = null) {
+function buildConnectionModel(history, feedback = null, mediaType = null) {
   const model = new Map();
   const ensure = (connection) => {
     const key = getConnectionKey(connection);
@@ -96,6 +97,22 @@ function buildConnectionModel(history, mediaType = null) {
         data.negativeScore += Math.abs(weight);
         if (getRatingAdjustment(item) < 0) data.explicitNegativeScore += Math.abs(getRatingAdjustment(item));
         else data.implicitNegativeScore += Math.abs(weight);
+      }
+    }
+  }
+
+  for (const exposure of feedback?.exposures || []) {
+    if (mediaType && exposure.type !== mediaType) continue;
+    for (const interaction of exposure.interactions || []) {
+      const weight = FEEDBACK_WEIGHTS[interaction.event];
+      if (weight === undefined) continue;
+      for (const connection of exposure.connections || []) {
+        if (isIgnoredConnection(connection.type, exposure.type)) continue;
+        const data = ensure(connection);
+        data.totalScore += weight;
+        data.appearances += 1;
+        data.negativeScore += Math.abs(weight);
+        data.implicitNegativeScore += Math.abs(weight);
       }
     }
   }
@@ -195,36 +212,22 @@ function buildMatchedHistory(candidate, history, connectionEvidence) {
   return [...matches.values()].sort((a, b) => b.score - a.score);
 }
 
-function getSuppressedRecommendationKeys(feedback, now = Date.now()) {
-  const suppressed = new Set();
-  const cooldownMs = IMPRESSION_COOLDOWN_DAYS * 86_400_000;
-
+function getIgnoredRecommendationKeys(feedback) {
+  const ignored = new Set();
   for (const exposure of feedback?.exposures || []) {
     if (!["movie", "tv"].includes(exposure?.type)) continue;
-
-    const key = `${exposure.type}:${String(exposure.id)}`;
-    const hasPermanentNegative = (exposure.interactions || []).some(
-      (interaction) => interaction?.event === "not_interested",
-    );
-    if (hasPermanentNegative) {
-      suppressed.add(key);
-      continue;
-    }
-
-    const exposedAt = Date.parse(exposure.exposedAt);
-    if (!Number.isFinite(exposedAt) || now - exposedAt < cooldownMs) {
-      suppressed.add(key);
+    if ((exposure.interactions || []).some((interaction) => ["ignored", "not_interested"].includes(interaction?.event))) {
+      ignored.add(`${exposure.type}:${String(exposure.id)}`);
     }
   }
-
-  return suppressed;
+  return ignored;
 }
 
 export function scoreCandidate(candidate, history, connectionModel = null, feedback = null) {
   const relevantHistory = history.filter(
     (item) => item.type === candidate.type && ["watched", "to_watch", "not_sure"].includes(item.status),
   );
-  const model = connectionModel || buildConnectionModel(relevantHistory, candidate.type);
+  const model = connectionModel || buildConnectionModel(relevantHistory, feedback, candidate.type);
   const connectionEvidence = [];
 
   for (const connection of candidate.connections || []) {
@@ -305,12 +308,12 @@ export function rankCandidates(candidates, history, feedback = null) {
   const isolatedHistory = history.filter((item) => mediaTypes.has(item.type) && ["watched", "to_watch", "not_sure"].includes(item.status));
   const models = new Map();
   for (const type of mediaTypes) {
-    models.set(type, buildConnectionModel(isolatedHistory.filter((item) => item.type === type), type));
+    models.set(type, buildConnectionModel(isolatedHistory.filter((item) => item.type === type), feedback, type));
   }
-  const suppressedKeys = getSuppressedRecommendationKeys(feedback);
+  const ignoredKeys = getIgnoredRecommendationKeys(feedback);
 
   return candidates
-    .filter((candidate) => !suppressedKeys.has(`${candidate.type}:${String(candidate.id)}`))
+    .filter((candidate) => !ignoredKeys.has(`${candidate.type}:${String(candidate.id)}`))
     .map((candidate) => scoreCandidate(candidate, isolatedHistory, models.get(candidate.type), feedback))
     .sort((a, b) =>
       b.recommendationScore !== a.recommendationScore
@@ -332,5 +335,4 @@ export const RECOMMENDATION_SCORING_POLICY = Object.freeze({
   maxQualityBonus: MAX_QUALITY_BONUS,
   exposureDecayDays: EXPOSURE_DECAY_DAYS,
   minExposureMultiplier: MIN_EXPOSURE_MULTIPLIER,
-  impressionCooldownDays: IMPRESSION_COOLDOWN_DAYS,
 });
