@@ -101,6 +101,59 @@ test("expired exposure still applies a novelty penalty without suppressing the t
   assert.ok(exposed.recommendationScore < baseline.recommendationScore);
 });
 
+test("a visible page suppresses only those items, preserving pagination capacity", () => {
+  const candidates = Array.from({ length: 60 }, (_, index) =>
+    candidate({ id: 1000 + index, connections: [genre("drama")] }),
+  );
+  const exposures = candidates.slice(0, 20).map((item) => ({
+    type: "movie",
+    id: String(item.id),
+    exposedAt: new Date().toISOString(),
+    connections: item.connections,
+    interactions: [],
+  }));
+
+  const ranked = rankCandidates(candidates, [historyItem({ connections: [genre("drama")] })], { exposures });
+
+  assert.equal(ranked.length, 40);
+  assert.ok(ranked.every((item) => Number(item.id) >= 1020));
+});
+
+test("skipped or automatically ignored navigation is not a permanent negative", () => {
+  const input = candidate({ id: 300, connections: [genre("drama")] });
+  const history = [historyItem({ connections: [genre("drama")] })];
+  const exposedAt = new Date(Date.now() - 91 * 86_400_000).toISOString();
+
+  const ranked = rankCandidates([input], history, {
+    exposures: [{
+      type: "movie",
+      id: "300",
+      exposedAt,
+      connections: [genre("drama")],
+      interactions: [{ event: "ignored", timestamp: exposedAt }],
+    }],
+  });
+
+  assert.equal(ranked.length, 1);
+  assert.equal(ranked[0].id, 300);
+});
+
+test("explicit not interested remains a permanent item-level exclusion", () => {
+  const input = candidate({ id: 301, connections: [genre("drama")] });
+  const history = [historyItem({ connections: [genre("drama")] })];
+  const ranked = rankCandidates([input], history, {
+    exposures: [{
+      type: "movie",
+      id: "301",
+      exposedAt: new Date(Date.now() - 91 * 86_400_000).toISOString(),
+      connections: [genre("drama")],
+      interactions: [{ event: "not_interested", timestamp: new Date().toISOString() }],
+    }],
+  });
+
+  assert.equal(ranked.length, 0);
+});
+
 test("scoring remains deterministic for identical inputs", () => {
   const history = [historyItem({ id: 1, connections: [actor("a")] }), historyItem({ id: 2, rating: "A", connections: [actor("a")] })];
   const input = candidate({ connections: [actor("a")] });
