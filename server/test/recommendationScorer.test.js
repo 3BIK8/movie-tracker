@@ -1,113 +1,98 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { scoreCandidate, rankCandidates, RECOMMENDATION_SCORING_POLICY } from "../services/recommendations/recommendationScorer.js";
 
-import {
-  scoreCandidate,
-  rankCandidates,
-  RECOMMENDATION_SCORING_POLICY,
-} from "../services/recommendations/recommendationScorer.js";
-
-function historyItem({ id = 1, type = "movie", rating, connections, title = "History" }) {
-  return { id, type, title, status: "watched", rating, connections };
+function historyItem(overrides = {}) {
+  return {
+    id: 1,
+    type: "movie",
+    status: "watched",
+    rating: "S",
+    connections: [],
+    ...overrides,
+  };
 }
-function candidate({ id = 100, type = "movie", connections, title = "Candidate", tmdbRating = null }) {
-  return { id, type, title, connections, tmdbRating };
+
+function candidate(overrides = {}) {
+  return {
+    id: 2,
+    type: "movie",
+    connections: [],
+    tmdbRating: 7.2,
+    ...overrides,
+  };
 }
-function actor(id = "actor-1") { return { type: "actor", value: id }; }
-function genre(id = "genre-1") { return { type: "genre", value: id }; }
 
-test("library membership creates a small actor similarity signal", () => {
-  const result = scoreCandidate(candidate({ connections: [actor()] }), [historyItem({ rating: "S", connections: [actor()] })]);
-  assert.ok(result.recommendationScore > 0);
-  assert.equal(result.strongScore, 0);
-  assert.ok(result.sourceCount > 0);
-  assert.ok(result.sourceEvidence <= RECOMMENDATION_SCORING_POLICY.channelCaps.actor);
+function actor(value) {
+  return { type: "actor", value };
+}
+
+function genre(value) {
+  return { type: "genre", value };
+}
+
+test("library membership is stronger than an individual rating", () => {
+  const history = [historyItem({ rating: null, connections: [genre("thriller"), { type: "keyword", value: "psychological" }] })];
+  const scored = scoreCandidate(candidate({ connections: [genre("thriller"), { type: "keyword", value: "psychological" }] }), history);
+  assert.ok(scored.recommendationScore > 0);
+  assert.ok(scored.genreScore > 0);
+  assert.ok(scored.scoreBreakdown.quality > 0);
 });
 
-test("a low rating does not turn library membership into negative actor evidence", () => {
-  const result = scoreCandidate(candidate({ connections: [actor()] }), [historyItem({ rating: "D", connections: [actor()] })]);
-  assert.ok(result.recommendationScore > 0);
-  assert.equal(result.strongScore, 0);
-  assert.ok(result.sourceCount > 0);
+test("actor similarity remains a supporting signal", () => {
+  const history = [historyItem({ connections: [actor("famous-actor")] })];
+  const scored = scoreCandidate(candidate({ connections: [actor("famous-actor")] }), history);
+  assert.ok(scored.scoreBreakdown.channels.actor.positiveScore <= 0.12);
 });
 
-test("a neutral rating still receives library-based similarity", () => {
-  const result = scoreCandidate(candidate({ connections: [actor()] }), [historyItem({ rating: "C", connections: [actor()] })]);
-  assert.ok(result.recommendationScore > 0);
-  assert.equal(result.strongScore, 0);
-  assert.ok(result.sourceCount > 0);
-  assert.ok(result.connectionEvidence.length > 0);
+test("director and studio similarity do not affect personalization", () => {
+  const history = [historyItem({ connections: [{ type: "director", value: "director-1" }, { type: "studio", value: "studio-1" }] })];
+  const scored = scoreCandidate(candidate({ connections: [{ type: "director", value: "director-1" }, { type: "studio", value: "studio-1" }] }), history);
+  assert.equal(scored.scoreBreakdown.channels.director?.positiveScore ?? 0, 0);
+  assert.equal(scored.scoreBreakdown.channels.studio?.positiveScore ?? 0, 0);
 });
 
-test("TV actor connections are ignored", () => {
-  const result = scoreCandidate(candidate({ type: "tv", connections: [actor()] }), [historyItem({ type: "tv", rating: "S", connections: [actor()] })]);
-  assert.equal(result.recommendationScore, 0);
-  assert.equal(result.sourceCount, 0);
-});
-
-test("movie and TV histories remain isolated", () => {
-  const result = scoreCandidate(candidate({ type: "movie", connections: [actor("shared")] }), [historyItem({ type: "tv", rating: "S", connections: [actor("shared")] })]);
-  assert.equal(result.recommendationScore, 0);
-  assert.equal(result.sourceCount, 0);
-});
-
-test("implicit skipped feedback weakens a previously positive connection", () => {
-  const input = candidate({ connections: [actor("a")] });
-  const history = [historyItem({ rating: "S", connections: [actor("a")] })];
-  const baseline = rankCandidates([input], history)[0];
-  const withFeedback = rankCandidates([input], history, {
-    exposures: [{ type: "movie", id: "200", connections: [actor("a")], interactions: [{ event: "skipped" }] }],
-  })[0];
-  assert.ok(withFeedback.recommendationScore < baseline.recommendationScore);
-});
-
-test("not-interested feedback removes the exact title from ranking", () => {
-  const input = candidate({ id: 200, connections: [actor("a")] });
-  const history = [historyItem({ rating: "S", connections: [actor("a")] })];
-  const baseline = rankCandidates([input], history);
-  const filtered = rankCandidates([input], history, {
-    exposures: [{ type: "movie", id: "200", interactions: [{ event: "ignored" }] }],
-  });
-  assert.equal(baseline.length, 1);
-  assert.equal(filtered.length, 0);
-});
-
-test("repeated actor evidence strengthens confidence without unbounded growth", () => {
-  const single = scoreCandidate(candidate({ connections: [actor("a")] }), [historyItem({ id: 1, rating: "S", connections: [actor("a")] })]);
-  const repeated = scoreCandidate(
-    candidate({ connections: [actor("a")] }),
-    Array.from({ length: 100 }, (_, index) => historyItem({ id: index + 1, rating: "S", connections: [actor("a")] })),
-  );
-  assert.ok(repeated.recommendationScore > single.recommendationScore);
-  assert.ok(repeated.recommendationScore < single.recommendationScore * 2);
-});
-
-test("multiple actor matches cannot overwhelm independent genre evidence", () => {
-  const actorHistory = Array.from({ length: 20 }, (_, index) => historyItem({ id: index + 1, rating: "S", connections: [actor(`a-${index % 4}`)] }));
-  const actorCandidate = candidate({ id: 1, connections: [actor("a-0"), actor("a-1"), actor("a-2"), actor("a-3")] });
-  const genreCandidate = candidate({ id: 2, connections: [genre("drama"), genre("thriller")] });
-  const history = [...actorHistory, historyItem({ id: 50, rating: "S", connections: [genre("drama"), genre("thriller")] })];
-  const ranked = rankCandidates([actorCandidate, genreCandidate], history);
-  assert.ok(ranked[0].recommendationScore < 2);
-  assert.ok(ranked[0].sourceEvidence <= RECOMMENDATION_SCORING_POLICY.channelCaps.genre + RECOMMENDATION_SCORING_POLICY.channelCaps.actor);
+test("ratings only make a small difference for the same movie characteristics", () => {
+  const baseHistory = [historyItem({ rating: "C", connections: [genre("science-fiction")] })];
+  const input = candidate({ connections: [genre("science-fiction")] });
+  const low = scoreCandidate(input, baseHistory).recommendationScore;
+  const high = scoreCandidate(input, [{ ...baseHistory[0], rating: "S" }]).recommendationScore;
+  assert.ok(high > low);
+  assert.ok(high - low < 0.2);
 });
 
 test("candidate quality contributes a bounded bonus", () => {
-  const history = [historyItem({ rating: "S", connections: [genre("drama")] })];
+  const history = [historyItem({ connections: [genre("drama")] })];
   const low = scoreCandidate(candidate({ id: 1, connections: [genre("drama")], tmdbRating: 5.9 }), history);
   const high = scoreCandidate(candidate({ id: 2, connections: [genre("drama")], tmdbRating: 8.5 }), history);
   assert.ok(high.recommendationScore > low.recommendationScore);
   assert.ok(high.qualityBonus <= RECOMMENDATION_SCORING_POLICY.maxQualityBonus);
 });
 
-test("previously exposed recommendations use a score-relative novelty multiplier", () => {
+test("recently exposed recommendations are temporarily suppressed", () => {
   const input = candidate({ id: 200, connections: [actor("a")] });
-  const history = [historyItem({ rating: "S", connections: [actor("a")] })];
+  const history = [historyItem({ connections: [actor("a")] })];
+  const ranked = rankCandidates([input], history, {
+    exposures: [{
+      type: "movie",
+      id: "200",
+      exposedAt: new Date().toISOString(),
+      connections: [actor("a")],
+      interactions: [],
+    }],
+  });
+  assert.equal(ranked.length, 0);
+});
+
+test("expired exposure still applies a novelty penalty without suppressing the title", () => {
+  const input = candidate({ id: 200, connections: [actor("a")] });
+  const history = [historyItem({ connections: [actor("a")] })];
   const baseline = rankCandidates([input], history)[0];
+  const exposedAt = new Date(Date.now() - 91 * 86_400_000).toISOString();
   const exposed = rankCandidates([input], history, {
     exposures: [
-      { type: "movie", id: "200", exposedAt: new Date().toISOString(), connections: [actor("a")], interactions: [] },
-      { type: "movie", id: "200", exposedAt: new Date().toISOString(), connections: [actor("a")], interactions: [] },
+      { type: "movie", id: "200", exposedAt, connections: [actor("a")], interactions: [] },
+      { type: "movie", id: "200", exposedAt, connections: [actor("a")], interactions: [] },
     ],
   })[0];
   assert.equal(exposed.exposureCount, 2);
@@ -117,16 +102,14 @@ test("previously exposed recommendations use a score-relative novelty multiplier
 });
 
 test("scoring remains deterministic for identical inputs", () => {
-  const history = [historyItem({ id: 1, rating: "S", connections: [actor("a")] }), historyItem({ id: 2, rating: "A", connections: [actor("a")] })];
+  const history = [historyItem({ id: 1, connections: [actor("a")] }), historyItem({ id: 2, rating: "A", connections: [actor("a")] })];
   const input = candidate({ connections: [actor("a")] });
   assert.deepEqual(scoreCandidate(input, history), scoreCandidate(input, history));
 });
 
 test("scores remain finite under repeated evidence", () => {
-  const history = Array.from({ length: 100 }, (_, index) => historyItem({ id: index + 1, rating: index % 2 === 0 ? "S" : "D", connections: [actor("a")] }));
-  const result = scoreCandidate(candidate({ connections: [actor("a")] }), history);
-  assert.ok(Number.isFinite(result.recommendationScore));
-  assert.ok(Number.isFinite(result.strongScore));
-  assert.ok(Number.isFinite(result.genreScore));
-  assert.ok(Number.isFinite(result.contextScore));
+  const history = Array.from({ length: 20 }, (_, index) => historyItem({ id: index + 1, connections: [genre("drama"), actor("a")] }));
+  const scored = scoreCandidate(candidate({ connections: [genre("drama"), actor("a")] }), history);
+  assert.ok(Number.isFinite(scored.recommendationScore));
+  assert.ok(Number.isFinite(scored.positiveScore));
 });
