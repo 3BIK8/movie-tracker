@@ -136,7 +136,8 @@ test("studio evidence cannot create a hard negative", () => {
 
   assert.equal(ranked.hardNegative, false);
   assert.equal(ranked.strongScore, 0);
-  assert.equal(ranked.sourceCount, 0);
+  assert.equal(ranked.sourceEvidence, 0);
+  assert.equal(ranked.recommendationScore, 0);
 });
 
 test("negative-only history remains finite and does not produce NaN or Infinity", () => {
