@@ -19,7 +19,7 @@ function watched(type, id, rating, connections) {
   };
 }
 
-test("a shared S-rated strong connection ranks above an unrelated candidate", () => {
+test("a shared actor connection provides only a supporting signal", () => {
   const history = [
     watched("movie", 1, "S", [connection("actor", "actor-1")]),
   ];
@@ -43,6 +43,7 @@ test("a shared S-rated strong connection ranks above an unrelated candidate", ()
 
   assert.equal(ranked[0].id, "2");
   assert.ok(ranked[0].recommendationScore > ranked[1].recommendationScore);
+  assert.equal(ranked[0].strongScore, 0);
 });
 
 test("watched items remain excluded by candidate filtering when the caller applies known-id filtering", () => {
@@ -61,7 +62,7 @@ test("watched items remain excluded by candidate filtering when the caller appli
   assert.deepEqual(unseen.map((candidate) => candidate.id), ["456"]);
 });
 
-test("movie and TV identities remain isolated even when numeric IDs are equal", () => {
+test("movie and TV histories remain isolated", () => {
   const history = [
     watched("movie", 123, "S", [connection("actor", "shared")]),
   ];
@@ -88,7 +89,7 @@ test("movie and TV identities remain isolated even when numeric IDs are equal", 
   assert.equal(ranked[1].strongScore, 0);
 });
 
-test("TV actor evidence is ignored while TV director evidence remains usable", () => {
+test("actors and directors are not primary TV personalization signals", () => {
   const history = [
     watched("tv", 1, "S", [
       connection("actor", "actor-1"),
@@ -113,14 +114,12 @@ test("TV actor evidence is ignored while TV director evidence remains usable", (
 
   const ranked = rankCandidates(candidates, history);
 
-  const actorMatch = ranked.find((candidate) => candidate.id === "2");
-  const directorMatch = ranked.find((candidate) => candidate.id === "3");
-
-  assert.equal(actorMatch.strongScore, 0);
-  assert.ok(directorMatch.strongScore > 0);
+  for (const candidate of ranked) {
+    assert.equal(candidate.strongScore, 0);
+  }
 });
 
-test("D-rated strong evidence can create a hard negative after repeated exposure", () => {
+test("studio evidence cannot create a hard negative", () => {
   const history = [
     watched("movie", 1, "D", [connection("studio", "studio-1")]),
     watched("movie", 2, "D", [connection("studio", "studio-1")]),
@@ -129,14 +128,15 @@ test("D-rated strong evidence can create a hard negative after repeated exposure
   const candidate = {
     type: "movie",
     id: "3",
-    title: "Disliked studio",
+    title: "Same Studio",
     connections: [connection("studio", "studio-1")],
   };
 
   const [ranked] = rankCandidates([candidate], history);
 
-  assert.equal(ranked.hardNegative, true);
-  assert.ok(ranked.recommendationScore < 0);
+  assert.equal(ranked.hardNegative, false);
+  assert.equal(ranked.strongScore, 0);
+  assert.equal(ranked.sourceCount, 0);
 });
 
 test("negative-only history remains finite and does not produce NaN or Infinity", () => {
