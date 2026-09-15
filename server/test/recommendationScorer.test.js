@@ -58,6 +58,17 @@ test("implicit skipped feedback weakens a previously positive connection", () =>
   assert.ok(withFeedback.recommendationScore < baseline.recommendationScore);
 });
 
+test("not-interested feedback removes the exact title from ranking", () => {
+  const input = candidate({ id: 200, connections: [actor("a")] });
+  const history = [historyItem({ rating: "S", connections: [actor("a")] })];
+  const baseline = rankCandidates([input], history);
+  const filtered = rankCandidates([input], history, {
+    exposures: [{ type: "movie", id: "200", interactions: [{ event: "ignored" }] }],
+  });
+  assert.equal(baseline.length, 1);
+  assert.equal(filtered.length, 0);
+});
+
 test("repeated actor evidence strengthens confidence without unbounded growth", () => {
   const single = scoreCandidate(candidate({ connections: [actor("a")] }), [historyItem({ id: 1, rating: "S", connections: [actor("a")] })]);
   const repeated = scoreCandidate(
