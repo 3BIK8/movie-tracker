@@ -32,7 +32,7 @@ function removeKnownRecommendations(recommendations, knownIds) {
 // Generic exploration candidates are intentionally excluded here. This endpoint
 // answers "what might I have watched?" rather than "what should I watch next?".
 // History-grounded expansion remains valid because those candidates are derived
-// from connections already present in the user's library.
+// from connections already present in the user's watched history.
 function removeGenericExplorationCandidates(candidates) {
   return candidates.filter((candidate) =>
     (candidate.sources || []).some((source) => source?.type !== "exploration"),
@@ -78,9 +78,10 @@ function diversifyRecommendationSet(candidates) {
 export async function analyzeWatchHistory(history, feedback = null) {
   const pipelineStartedAt = Date.now();
   const canonicalHistory = normalizeWatchHistory(history);
+  const watchedHistory = canonicalHistory.filter((item) => item.status === "watched");
   const effectiveFeedback = feedback || null;
   const recommendationCapacity = calculateRecommendationCapacity({
-    historyCount: canonicalHistory.length,
+    historyCount: watchedHistory.length,
     recentExposureCount: countRecentRecommendationExposures(effectiveFeedback),
     pageSize: RECOMMENDATION_PAGE_SIZE,
   });
@@ -109,8 +110,9 @@ export async function analyzeWatchHistory(history, feedback = null) {
   const historyEnrichmentMs = Date.now() - historyEnrichmentStartedAt;
 
   const enrichedHistory = enrichedResults.filter(Boolean);
+  const enrichedWatchedHistory = enrichedHistory.filter((item) => item.status === "watched");
   const profileStartedAt = Date.now();
-  const profile = analyzeHistory(enrichedHistory, effectiveFeedback);
+  const profile = analyzeHistory(enrichedWatchedHistory, effectiveFeedback);
   const tasteProfile = createTasteProfile(profile);
   const movieExplorationRatio = calculateExplorationRatio(profile.movies.strength);
   const tvExplorationRatio = calculateExplorationRatio(profile.tv.strength);
@@ -122,8 +124,8 @@ export async function analyzeWatchHistory(history, feedback = null) {
       const movieDiagnostics = {};
       const tvDiagnostics = {};
       const [movieCandidates, tvCandidates] = await Promise.all([
-        generateCandidates(profile.movies.connections, enrichedHistory, "movie", recommendationCapacity, movieDiagnostics),
-        generateCandidates(profile.tv.connections, enrichedHistory, "tv", recommendationCapacity, tvDiagnostics),
+        generateCandidates(profile.movies.connections, enrichedWatchedHistory, "movie", recommendationCapacity, movieDiagnostics),
+        generateCandidates(profile.tv.connections, enrichedWatchedHistory, "tv", recommendationCapacity, tvDiagnostics),
       ]);
       return {
         candidates: [movieCandidates, tvCandidates],
@@ -138,8 +140,8 @@ export async function analyzeWatchHistory(history, feedback = null) {
 
   const rankingStartedAt = Date.now();
   const [scoredMovies, scoredTv] = [
-    applyTemporalScoring(scoreCandidates(historicalMovieCandidates, enrichedHistory, effectiveFeedback), profile.movies),
-    applyTemporalScoring(scoreCandidates(historicalTvCandidates, enrichedHistory, effectiveFeedback), profile.tv),
+    applyTemporalScoring(scoreCandidates(historicalMovieCandidates, enrichedWatchedHistory, effectiveFeedback), profile.movies),
+    applyTemporalScoring(scoreCandidates(historicalTvCandidates, enrichedWatchedHistory, effectiveFeedback), profile.tv),
   ];
   const groundedMovies = enforceRecommendationGrounding(scoredMovies);
   const groundedTv = enforceRecommendationGrounding(scoredTv);
@@ -204,10 +206,11 @@ export async function analyzeWatchHistory(history, feedback = null) {
     recommendationDiagnostics: {
       capacity: recommendationCapacity,
       pageSize: RECOMMENDATION_PAGE_SIZE,
+      watchedHistoryCount: watchedHistory.length,
       recentExposureCount: countRecentRecommendationExposures(effectiveFeedback),
       movies: {
-        historyItems: canonicalHistory.filter((item) => item.type === "movie").length,
-        ratedItems: enrichedHistory.filter((item) => item.type === "movie" && item.status === "watched" && item.rating).length,
+        historyItems: watchedHistory.filter((item) => item.type === "movie").length,
+        ratedItems: enrichedWatchedHistory.filter((item) => item.type === "movie" && item.rating).length,
         candidateCounts: moviePools.counts,
         candidatePhases: candidateDiagnostics.movies,
         diversityLambda: moviePools.lambda,
@@ -216,8 +219,8 @@ export async function analyzeWatchHistory(history, feedback = null) {
         finalExploration: finalMovies.filter((item) => item.pool === "exploration").length,
       },
       tv: {
-        historyItems: canonicalHistory.filter((item) => item.type === "tv").length,
-        ratedItems: enrichedHistory.filter((item) => item.type === "tv" && item.status === "watched" && item.rating).length,
+        historyItems: watchedHistory.filter((item) => item.type === "tv").length,
+        ratedItems: enrichedWatchedHistory.filter((item) => item.type === "tv" && item.rating).length,
         candidateCounts: tvPools.counts,
         candidatePhases: candidateDiagnostics.tv,
         diversityLambda: tvPools.lambda,
