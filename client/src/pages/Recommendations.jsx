@@ -23,6 +23,11 @@ function RecommendationsView({ onPersonClick }) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const requestSequence = useRef(0);
+  const activeTypeRef = useRef("movie");
+
+  useEffect(() => {
+    activeTypeRef.current = activeType;
+  }, [activeType]);
 
   const loadRecommendations = useCallback(async () => {
     const requestId = ++requestSequence.current;
@@ -44,13 +49,12 @@ function RecommendationsView({ onPersonClick }) {
       };
 
       setRecommendations(filteredRecommendations);
-      recordRecommendationsShown([
-        ...filteredRecommendations.movies.slice(0, PAGE_SIZE),
-        ...filteredRecommendations.tv.slice(0, PAGE_SIZE),
-      ]);
       setPage(1);
       setPageInput("1");
       setExpandedId(null);
+
+      const visibleType = activeTypeRef.current === "movie" ? "movies" : "tv";
+      recordRecommendationsShown(filteredRecommendations[visibleType].slice(0, PAGE_SIZE));
     } catch (requestError) {
       if (requestId !== requestSequence.current) return;
       console.error(requestError);
@@ -91,6 +95,8 @@ function RecommendationsView({ onPersonClick }) {
     setPage(1);
     setPageInput("1");
     setExpandedId(null);
+    const nextKey = type === "movie" ? "movies" : "tv";
+    recordRecommendationsShown((recommendations[nextKey] || []).slice(0, PAGE_SIZE));
   }
 
   function changePage(newPage) {
@@ -132,7 +138,7 @@ function RecommendationsView({ onPersonClick }) {
       <header className="recommendations-header">
         <div>
           <h1>Recommendations</h1>
-          <p>Recommendations based on what you have watched and rated.</p>
+          <p>Things you might have watched, based on your library and its connections.</p>
         </div>
         <button type="button" onClick={() => loadRecommendations()} disabled={isLoading}>
           {isLoading ? "Analyzing…" : "Refresh"}
@@ -145,7 +151,7 @@ function RecommendationsView({ onPersonClick }) {
       </div>
 
       {error && <div className="recommendations-error">{error}</div>}
-      {isLoading && <div className="recommendations-loading">Generating recommendations…</div>}
+      {isLoading && <div className="recommendations-loading">Analyzing your library…</div>}
       {!isLoading && !error && visibleItems.length === 0 && (
         <div className="recommendations-empty">
           <p>No recommendations yet.</p>

@@ -1,5 +1,5 @@
 const STORAGE_KEY = "recommendation-feedback";
-const MAX_EXPOSURES = 100;
+const MAX_EXPOSURES = 500;
 const DEFAULT_IGNORE_AFTER_DAYS = 7;
 
 function normalizeKey(type, id) {
@@ -24,7 +24,7 @@ function writeLedger(ledger) {
   } catch (error) {
     if (error?.name !== "QuotaExceededError") return;
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ exposures: exposures.slice(-25) }));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ exposures: exposures.slice(-50) }));
     } catch {
       try { localStorage.removeItem(STORAGE_KEY); } catch { /* storage unavailable */ }
     }
