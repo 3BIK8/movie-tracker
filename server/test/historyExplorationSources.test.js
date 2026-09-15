@@ -5,7 +5,7 @@ import {
   MAX_HISTORY_EXPLORATION_SOURCES,
 } from "../services/recommendations/historyExplorationSources.js";
 
-test("history exploration uses watched connections without creating taste evidence", () => {
+test("history exploration uses library connections without creating taste evidence", () => {
   const history = [
     {
       type: "movie",
@@ -51,10 +51,11 @@ test("history exploration uses watched connections without creating taste eviden
     },
   );
 
-  assert.equal(result.watchedHistoryItems, 2);
-  assert.equal(result.historyConnectionCount, 5);
-  assert.equal(sources.some((source) => source.value === "99"), false);
+  assert.equal(result.watchedHistoryItems, 3);
+  assert.equal(result.historyConnectionCount, 6);
+  assert.equal(sources.some((source) => source.value === "99"), true);
   assert.equal(sources.some((source) => source.value === "30"), false);
+  assert.equal(sources.some((source) => source.type === "directors"), false);
 });
 
 test("history exploration falls back to canonical metadata fields", () => {
@@ -85,11 +86,11 @@ test("history exploration falls back to canonical metadata fields", () => {
 
   assert.equal(result.watchedHistoryItems, 2);
   assert.ok(values.includes("actors:10"));
-  assert.ok(values.includes("actors:30"));
-  assert.ok(values.includes("directors:20"));
   assert.ok(values.includes("genres:28"));
   assert.ok(values.includes("keywords:99"));
-  assert.equal(values.includes("actors:40"), false);
+  assert.ok(values.includes("actors:40"));
+  assert.equal(values.includes("actors:30"), false);
+  assert.equal(values.includes("directors:20"), false);
 });
 
 test("history exploration source selection is deterministic and bounded", () => {
