@@ -23,6 +23,11 @@ function RecommendationsView({ onPersonClick }) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const requestSequence = useRef(0);
+  const activeTypeRef = useRef("movie");
+
+  useEffect(() => {
+    activeTypeRef.current = activeType;
+  }, [activeType]);
 
   const loadRecommendations = useCallback(async () => {
     const requestId = ++requestSequence.current;
@@ -48,7 +53,7 @@ function RecommendationsView({ onPersonClick }) {
       setPageInput("1");
       setExpandedId(null);
 
-      const visibleType = activeType === "movie" ? "movies" : "tv";
+      const visibleType = activeTypeRef.current === "movie" ? "movies" : "tv";
       recordRecommendationsShown(filteredRecommendations[visibleType].slice(0, PAGE_SIZE));
     } catch (requestError) {
       if (requestId !== requestSequence.current) return;
@@ -57,7 +62,7 @@ function RecommendationsView({ onPersonClick }) {
     } finally {
       if (requestId === requestSequence.current) setIsLoading(false);
     }
-  }, [activeType]);
+  }, []);
 
   useEffect(() => {
     // This effect intentionally starts an external data request that updates view state.
@@ -90,6 +95,8 @@ function RecommendationsView({ onPersonClick }) {
     setPage(1);
     setPageInput("1");
     setExpandedId(null);
+    const nextKey = type === "movie" ? "movies" : "tv";
+    recordRecommendationsShown((recommendations[nextKey] || []).slice(0, PAGE_SIZE));
   }
 
   function changePage(newPage) {
