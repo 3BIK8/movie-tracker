@@ -1,9 +1,17 @@
 const RATING_WEIGHTS = {
-  S: 1.0,
-  A: 0.7,
-  B: 0.3,
+  // Ratings are deliberately weak modifiers. They describe how one movie felt,
+  // not a durable statement that the user likes its characteristics.
+  S: 0.08,
+  A: 0.05,
+  B: 0.02,
   C: 0,
-  D: -1.0,
+  D: -0.08,
+};
+
+const LIBRARY_WEIGHTS = {
+  watched: 0.35,
+  to_watch: 0.45,
+  not_sure: 0.15,
 };
 
 const CONNECTION_TYPES = [
@@ -20,11 +28,8 @@ const CONNECTION_TYPES = [
 ];
 
 const TEMPORAL_HALF_LIFE_DAYS = 180;
-const FAVORITE_TEMPORAL_MULTIPLIER = 1.25;
-const FEEDBACK_WEIGHTS = {
-  skipped: -0.15,
-  ignored: -0.25,
-};
+const FAVORITE_TEMPORAL_MULTIPLIER = 1.1;
+const FEEDBACK_WEIGHTS = { skipped: -0.15, ignored: -0.25 };
 
 function createSignal() {
   return {
@@ -48,205 +53,107 @@ function createProfile() {
 }
 
 function createTmdbRatingProfile() {
-  return {
-    buckets: {},
-    observations: 0,
-  };
+  return { buckets: {}, observations: 0 };
 }
 
 function createTemporalProfile() {
-  return {
-    observations: 0,
-    recentObservations: 0,
-    favoriteObservations: 0,
-    averageRecencyWeight: 0,
-  };
+  return { observations: 0, recentObservations: 0, favoriteObservations: 0, averageRecencyWeight: 0 };
 }
 
 function getTmdbRatingBucket(rating) {
-  if (typeof rating !== "number") {
-    return null;
-  }
-
-  const bucket = Math.floor(rating * 2) / 2;
-
-  return bucket.toFixed(1);
+  if (typeof rating !== "number") return null;
+  return (Math.floor(rating * 2) / 2).toFixed(1);
 }
 
 function addTmdbRatingSignal(profile, tmdbRating, personalRating) {
   const bucket = getTmdbRatingBucket(tmdbRating);
-
-  if (
-    !bucket ||
-    !Object.prototype.hasOwnProperty.call(RATING_WEIGHTS, personalRating)
-  ) {
-    return;
-  }
-
+  if (!bucket || !Object.prototype.hasOwnProperty.call(RATING_WEIGHTS, personalRating)) return;
   if (!profile.buckets[bucket]) {
     profile.buckets[bucket] = {
       observations: 0,
-      ratingScores: {
-        S: 0,
-        A: 0,
-        B: 0,
-        C: 0,
-        D: 0,
-      },
+      ratingScores: { S: 0, A: 0, B: 0, C: 0, D: 0 },
       averageScore: 0,
     };
   }
-
   const bucketData = profile.buckets[bucket];
-
   bucketData.observations += 1;
   bucketData.ratingScores[personalRating] += 1;
-
-  bucketData.averageScore =
-    Object.entries(bucketData.ratingScores).reduce(
-      (total, [rating, count]) => total + RATING_WEIGHTS[rating] * count,
-      0,
-    ) / bucketData.observations;
-
+  bucketData.averageScore = Object.entries(bucketData.ratingScores).reduce(
+    (total, [rating, count]) => total + RATING_WEIGHTS[rating] * count,
+    0,
+  ) / bucketData.observations;
   profile.observations += 1;
 }
 
 function calculateConfidence(appearances) {
-  if (appearances <= 0) {
-    return 0;
-  }
-
-  return appearances / (appearances + 1);
+  return appearances <= 0 ? 0 : appearances / (appearances + 1);
 }
 
 function calculateEvidenceScore(netScore, confidence) {
-  if (netScore === 0 || confidence <= 0) {
-    return 0;
-  }
-
-  return netScore * confidence;
+  return netScore === 0 || confidence <= 0 ? 0 : netScore * confidence;
 }
 
 function calculateRecencyWeight(timestamp, now = Date.now()) {
-  if (!timestamp) {
-    return 1;
-  }
-
+  if (!timestamp) return 1;
   const time = Date.parse(timestamp);
-
-  if (!Number.isFinite(time)) {
-    return 1;
-  }
-
+  if (!Number.isFinite(time)) return 1;
   const ageDays = Math.max(0, (now - time) / 86_400_000);
   return Math.pow(0.5, ageDays / TEMPORAL_HALF_LIFE_DAYS);
 }
 
 function getInteractionTimestamp(media) {
-  return (
-    media.lastInteractedAt ||
-    media.ratingUpdatedAt ||
-    media.favoriteAt ||
-    media.statusChangedAt ||
-    null
-  );
+  return media.lastInteractedAt || media.ratingUpdatedAt || media.favoriteAt || media.statusChangedAt || null;
 }
 
-function addSignal(profile, type, value, ratingWeight, temporalWeight = ratingWeight) {
-  if (value === null || value === undefined || value === "") {
-    return;
-  }
+function getLibraryWeight(status) {
+  return LIBRARY_WEIGHTS[status] ?? 0;
+}
 
+function getRatingAdjustment(rating) {
+  return RATING_WEIGHTS[rating] ?? 0;
+}
+
+function addSignal(profile, type, value, baseWeight, temporalWeight = baseWeight) {
+  if (value === null || value === undefined || value === "") return;
   const key = String(value);
-
-  if (!profile[type][key]) {
-    profile[type][key] = createSignal();
-  }
+  if (!profile[type][key]) profile[type][key] = createSignal();
 
   const signal = profile[type][key];
-
   signal.appearances += 1;
-
-  if (ratingWeight > 0) {
-    signal.positiveScore += ratingWeight;
+  if (baseWeight > 0) {
+    signal.positiveScore += baseWeight;
     signal.positiveAppearances += 1;
     signal.temporalPositiveScore += temporalWeight;
-  } else if (ratingWeight < 0) {
-    signal.negativeScore += Math.abs(ratingWeight);
+  } else if (baseWeight < 0) {
+    signal.negativeScore += Math.abs(baseWeight);
     signal.negativeAppearances += 1;
     signal.temporalNegativeScore += Math.abs(temporalWeight);
   }
 
   signal.netScore = signal.positiveScore - signal.negativeScore;
   signal.confidence = calculateConfidence(signal.appearances);
-  signal.evidenceScore = calculateEvidenceScore(
-    signal.netScore,
-    signal.confidence,
-  );
-
-  signal.temporalNetScore =
-    signal.temporalPositiveScore - signal.temporalNegativeScore;
-  signal.temporalEvidenceScore = calculateEvidenceScore(
-    signal.temporalNetScore,
-    signal.confidence,
-  );
+  signal.evidenceScore = calculateEvidenceScore(signal.netScore, signal.confidence);
+  signal.temporalNetScore = signal.temporalPositiveScore - signal.temporalNegativeScore;
+  signal.temporalEvidenceScore = calculateEvidenceScore(signal.temporalNetScore, signal.confidence);
 }
 
-function addMediaConnections(profile, media, ratingWeight, temporalWeight) {
-  for (const actor of media.actors || []) {
-    addSignal(profile, "actors", actor.id ?? actor.name, ratingWeight, temporalWeight);
-  }
-
-  for (const director of media.directors || []) {
-    addSignal(profile, "directors", director.id ?? director.name, ratingWeight, temporalWeight);
-  }
-
-  for (const genre of media.genres || []) {
-    addSignal(profile, "genres", genre.id ?? genre.name ?? genre, ratingWeight, temporalWeight);
-  }
-
-  for (const franchise of media.franchises || []) {
-    addSignal(
-      profile,
-      "franchises",
-      franchise.id ?? franchise.name,
-      ratingWeight,
-      temporalWeight,
-    );
-  }
-
-  for (const studio of media.studios || []) {
-    addSignal(profile, "studios", studio.id ?? studio.name, ratingWeight, temporalWeight);
-  }
-
-  for (const keyword of media.keywords || []) {
-    addSignal(profile, "keywords", keyword.id ?? keyword.name, ratingWeight, temporalWeight);
-  }
+function addMediaConnections(profile, media, baseWeight, temporalWeight) {
+  for (const actor of media.actors || []) addSignal(profile, "actors", actor.id ?? actor.name, baseWeight, temporalWeight);
+  for (const director of media.directors || []) addSignal(profile, "directors", director.id ?? director.name, baseWeight, temporalWeight);
+  for (const genre of media.genres || []) addSignal(profile, "genres", genre.id ?? genre.name ?? genre, baseWeight, temporalWeight);
+  for (const franchise of media.franchises || []) addSignal(profile, "franchises", franchise.id ?? franchise.name, baseWeight, temporalWeight);
+  for (const studio of media.studios || []) addSignal(profile, "studios", studio.id ?? studio.name, baseWeight, temporalWeight);
+  for (const keyword of media.keywords || []) addSignal(profile, "keywords", keyword.id ?? keyword.name, baseWeight, temporalWeight);
 
   if (media.year) {
-    addSignal(profile, "years", media.year, ratingWeight, temporalWeight);
-    addSignal(
-      profile,
-      "years",
-      Math.floor(media.year / 10) * 10,
-      ratingWeight,
-      temporalWeight,
-    );
+    addSignal(profile, "years", media.year, baseWeight, temporalWeight);
+    addSignal(profile, "years", Math.floor(media.year / 10) * 10, baseWeight, temporalWeight);
   }
-
-  if (media.language) {
-    addSignal(profile, "languages", media.language, ratingWeight, temporalWeight);
-  }
-
-  if (media.type) {
-    addSignal(profile, "mediaTypes", media.type, ratingWeight, temporalWeight);
-  }
-
+  if (media.language) addSignal(profile, "languages", media.language, baseWeight, temporalWeight);
+  if (media.type) addSignal(profile, "mediaTypes", media.type, baseWeight, temporalWeight);
   if (typeof media.popularity === "number") {
-    const popularityBucket =
-      media.popularity < 10 ? "low" : media.popularity < 50 ? "medium" : "high";
-
-    addSignal(profile, "popularity", popularityBucket, ratingWeight, temporalWeight);
+    const popularityBucket = media.popularity < 10 ? "low" : media.popularity < 50 ? "medium" : "high";
+    addSignal(profile, "popularity", popularityBucket, baseWeight, temporalWeight);
   }
 }
 
@@ -265,68 +172,35 @@ function getFeedbackConnectionTarget(type) {
 }
 
 function applyFeedbackSignals(profile, feedback, mediaType, now) {
-  const summary = {
-    skipped: 0,
-    ignored: 0,
-    applied: 0,
-  };
-
+  const summary = { skipped: 0, ignored: 0, applied: 0 };
   for (const exposure of feedback?.exposures || []) {
-    if (exposure.type !== mediaType) {
-      continue;
-    }
-
+    if (exposure.type !== mediaType) continue;
     for (const interaction of exposure.interactions || []) {
       const ratingWeight = FEEDBACK_WEIGHTS[interaction.event];
-
-      if (ratingWeight === undefined) {
-        continue;
-      }
-
-      const temporalWeight =
-        ratingWeight * calculateRecencyWeight(exposure.exposedAt, now);
-
+      if (ratingWeight === undefined) continue;
+      const temporalWeight = ratingWeight * calculateRecencyWeight(exposure.exposedAt, now);
       for (const connection of exposure.connections || []) {
         const target = getFeedbackConnectionTarget(connection.type);
-
-        if (!target) {
-          continue;
-        }
-
-        addSignal(
-          profile,
-          target,
-          connection.value,
-          ratingWeight,
-          temporalWeight,
-        );
+        if (!target) continue;
+        addSignal(profile, target, connection.value, ratingWeight, temporalWeight);
         summary.applied += 1;
       }
-
       summary[interaction.event] += 1;
     }
   }
-
   return summary;
 }
 
 function calculateProfileStrength(profile, temporal) {
   const evidenceSignals = CONNECTION_TYPES.reduce(
-    (total, type) =>
-      total +
-      Object.values(profile[type]).filter(
-        (signal) => signal.evidenceScore !== 0,
-      ).length,
+    (total, type) => total + Object.values(profile[type]).filter((signal) => signal.evidenceScore !== 0).length,
     0,
   );
-
   const coverage = Math.min(1, temporal.observations / 20);
   const breadth = Math.min(1, evidenceSignals / 40);
   const recency = temporal.averageRecencyWeight;
-  const score = 0.5 * coverage + 0.3 * breadth + 0.2 * recency;
-
   return {
-    score,
+    score: 0.5 * coverage + 0.3 * breadth + 0.2 * recency,
     coverage,
     breadth,
     recency,
@@ -341,55 +215,28 @@ function analyzeMediaType(history, feedback, mediaType) {
   const now = Date.now();
 
   for (const media of history) {
-    if (
-      media.status !== "watched" ||
-      !Object.prototype.hasOwnProperty.call(RATING_WEIGHTS, media.rating)
-    ) {
-      continue;
-    }
+    if (!["watched", "to_watch", "not_sure"].includes(media.status)) continue;
 
-    const ratingWeight = RATING_WEIGHTS[media.rating];
+    const libraryWeight = getLibraryWeight(media.status);
+    const ratingAdjustment = getRatingAdjustment(media.rating);
+    const baseWeight = libraryWeight + ratingAdjustment;
+    if (baseWeight === 0) continue;
 
-    // C is explicitly neutral: it must not create observations, confidence,
-    // or evidence that can influence the taste profile.
-    if (ratingWeight === 0) {
-      continue;
-    }
+    const recencyWeight = calculateRecencyWeight(getInteractionTimestamp(media), now);
+    const favoriteMultiplier = media.favorite ? FAVORITE_TEMPORAL_MULTIPLIER : 1;
+    const temporalWeight = baseWeight * recencyWeight * favoriteMultiplier;
 
-    const recencyWeight = calculateRecencyWeight(
-      getInteractionTimestamp(media),
-      now,
-    );
-    const favoriteMultiplier = media.favorite
-      ? FAVORITE_TEMPORAL_MULTIPLIER
-      : 1;
-    const temporalWeight = ratingWeight * recencyWeight * favoriteMultiplier;
-
-    addMediaConnections(profile, media, ratingWeight, temporalWeight);
+    addMediaConnections(profile, media, baseWeight, temporalWeight);
     addTmdbRatingSignal(tmdbRatingProfile, media.tmdbRating, media.rating);
 
     temporal.observations += 1;
     temporal.averageRecencyWeight += recencyWeight;
-
-    if (recencyWeight >= 0.5) {
-      temporal.recentObservations += 1;
-    }
-
-    if (media.favorite === true) {
-      temporal.favoriteObservations += 1;
-    }
+    if (recencyWeight >= 0.5) temporal.recentObservations += 1;
+    if (media.favorite === true) temporal.favoriteObservations += 1;
   }
 
-  const feedbackSummary = applyFeedbackSignals(
-    profile,
-    feedback,
-    mediaType,
-    now,
-  );
-
-  if (temporal.observations > 0) {
-    temporal.averageRecencyWeight /= temporal.observations;
-  }
+  const feedbackSummary = applyFeedbackSignals(profile, feedback, mediaType, now);
+  if (temporal.observations > 0) temporal.averageRecencyWeight /= temporal.observations;
 
   return {
     connections: profile,
@@ -401,12 +248,9 @@ function analyzeMediaType(history, feedback, mediaType) {
 }
 
 export function analyzeHistory(history, feedback = null) {
-  const movies = history.filter((media) => media.type === "movie");
-  const tv = history.filter((media) => media.type === "tv");
-
   return {
-    movies: analyzeMediaType(movies, feedback, "movie"),
-    tv: analyzeMediaType(tv, feedback, "tv"),
+    movies: analyzeMediaType(history.filter((media) => media.type === "movie"), feedback, "movie"),
+    tv: analyzeMediaType(history.filter((media) => media.type === "tv"), feedback, "tv"),
   };
 }
 
