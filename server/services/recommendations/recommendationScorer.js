@@ -102,19 +102,16 @@ function buildConnectionModel(history, feedback = null, mediaType = null) {
     }
   }
 
+  // Navigation is deliberately not treated as taste evidence. A skipped
+  // impression means "not now"; explicit Not interested is handled only by
+  // item-level suppression below.
   for (const exposure of feedback?.exposures || []) {
     if (mediaType && exposure.type !== mediaType) continue;
     for (const interaction of exposure.interactions || []) {
       const weight = FEEDBACK_WEIGHTS[interaction.event];
       if (weight === undefined) continue;
-      for (const connection of exposure.connections || []) {
-        if (isIgnoredConnection(connection.type, exposure.type)) continue;
-        const data = ensure(connection);
-        data.totalScore += weight;
-        data.appearances += 1;
-        data.negativeScore += Math.abs(weight);
-        data.implicitNegativeScore += Math.abs(weight);
-      }
+      // Keep interaction data available for diagnostics without allowing
+      // navigation to rewrite the user's genre/keyword/actor preferences.
     }
   }
 
@@ -222,7 +219,7 @@ function getSuppressedRecommendationKeys(feedback, now = Date.now()) {
 
     const key = `${exposure.type}:${String(exposure.id)}`;
     const hasPermanentNegative = (exposure.interactions || []).some(
-      (interaction) => ["ignored", "not_interested"].includes(interaction?.event),
+      (interaction) => interaction?.event === "not_interested",
     );
     if (hasPermanentNegative) {
       suppressed.add(key);
