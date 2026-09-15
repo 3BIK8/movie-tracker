@@ -19,26 +19,32 @@ const media = (rating) => ({
   tmdbRating: 7,
 });
 
-test("C-only history contributes no taste evidence", () => {
+test("library membership contributes evidence regardless of rating", () => {
   const profile = analyzeHistory([media("C")]);
+  const actor = profile.movies.connections.actors["actor-1"];
 
-  assert.deepEqual(profile.movies.connections.actors, {});
-  assert.deepEqual(profile.movies.connections.directors, {});
-  assert.equal(profile.movies.tmdbRatingProfile.observations, 0);
+  assert.ok(actor);
+  assert.equal(actor.positiveScore, 0.35);
+  assert.equal(actor.negativeScore, 0);
+  assert.equal(profile.movies.tmdbRatingProfile.observations, 1);
 });
 
-test("adding a C-rated item does not change an A-rated profile", () => {
+test("a neutral rating still contributes library evidence", () => {
   const withoutC = analyzeHistory([media("A")]);
-  const withC = analyzeHistory([media("A"), media("C")]);
+  const withC = analyzeHistory([media("A"), { ...media("C"), id: "2" }]);
 
-  assert.deepEqual(withC, withoutC);
+  const actorWithoutC = withoutC.movies.connections.actors["actor-1"];
+  const actorWithC = withC.movies.connections.actors["actor-1"];
+
+  assert.ok(actorWithC.positiveScore > actorWithoutC.positiveScore);
+  assert.ok(actorWithC.positiveScore < actorWithoutC.positiveScore * 2);
 });
 
-test("D-rated evidence remains negative", () => {
+test("a low rating is only a small modifier, not a negative taste label", () => {
   const profile = analyzeHistory([media("D")]);
   const actor = profile.movies.connections.actors["actor-1"];
 
-  assert.equal(actor.positiveScore, 0);
-  assert.equal(actor.negativeScore, 1);
-  assert.ok(actor.evidenceScore < 0);
+  assert.ok(actor.positiveScore > 0);
+  assert.equal(actor.negativeScore, 0);
+  assert.ok(actor.evidenceScore > 0);
 });

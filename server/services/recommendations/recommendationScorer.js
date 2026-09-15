@@ -1,24 +1,33 @@
 const RATING_WEIGHTS = {
-  S: 1.0,
-  A: 0.7,
-  B: 0.3,
+  S: 0.08,
+  A: 0.05,
+  B: 0.02,
   C: 0,
-  D: -1.0,
+  D: -0.08,
+};
+
+const LIBRARY_WEIGHTS = {
+  watched: 0.35,
+  to_watch: 0.45,
+  not_sure: 0.15,
 };
 
 const FEEDBACK_WEIGHTS = { skipped: -0.15, ignored: -0.25 };
-const CHANNEL_WEIGHTS = {
-  franchise: 0.9,
-  actor: 0.7,
-  studio: 0.45,
-  director: 0.4,
-  genre: 0.65,
-  keyword: 0.5,
-  decade: 0.2,
-  language: 0.1,
+
+// Personalization is intentionally content-first. Credits are supporting
+// evidence, not taste labels; studios and directors are not taste signals.
+const CHANNEL_CAPS = {
+  franchise: 0.55,
+  actor: 0.12,
+  studio: 0,
+  director: 0,
+  genre: 0.8,
+  keyword: 0.95,
+  decade: 0.08,
+  language: 0.04,
 };
-const CHANNEL_CAPS = { ...CHANNEL_WEIGHTS };
-const STRONG_CONNECTION_TYPES = new Set(["franchise", "actor", "studio", "director"]);
+
+const STRONG_CONNECTION_TYPES = new Set(["franchise"]);
 const SUPPORT_CONNECTION_TYPES = new Set(["genre", "keyword"]);
 const CONTEXT_CONNECTION_TYPES = new Set(["decade", "language"]);
 const EXPOSURE_DECAY_DAYS = 14;
@@ -26,16 +35,18 @@ const EXPOSURE_MULTIPLIER_STEP = 0.18;
 const MIN_EXPOSURE_MULTIPLIER = 0.15;
 const QUALITY_FLOOR = 5.8;
 const QUALITY_CEILING = 8.5;
-const MAX_QUALITY_BONUS = 0.55;
-const MAX_NEGATIVE_SCORE = 2.5;
+const MAX_QUALITY_BONUS = 0.8;
+const MAX_NEGATIVE_SCORE = 1.5;
 const DIMINISHING_RETURNS = [1, 0.55, 0.3, 0.18];
 
 function getConnectionKey(connection) {
   return `${connection.type}:${connection.value}`;
 }
+
 function isIgnoredConnection(type, mediaType) {
   return mediaType === "tv" && type === "actor";
 }
+
 function getEvidenceClass(type) {
   if (STRONG_CONNECTION_TYPES.has(type)) return "strong";
   if (SUPPORT_CONNECTION_TYPES.has(type)) return "support";
@@ -43,7 +54,15 @@ function getEvidenceClass(type) {
   return "other";
 }
 
-function buildConnectionModel(ratedHistory, feedback = null, mediaType = null) {
+function getLibraryWeight(item) {
+  return LIBRARY_WEIGHTS[item?.status] ?? 0;
+}
+
+function getRatingAdjustment(item) {
+  return RATING_WEIGHTS[item?.rating] ?? 0;
+}
+
+function buildConnectionModel(history, feedback = null, mediaType = null) {
   const model = new Map();
   const ensure = (connection) => {
     const key = getConnectionKey(connection);
@@ -62,18 +81,22 @@ function buildConnectionModel(ratedHistory, feedback = null, mediaType = null) {
     return model.get(key);
   };
 
-  for (const item of ratedHistory) {
-    const weight = RATING_WEIGHTS[item.rating];
-    if (weight === undefined || weight === 0) continue;
+  for (const item of history) {
+    if (item?.type !== mediaType) continue;
+    const weight = getLibraryWeight(item) + getRatingAdjustment(item);
+    if (weight === 0) continue;
+
     for (const connection of item.connections || []) {
       if (isIgnoredConnection(connection.type, item.type)) continue;
       const data = ensure(connection);
       data.totalScore += weight;
       data.appearances += 1;
-      if (weight > 0) data.positiveScore += weight;
-      else {
+      if (weight > 0) {
+        data.positiveScore += weight;
+      } else {
         data.negativeScore += Math.abs(weight);
-        data.explicitNegativeScore += Math.abs(weight);
+        if (getRatingAdjustment(item) < 0) data.explicitNegativeScore += Math.abs(getRatingAdjustment(item));
+        else data.implicitNegativeScore += Math.abs(weight);
       }
     }
   }
@@ -107,6 +130,9 @@ function scoreConnection(data) {
 }
 
 function aggregateChannelEvidence(evidence, type) {
+  const cap = CHANNEL_CAPS[type] ?? 0;
+  if (cap <= 0) return { positiveScore: 0, negativeScore: 0 };
+
   const values = evidence
     .filter((item) => item.type === type)
     .sort((a, b) => Math.abs(b.normalizedScore) - Math.abs(a.normalizedScore));
@@ -117,7 +143,6 @@ function aggregateChannelEvidence(evidence, type) {
     if (contribution > 0) positive += contribution;
     else negative += Math.abs(contribution);
   }
-  const cap = CHANNEL_CAPS[type] ?? 0;
   return {
     positiveScore: Math.min(positive * cap, cap),
     negativeScore: Math.min(negative * cap, cap),
@@ -162,10 +187,10 @@ function hasHardNegative(candidate, model) {
   return false;
 }
 
-function buildMatchedHistory(candidate, ratedHistory, connectionEvidence) {
+function buildMatchedHistory(candidate, history, connectionEvidence) {
   const positive = connectionEvidence.filter((item) => item.score > 0);
   const matches = new Map();
-  for (const historyItem of ratedHistory) {
+  for (const historyItem of history) {
     if (historyItem.type !== candidate.type) continue;
     const matched = positive.filter((evidence) =>
       (historyItem.connections || []).some(
@@ -181,11 +206,7 @@ function buildMatchedHistory(candidate, ratedHistory, connectionEvidence) {
       strongConnections: matched.filter((item) => item.strength === "strong"),
       supportConnections: matched.filter((item) => item.strength === "support"),
       contextConnections: matched.filter((item) => item.strength === "context"),
-      matchStrength: matched.some((item) => item.strength === "strong")
-        ? "strong"
-        : matched.some((item) => item.strength === "support")
-          ? "support"
-          : "context",
+      matchStrength: matched.some((item) => item.strength === "strong") ? "strong" : "support",
     });
   }
   return [...matches.values()].sort((a, b) => b.score - a.score);
@@ -195,18 +216,16 @@ function getIgnoredRecommendationKeys(feedback) {
   const ignored = new Set();
   for (const exposure of feedback?.exposures || []) {
     if (!["movie", "tv"].includes(exposure?.type)) continue;
-    if ((exposure.interactions || []).some((interaction) =>
-      ["ignored", "not_interested"].includes(interaction?.event),
-    )) {
+    if ((exposure.interactions || []).some((interaction) => ["ignored", "not_interested"].includes(interaction?.event))) {
       ignored.add(`${exposure.type}:${String(exposure.id)}`);
     }
   }
   return ignored;
 }
 
-export function scoreCandidate(candidate, ratedHistory, connectionModel = null, feedback = null) {
-  const relevantHistory = ratedHistory.filter(
-    (item) => item.type === candidate.type && item.status === "watched" && RATING_WEIGHTS[item.rating] !== undefined,
+export function scoreCandidate(candidate, history, connectionModel = null, feedback = null) {
+  const relevantHistory = history.filter(
+    (item) => item.type === candidate.type && ["watched", "to_watch", "not_sure"].includes(item.status),
   );
   const model = connectionModel || buildConnectionModel(relevantHistory, feedback, candidate.type);
   const connectionEvidence = [];
@@ -243,7 +262,7 @@ export function scoreCandidate(candidate, ratedHistory, connectionModel = null, 
   }
 
   const qualityBonus = calculateQualityBonus(candidate);
-  const qualityContribution = positiveConnectionScore > 0 ? qualityBonus : 0;
+  const qualityContribution = qualityBonus;
   const basePositiveScore = positiveConnectionScore + qualityContribution;
   const negativeScore = Math.min(MAX_NEGATIVE_SCORE, negativeConnectionScore);
   const exposure = getExposurePenalty(candidate, feedback);
@@ -260,15 +279,9 @@ export function scoreCandidate(candidate, ratedHistory, connectionModel = null, 
     recommendationScore: finalScore,
     positiveScore: basePositiveScore,
     negativeScore,
-    strongScore: ["franchise", "actor", "studio", "director"].reduce(
-      (sum, type) => sum + (channelScores[type]?.positiveScore || 0) - (channelScores[type]?.negativeScore || 0),
-      0,
-    ),
+    strongScore: channelScores.franchise ? channelScores.franchise.positiveScore - channelScores.franchise.negativeScore : 0,
     genreScore: (channelScores.genre?.positiveScore || 0) - (channelScores.genre?.negativeScore || 0),
-    contextScore: ["decade", "language"].reduce(
-      (sum, type) => sum + (channelScores[type]?.positiveScore || 0) - (channelScores[type]?.negativeScore || 0),
-      0,
-    ),
+    contextScore: ["decade", "language"].reduce((sum, type) => sum + (channelScores[type]?.positiveScore || 0) - (channelScores[type]?.negativeScore || 0), 0),
     historyAnchorScore: 0,
     hardNegative,
     exposureCount: exposure.count,
@@ -290,11 +303,9 @@ export function scoreCandidate(candidate, ratedHistory, connectionModel = null, 
   };
 }
 
-export function rankCandidates(candidates, ratedHistory, feedback = null) {
+export function rankCandidates(candidates, history, feedback = null) {
   const mediaTypes = new Set(candidates.map((candidate) => candidate.type).filter(Boolean));
-  const isolatedHistory = ratedHistory.filter(
-    (item) => mediaTypes.has(item.type) && item.status === "watched" && RATING_WEIGHTS[item.rating] !== undefined,
-  );
+  const isolatedHistory = history.filter((item) => mediaTypes.has(item.type) && ["watched", "to_watch", "not_sure"].includes(item.status));
   const models = new Map();
   for (const type of mediaTypes) {
     models.set(type, buildConnectionModel(isolatedHistory.filter((item) => item.type === type), feedback, type));
@@ -311,12 +322,13 @@ export function rankCandidates(candidates, ratedHistory, feedback = null) {
     );
 }
 
-export function scoreCandidates(candidates, ratedHistory, feedback = null) {
-  return rankCandidates(candidates, ratedHistory, feedback);
+export function scoreCandidates(candidates, history, feedback = null) {
+  return rankCandidates(candidates, history, feedback);
 }
 
 export const RECOMMENDATION_SCORING_POLICY = Object.freeze({
-  channelWeights: CHANNEL_WEIGHTS,
+  ratingWeights: RATING_WEIGHTS,
+  libraryWeights: LIBRARY_WEIGHTS,
   channelCaps: CHANNEL_CAPS,
   qualityFloor: QUALITY_FLOOR,
   qualityCeiling: QUALITY_CEILING,

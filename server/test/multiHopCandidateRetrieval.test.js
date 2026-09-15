@@ -33,7 +33,7 @@ test("multi-hop bridge selection is deterministic and favors independent sources
   );
 });
 
-test("second-order connections prioritize relationship-type coverage before filling the bound", () => {
+test("second-order connections prioritize supported relationship types before filling the bound", () => {
   const metadata = {
     actors: [
       { id: 10, name: "Actor" },
@@ -54,6 +54,8 @@ test("second-order connections prioritize relationship-type coverage before fill
   assert.equal(connections.length, 3);
   assert.deepEqual(
     connections.map((connection) => `${connection.type}:${connection.value}`),
-    ["actor:10", "director:20", "franchise:50"],
+    ["actor:10", "franchise:50", "genre:30"],
   );
+  assert.equal(connections.some((connection) => connection.type === "director"), false);
+  assert.equal(connections.some((connection) => connection.type === "studio"), false);
 });

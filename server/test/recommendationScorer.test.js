@@ -16,24 +16,27 @@ function candidate({ id = 100, type = "movie", connections, title = "Candidate",
 function actor(id = "actor-1") { return { type: "actor", value: id }; }
 function genre(id = "genre-1") { return { type: "genre", value: id }; }
 
-test("S-rated history creates positive actor evidence", () => {
+test("library membership creates a small actor similarity signal", () => {
   const result = scoreCandidate(candidate({ connections: [actor()] }), [historyItem({ rating: "S", connections: [actor()] })]);
   assert.ok(result.recommendationScore > 0);
-  assert.ok(result.strongScore > 0);
-});
-
-test("D-rated history creates negative actor evidence", () => {
-  const result = scoreCandidate(candidate({ connections: [actor()] }), [historyItem({ rating: "D", connections: [actor()] })]);
-  assert.ok(result.recommendationScore < 0);
-  assert.ok(result.strongScore < 0);
-});
-
-test("C-rated history is neutral and does not create evidence", () => {
-  const result = scoreCandidate(candidate({ connections: [actor()] }), [historyItem({ rating: "C", connections: [actor()] })]);
-  assert.equal(result.recommendationScore, 0);
   assert.equal(result.strongScore, 0);
-  assert.equal(result.sourceCount, 0);
-  assert.equal(result.connectionEvidence.length, 0);
+  assert.ok(result.sourceCount > 0);
+  assert.ok(result.sourceEvidence <= RECOMMENDATION_SCORING_POLICY.channelCaps.actor);
+});
+
+test("a low rating does not turn library membership into negative actor evidence", () => {
+  const result = scoreCandidate(candidate({ connections: [actor()] }), [historyItem({ rating: "D", connections: [actor()] })]);
+  assert.ok(result.recommendationScore > 0);
+  assert.equal(result.strongScore, 0);
+  assert.ok(result.sourceCount > 0);
+});
+
+test("a neutral rating still receives library-based similarity", () => {
+  const result = scoreCandidate(candidate({ connections: [actor()] }), [historyItem({ rating: "C", connections: [actor()] })]);
+  assert.ok(result.recommendationScore > 0);
+  assert.equal(result.strongScore, 0);
+  assert.ok(result.sourceCount > 0);
+  assert.ok(result.connectionEvidence.length > 0);
 });
 
 test("TV actor connections are ignored", () => {
@@ -86,7 +89,7 @@ test("multiple actor matches cannot overwhelm independent genre evidence", () =>
   const history = [...actorHistory, historyItem({ id: 50, rating: "S", connections: [genre("drama"), genre("thriller")] })];
   const ranked = rankCandidates([actorCandidate, genreCandidate], history);
   assert.ok(ranked[0].recommendationScore < 2);
-  assert.ok(ranked[0].strongScore <= RECOMMENDATION_SCORING_POLICY.channelCaps.actor);
+  assert.ok(ranked[0].sourceEvidence <= RECOMMENDATION_SCORING_POLICY.channelCaps.genre + RECOMMENDATION_SCORING_POLICY.channelCaps.actor);
 });
 
 test("candidate quality contributes a bounded bonus", () => {
