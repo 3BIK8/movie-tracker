@@ -13,9 +13,7 @@ const HOP_DECAY = 0.5;
 
 const SECOND_ORDER_CONNECTION_TYPES = new Set([
   "actor",
-  "director",
   "franchise",
-  "studio",
   "genre",
   "keyword",
 ]);
@@ -74,26 +72,10 @@ async function discoverFromConnection(connection, mediaType) {
     return (data.parts || []).slice(0, MAX_DISCOVERED_PER_CONNECTION);
   }
 
-  if (connection.type === "actor" || connection.type === "director") {
-    if (mediaType === "movie") {
-      const data = await tmdbFetch(`/person/${connection.value}/movie_credits`);
-      const cast = connection.type === "actor" ? data.cast || [] : [];
-      const crew = connection.type === "director"
-        ? (data.crew || []).filter((item) => item.job === "Director")
-        : [];
-      return [...cast, ...crew].slice(0, MAX_PERSON_CREDITS);
-    }
-
-    if (connection.type === "actor") return [];
-    const data = await tmdbFetch(`/person/${connection.value}/tv_credits`);
-    return (data.crew || [])
-      .filter((item) => ["Director", "Creator"].includes(item.job))
-      .slice(0, MAX_PERSON_CREDITS);
-  }
-
-  if (connection.type === "studio") {
-    const data = await tmdbFetch(`/discover/${mediaType}?with_companies=${connection.value}&page=1`);
-    return (data.results || []).slice(0, MAX_DISCOVERED_PER_CONNECTION);
+  if (connection.type === "actor") {
+    if (mediaType !== "movie") return [];
+    const data = await tmdbFetch(`/person/${connection.value}/movie_credits`);
+    return (data.cast || []).slice(0, MAX_PERSON_CREDITS);
   }
 
   if (connection.type === "genre" || connection.type === "keyword") {
