@@ -166,3 +166,23 @@ test("scores remain finite under repeated evidence", () => {
   assert.ok(Number.isFinite(scored.recommendationScore));
   assert.ok(Number.isFinite(scored.positiveScore));
 });
+
+
+test("recommendations expose an explanation grounded in watched history", () => {
+  const history = [
+    historyItem({
+      id: 10,
+      title: "Watched Drama",
+      connections: [genre("drama"), { type: "keyword", value: "psychological" }],
+    }),
+  ];
+  const scored = scoreCandidate(
+    candidate({
+      connections: [genre("drama"), { type: "keyword", value: "psychological" }],
+    }),
+    history,
+  );
+
+  assert.match(scored.recommendationReason, /similar to Watched Drama/);
+  assert.match(scored.recommendationReason, /shares/);
+});
