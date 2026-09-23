@@ -1,6 +1,10 @@
 import { tmdbFetch } from "../../utils/tmdbClient.js";
 import { normalizeMedia } from "./mediaNormalizer.js";
 import { normalizeMediaRef } from "../../utils/mediaIdentity.js";
+import {
+  cacheMediaMetadata,
+  getCachedMediaMetadata,
+} from "../../repositories/mediaMetadataRepository.js";
 
 const metadataCache = new Map();
 const metadataInflight = new Map();
@@ -11,6 +15,12 @@ export async function getMediaMetadata(type, id) {
 
   if (metadataCache.has(cacheKey)) {
     return metadataCache.get(cacheKey);
+  }
+
+  const persistentMetadata = getCachedMediaMetadata(ref.type, ref.id);
+  if (persistentMetadata) {
+    metadataCache.set(cacheKey, persistentMetadata);
+    return persistentMetadata;
   }
 
   if (metadataInflight.has(cacheKey)) {
@@ -24,12 +34,13 @@ export async function getMediaMetadata(type, id) {
       );
 
       const metadata = normalizeMedia(data, ref.type);
+      cacheMediaMetadata(metadata);
       metadataCache.set(cacheKey, metadata);
 
       return metadata;
     } catch (error) {
       if (error.status === 404) {
-        console.warn(`TMDB media not found: ${ref.type}/${ref.id}`);
+        console.warn(`TMDB media not found: ${ref.type}:${ref.id}`);
         return null;
       }
 
