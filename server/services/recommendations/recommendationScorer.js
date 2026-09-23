@@ -311,6 +311,13 @@ export function scoreCandidate(candidate, history, connectionModel = null, feedb
 
   connectionEvidence.sort((a, b) => Math.abs(b.score) - Math.abs(a.score));
   const matchedHistory = buildMatchedHistory(candidate, relevantHistory, connectionEvidence);
+  const recommendationReason = buildRecommendationReason(
+    candidate,
+    matchedHistory,
+    recommendationReason,
+    connectionEvidence,
+    qualityBonus,
+  );
 
   return {
     ...candidate,
