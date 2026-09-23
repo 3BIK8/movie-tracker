@@ -210,6 +210,32 @@ function buildMatchedHistory(candidate, history, connectionEvidence) {
   return [...matches.values()].sort((a, b) => b.score - a.score);
 }
 
+function buildRecommendationReason(candidate, matchedHistory, connectionEvidence, qualityBonus) {
+  const reasons = [];
+  const strongestMatches = matchedHistory.slice(0, 2).map((item) => item.title).filter(Boolean);
+
+  if (strongestMatches.length) {
+    reasons.push(`similar to ${strongestMatches.join(" and ")}`);
+  }
+
+  const meaningfulConnections = connectionEvidence
+    .filter((evidence) => evidence.score > 0 && ["franchise", "genre", "keyword"].includes(evidence.type))
+    .slice(0, 2)
+    .map((evidence) => evidence.label || evidence.value)
+    .filter(Boolean);
+
+  if (meaningfulConnections.length) {
+    reasons.push(`shares ${meaningfulConnections.join(" and ")}`);
+  }
+
+  if (!reasons.length && qualityBonus > 0) {
+    reasons.push("matches the quality range of your historical recommendations");
+  }
+
+  if (!reasons.length) return "Connected to patterns in your watched history.";
+  return `Recommended because it ${reasons.join(" and ")}.`;
+}
+
 function getSuppressedRecommendationKeys(feedback, now = Date.now()) {
   const suppressed = new Set();
   const cooldownMs = IMPRESSION_COOLDOWN_DAYS * 86_400_000;
