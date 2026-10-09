@@ -210,7 +210,7 @@ function buildMatchedHistory(candidate, history, connectionEvidence) {
   return [...matches.values()].sort((a, b) => b.score - a.score);
 }
 
-function buildRecommendationReason(candidate, matchedHistory, connectionEvidence, qualityBonus) {
+function buildRecommendationReason(matchedHistory, connectionEvidence, qualityBonus) {
   const reasons = [];
   const strongestMatches = matchedHistory.slice(0, 2).map((item) => item.title).filter(Boolean);
 
@@ -233,7 +233,7 @@ function buildRecommendationReason(candidate, matchedHistory, connectionEvidence
   }
 
   if (!reasons.length) return "Connected to patterns in your watched history.";
-  return `Recommended because it ${reasons.join(" and ")}.`;
+  return `Recommended because it is ${reasons.join(" and ")}.`;
 }
 
 function getSuppressedRecommendationKeys(feedback, now = Date.now()) {
@@ -312,9 +312,7 @@ export function scoreCandidate(candidate, history, connectionModel = null, feedb
   connectionEvidence.sort((a, b) => Math.abs(b.score) - Math.abs(a.score));
   const matchedHistory = buildMatchedHistory(candidate, relevantHistory, connectionEvidence);
   const recommendationReason = buildRecommendationReason(
-    candidate,
     matchedHistory,
-    recommendationReason,
     connectionEvidence,
     qualityBonus,
   );
