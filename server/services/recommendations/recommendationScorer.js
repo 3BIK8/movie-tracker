@@ -335,6 +335,7 @@ export function scoreCandidate(candidate, history, connectionModel = null, feedb
     sourceCount: connectionEvidence.length,
     matchedHistory,
     connectionEvidence,
+    recommendationReason,
     scoreBreakdown: {
       channels: channelScores,
       quality: qualityContribution,
