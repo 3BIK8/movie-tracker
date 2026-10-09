@@ -44,3 +44,11 @@
   margin-top: 8px;
   color: var(--color-text-muted);
 }
+
+
+.recommendation-reason {
+  margin: 0.5rem 0 0.35rem;
+  color: var(--text-muted, #777);
+  font-size: 0.82rem;
+  line-height: 1.35;
+}

@@ -171,6 +171,9 @@ function RecommendationsView({ onPersonClick }) {
                   onExpand={handleExpand}
                   onPersonClick={onPersonClick}
                 />
+                {item.recommendationReason && (
+                  <p className="recommendation-reason">{item.recommendationReason}</p>
+                )}
                 <button
                   type="button"
                   className="recommendation-not-interested"
