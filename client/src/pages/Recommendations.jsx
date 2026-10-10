@@ -11,6 +11,7 @@ import {
   recordRecommendationsSkipped,
 } from "../services/recommendationFeedback";
 import { filterDisplayedRecommendations } from "../services/recommendationDisplayFilter";
+import { shouldOfferRecommendationRefill } from "../services/recommendationInventory";
 
 const PAGE_SIZE = 20;
 
@@ -88,6 +89,7 @@ function RecommendationsView({ onPersonClick }) {
   const totalPages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
   const visibleItems = items.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const shouldOfferRefill = shouldOfferRecommendationRefill(items.length, PAGE_SIZE);
 
   function changeType(type) {
     recordRecommendationsSkipped(visibleItems);
@@ -154,8 +156,13 @@ function RecommendationsView({ onPersonClick }) {
       {isLoading && <div className="recommendations-loading">Analyzing your library…</div>}
       {!isLoading && !error && visibleItems.length === 0 && (
         <div className="recommendations-empty">
-          <p>No recommendations yet.</p>
-          <p>Watch and rate more movies or series to give the system more information.</p>
+          <p>No recommendations left in this batch.</p>
+          <p>Try another analysis to look for more candidates based on your watched history.</p>
+          {shouldOfferRefill && (
+            <button type="button" className="recommendations-refill-button" onClick={() => loadRecommendations()}>
+              Find more recommendations
+            </button>
+          )}
         </div>
       )}
 
@@ -192,6 +199,14 @@ function RecommendationsView({ onPersonClick }) {
             onPageChange={changePage}
             onPageInputChange={setPageInput}
           />
+          {shouldOfferRefill && (
+            <div className="recommendations-refill">
+              <p>Running low on recommendations?</p>
+              <button type="button" className="recommendations-refill-button" onClick={() => loadRecommendations()}>
+                Find more recommendations
+              </button>
+            </div>
+          )}
         </>
       )}
     </section>
