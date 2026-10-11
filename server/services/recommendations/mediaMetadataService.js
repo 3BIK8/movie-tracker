@@ -1,6 +1,7 @@
 import { tmdbFetch } from "../../utils/tmdbClient.js";
 import { normalizeMedia } from "./mediaNormalizer.js";
 import { normalizeMediaRef } from "../../utils/mediaIdentity.js";
+import { getCachedMediaMetadata } from "../../repositories/watchHistoryRepository.js";
 
 const metadataCache = new Map();
 const metadataInflight = new Map();
@@ -11,6 +12,12 @@ export async function getMediaMetadata(type, id) {
 
   if (metadataCache.has(cacheKey)) {
     return metadataCache.get(cacheKey);
+  }
+
+  const cachedMetadata = getCachedMediaMetadata(ref.type, ref.id);
+  if (cachedMetadata) {
+    metadataCache.set(cacheKey, cachedMetadata);
+    return cachedMetadata;
   }
 
   if (metadataInflight.has(cacheKey)) {

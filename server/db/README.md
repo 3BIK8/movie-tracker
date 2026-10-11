@@ -4,15 +4,17 @@ The application uses a file-backed SQLite database as the server-side source of 
 
 ## Why SQLite
 
-This is currently a single-user personal application. SQLite gives the project a real relational database, transactions, constraints, indexes, and durable persistence without adding a separate database server or another runtime dependency. The server CI already runs Node 24, which provides the `node:sqlite` API.
+SQLite gives the project a real relational database, transactions, constraints, indexes, and durable persistence without adding a separate database server or another runtime dependency. The server CI already runs Node 24, which provides the `node:sqlite` API.
 
 If the application later becomes multi-user or needs horizontally scaled server instances, the repository layer is the boundary where SQLite can be replaced with PostgreSQL without changing the client contract.
 
 ## Data model
 
-- `users`: user identity boundary. The current personal application uses user `1`.
+- `users`: local user identity boundary, optionally linked to a Clerk subject.
 - `media`: canonical TMDB media records and cached metadata needed by the user's history.
 - `watch_entries`: user-specific status, rating, favorite state, and interaction timestamps.
+- `recommendation_feedback`: recommendation exposures and distinct interaction events,
+  including permanent `not_interested` decisions.
 - `schema_migrations`: applied migration filenames.
 
 User state is separated from media metadata so the database does not mix a person's interaction state with TMDB data.
@@ -49,6 +51,16 @@ On the first application startup after this change:
 6. All subsequent reads and writes use the database.
 
 LocalStorage is therefore a one-time migration source, not an application data store.
+
+Recommendation feedback may be cached in LocalStorage for responsive UI behavior,
+but the server synchronizes it into SQLite and uses the persisted copy for analysis.
+
+When `CLERK_SECRET_KEY` is configured, watch-history and recommendation routes require
+a Clerk bearer token and map each Clerk subject to a local `users` row. Without that
+setting, the legacy local development user remains available for tests and localhost use.
+
+For hosted deployments, set `CORS_ORIGINS` to a comma-separated allowlist of trusted
+frontend origins. JSON requests are limited by `JSON_BODY_LIMIT` (128kb by default).
 
 ## Database location
 

@@ -50,7 +50,12 @@ Generic TMDB exploration that is not grounded in the user's history must not lea
 ## State boundaries
 
 - Library state is authoritative for watched / to-watch / unsure status.
-- Recommendation exposure state records what the user actually saw.
-- Recommendation interaction state records opened, skipped, and explicit Not interested events.
+- Recommendation exposure state records what the user actually saw in the server-side
+  `recommendation_feedback` table. The browser may retain a bounded local copy for
+  responsive interaction, but the server persists the submitted ledger and uses it
+  during analysis.
+- Recommendation interaction state records opened, skipped, passive ignored, and
+  explicit Not interested events. `not_interested` is permanent suppression;
+  `ignored` is only a passive non-response signal.
 - Recommendation scoring may use library state and item-level feedback, but navigation events do not rewrite the user's taste profile.
 - UI page size is independent from server candidate capacity. Capacity adapts to history size and recent inventory consumption.

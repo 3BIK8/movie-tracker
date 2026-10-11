@@ -7,6 +7,10 @@ import {
 } from "../services/recommendations/networkService.js";
 import { normalizeRecommendationFeedback } from "../services/recommendations/feedbackPayload.js";
 import { normalizeWatchHistory } from "../utils/mediaIdentity.js";
+import {
+  getRecommendationFeedback,
+  recordRecommendationFeedback,
+} from "../repositories/recommendationExposureRepository.js";
 
 const router = express.Router();
 
@@ -26,9 +30,13 @@ router.post("/analyze", async (req, res) => {
   try {
     validateOptionalClientHistory(req.body, normalizeWatchHistory);
 
-    const feedback = normalizeRecommendationFeedback(req.body.feedback);
+    const submittedFeedback = normalizeRecommendationFeedback(req.body.feedback);
+    if (submittedFeedback) {
+      recordRecommendationFeedback(submittedFeedback, req.userId);
+    }
+    const feedback = submittedFeedback || getRecommendationFeedback(null, req.userId);
     const historyReadStartedAt = Date.now();
-    const history = getWatchHistory();
+    const history = getWatchHistory(req.userId);
     const historyReadMs = Date.now() - historyReadStartedAt;
     const result = await analyzeWatchHistory(history, feedback);
 
@@ -60,8 +68,8 @@ router.post("/network", async (req, res) => {
     validateOptionalClientHistory(req.body, validateNetworkHistory);
 
     const historyReadStartedAt = Date.now();
-    const history = getWatchHistory();
-    const totalHistory = getWatchHistoryCount();
+    const history = getWatchHistory(req.userId);
+    const totalHistory = getWatchHistoryCount(req.userId);
     const databaseReadMs = Date.now() - historyReadStartedAt;
     const result = await buildNetwork(history);
 

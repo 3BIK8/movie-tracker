@@ -33,6 +33,7 @@ test("normalizes feedback to the server contract", () => {
       {
         type: "movie",
         id: "42",
+        generationId: null,
         pool: null,
         exposedAt: null,
         connections: [

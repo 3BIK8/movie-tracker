@@ -24,9 +24,20 @@ test("library membership contributes evidence regardless of rating", () => {
   const actor = profile.movies.connections.actors["actor-1"];
 
   assert.ok(actor);
-  assert.equal(actor.positiveScore, 0.35);
+  assert.equal(actor.positiveScore, 0.6);
   assert.equal(actor.negativeScore, 0);
   assert.equal(profile.movies.tmdbRatingProfile.observations, 1);
+});
+
+test("watched evidence outweighs to-watch and not-sure evidence", () => {
+  const watched = analyzeHistory([media("C")]).movies.connections.actors["actor-1"];
+  const toWatch = analyzeHistory([{ ...media("C"), status: "to_watch" }])
+    .movies.connections.actors["actor-1"];
+  const notSure = analyzeHistory([{ ...media("C"), status: "not_sure" }])
+    .movies.connections.actors["actor-1"];
+
+  assert.ok(watched.positiveScore > toWatch.positiveScore);
+  assert.ok(toWatch.positiveScore > notSure.positiveScore);
 });
 
 test("a neutral rating still contributes library evidence", () => {
