@@ -91,18 +91,27 @@ export function countMediaEmbeddings(model) {
 export function listMediaEmbeddings(model) {
   const embeddingModel = normalizeModel(model);
   return db.prepare(`
-    SELECT e.media_type AS type, e.tmdb_id AS id, m.title, e.dim, e.vector
+    SELECT e.media_type AS type, e.tmdb_id AS id, m.title, m.metadata_json AS metadataJson, e.dim, e.vector
     FROM media_embeddings e
     JOIN media m
       ON m.media_type = e.media_type AND m.tmdb_id = e.tmdb_id
     WHERE e.model = ?
     ORDER BY e.media_type, e.tmdb_id
-  `).all(embeddingModel).map((row) => ({
+  `).all(embeddingModel).map((row) => {
+    let metadata = {};
+    try {
+      metadata = JSON.parse(row.metadataJson || "{}");
+    } catch {
+      metadata = {};
+    }
+    return {
     ...row,
+    tmdbRating: metadata.tmdbRating ?? metadata.rating ?? metadata.vote_average,
     vector: new Float32Array(
       row.vector.buffer,
       row.vector.byteOffset,
       row.vector.byteLength / Float32Array.BYTES_PER_ELEMENT,
     ),
-  }));
+  };
+  });
 }

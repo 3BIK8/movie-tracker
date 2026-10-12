@@ -111,3 +111,17 @@ Ratings and interaction events have their own weights in that same module.
 state and events. `updateSessionUserVector` uses an EMA and resets after the
 configured inactivity window. Phase 3 provides vector persistence and scoring
 primitives; the persistent feed queue and request endpoints remain Phase 4.
+
+## Phase 4a offline ranking
+
+Phase 4a adds pure services only. Embedding kNN retrieval excludes the user's
+library and authoritative rejections. The ranker combines long-vector,
+interest-vector, and session-vector cosine scores with a weak metadata quality
+prior, negative similarity, and exposure fatigue. Embedding MMR adds
+similarity-based novelty and cluster saturation penalties. TMDB
+recommendation/similar results are represented by a background seeding adapter;
+they are not fetched by request handlers.
+
+`npm run evaluate:for-you` prints the current user's top 20 offline candidates,
+including source and score breakdown. Phase 4a does not create feed queue rows,
+routes, refill jobs, or UI.

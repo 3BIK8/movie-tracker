@@ -9,9 +9,15 @@ let pipelinePromise;
 
 async function getPipeline() {
   if (!pipelinePromise) {
-    pipelinePromise = import("@xenova/transformers").then(({ pipeline }) =>
-      pipeline("feature-extraction", DEFAULT_EMBEDDING_MODEL),
-    );
+    pipelinePromise = import("@xenova/transformers")
+      .then(({ pipeline }) => pipeline("feature-extraction", DEFAULT_EMBEDDING_MODEL))
+      .catch((error) => {
+        throw new Error(
+          "The local embedder requires optional dependency @xenova/transformers. " +
+          "Install optional dependencies or set EMBEDDER=hosted.",
+          { cause: error },
+        );
+      });
   }
   return pipelinePromise;
 }
