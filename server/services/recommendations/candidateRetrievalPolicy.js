@@ -4,10 +4,10 @@ const DISCOVERY_PAGE_LIMITS = Object.freeze({
   keywords: 2,
 });
 
-const MAX_ENRICHMENT_MULTIPLIER = 6;
-const MIN_SOURCE_BUDGET = 20;
-const MAX_SOURCE_BUDGET = 48;
-const MAX_ENRICHMENT_PER_SOURCE_TYPE = 90;
+const MAX_ENRICHMENT_MULTIPLIER = 2;
+const MIN_SOURCE_BUDGET = 12;
+const MAX_SOURCE_BUDGET = 24;
+const MAX_ENRICHMENT_PER_SOURCE_TYPE = 40;
 
 let enrichmentBudgetOverride = null;
 

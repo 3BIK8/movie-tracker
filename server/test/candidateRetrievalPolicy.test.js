@@ -29,11 +29,11 @@ test("bounded discovery uses extra pages only for paged connection dimensions", 
 });
 
 test("enrichment budget scales with requested recommendation limit", () => {
-  assert.equal(getEnrichmentBudget(100), 600);
-  assert.equal(getEnrichmentBudget(25), 150);
+  assert.equal(getEnrichmentBudget(100), 200);
+  assert.equal(getEnrichmentBudget(25), 50);
   assert.equal(
     CANDIDATE_RETRIEVAL_LIMITS.maxEnrichmentMultiplier,
-    6,
+    2,
   );
 });
 
@@ -59,10 +59,10 @@ test("source budget expands with profile coverage and remains bounded", () => {
     ),
   );
 
-  assert.equal(getSourceBudget(sparseProfile), 20);
-  assert.equal(getSourceBudget(broadProfile), 48);
-  assert.equal(CANDIDATE_RETRIEVAL_LIMITS.minSourceBudget, 20);
-  assert.equal(CANDIDATE_RETRIEVAL_LIMITS.maxSourceBudget, 48);
+  assert.equal(getSourceBudget(sparseProfile), 12);
+  assert.equal(getSourceBudget(broadProfile), 24);
+  assert.equal(CANDIDATE_RETRIEVAL_LIMITS.minSourceBudget, 12);
+  assert.equal(CANDIDATE_RETRIEVAL_LIMITS.maxSourceBudget, 24);
 });
 
 test("zero and non-positive evidence do not inflate source coverage", () => {
@@ -73,7 +73,7 @@ test("zero and non-positive evidence do not inflate source coverage", () => {
         "2": { evidenceScore: -1 },
       },
     }),
-    20,
+    12,
   );
 });
 
@@ -101,9 +101,9 @@ test("large candidate pools are deterministically bounded before enrichment", ()
 
   const selected = selectCandidatesForEnrichment(candidates, 1);
 
-  assert.equal(selected.length, 6);
+  assert.equal(selected.length, 2);
   assert.deepEqual(
-    selected.slice(0, 3).map((item) => item.id),
-    ["0", "1", "2"],
+    selected.slice(0, 2).map((item) => item.id),
+    ["0", "1"],
   );
 });
