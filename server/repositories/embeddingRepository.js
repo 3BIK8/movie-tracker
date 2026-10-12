@@ -106,6 +106,7 @@ export function listMediaEmbeddings(model) {
     }
     return {
     ...row,
+    title: row.title || metadata.title || metadata.name || "",
     tmdbRating: metadata.tmdbRating ?? metadata.rating ?? metadata.vote_average,
     vector: new Float32Array(
       row.vector.buffer,

@@ -20,6 +20,34 @@ test("For You retrieval filters library and rejection leakage", () => {
     queryVectors: [new Float32Array([1, 0])],
     libraryKeys: new Set(["movie:1"]),
     rejectionKeys: new Set(["movie:2"]),
+    minimumSimilarity: 0,
+  });
+
+  test("For You preserves media type identity from embeddings through candidates", () => {
+    const result = generateEmbeddingCandidates({
+      embeddings: [
+        { type: "movie", id: "268", title: "Batman", vector: new Float32Array([1, 0]) },
+        { type: "tv", id: "33946", title: "The Batman", vector: new Float32Array([0.99, 0.01]) },
+      ],
+      queryVectors: [new Float32Array([1, 0])],
+    });
+    assert.deepEqual(result.map(({ type, id, title }) => ({ type, id, title })), [
+      { type: "movie", id: "268", title: "Batman" },
+      { type: "tv", id: "33946", title: "The Batman" },
+    ]);
+  });
+
+  test("For You applies the requested movie and TV ratio", () => {
+    const candidates = [
+      { type: "movie", id: "1", score: 1, vector: new Float32Array([1, 0]) },
+      { type: "movie", id: "2", score: 0.99, vector: new Float32Array([0.99, 0.01]) },
+      { type: "movie", id: "3", score: 0.98, vector: new Float32Array([0.98, 0.02]) },
+      { type: "tv", id: "4", score: 0.7, vector: new Float32Array([0, 1]) },
+      { type: "tv", id: "5", score: 0.69, vector: new Float32Array([0.01, 0.99]) },
+    ];
+    const ranked = diversifyWithEmbeddingMmr(candidates, 4, 0.72, { movieShare: 0.5 });
+    assert.equal(ranked.filter((item) => item.type === "movie").length, 2);
+    assert.equal(ranked.filter((item) => item.type === "tv").length, 2);
   });
   assert.deepEqual(result.map((item) => item.id), ["3"]);
 });

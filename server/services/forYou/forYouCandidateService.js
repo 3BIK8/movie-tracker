@@ -88,6 +88,7 @@ export function generateEmbeddingCandidates({
   libraryKeys = new Set(),
   rejectionKeys = new Set(),
   limit = 200,
+  minimumSimilarity = 0.3,
 }) {
   const candidates = [];
   for (const candidate of embeddings) {
@@ -97,9 +98,11 @@ export function generateEmbeddingCandidates({
       .map((vector) => cosineSimilarity(vector, candidate.vector))
       .filter((score) => score !== null);
     if (!similarities.length) continue;
+    const retrievalScore = Math.max(...similarities);
+    if (retrievalScore < minimumSimilarity) continue;
     candidates.push({
       ...candidate,
-      retrievalScore: Math.max(...similarities),
+      retrievalScore,
       source: "embedding_knn",
     });
   }

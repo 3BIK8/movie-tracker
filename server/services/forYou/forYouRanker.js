@@ -7,6 +7,7 @@ export const FOR_YOU_RANK_CONFIG = Object.freeze({
   qualityWeight: 0.1,
   negativeWeight: 0.2,
   fatigueWeight: 0.08,
+  minimumSimilarity: 0.3,
 });
 
 function qualityPrior(candidate) {
@@ -66,13 +67,27 @@ export function scoreForYouCandidates(candidates, {
   }).sort((left, right) => right.score - left.score);
 }
 
-export function diversifyWithEmbeddingMmr(candidates, limit, lambda = 0.72) {
+export function diversifyWithEmbeddingMmr(candidates, limit, lambda = 0.72, mediaRatio = null) {
   const remaining = [...candidates];
   const selected = [];
+  const targetMovieCount = mediaRatio
+    ? Math.round(limit * Math.max(0, Math.min(1, mediaRatio.movieShare)))
+    : null;
+  const targetTvCount = targetMovieCount == null ? null : limit - targetMovieCount;
   while (remaining.length && selected.length < limit) {
+    const selectedMovieCount = selected.filter((item) => item.type === "movie").length;
+    const selectedTvCount = selected.length - selectedMovieCount;
+    const eligible = remaining.filter((candidate) => {
+      if (targetMovieCount == null) return true;
+      if (candidate.type === "movie" && selectedMovieCount >= targetMovieCount) return false;
+      if (candidate.type === "tv" && selectedTvCount >= targetTvCount) return false;
+      return true;
+    });
+    const pool = eligible.length ? eligible : remaining;
     let bestIndex = 0;
     let bestValue = -Infinity;
-    remaining.forEach((candidate, index) => {
+    pool.forEach((candidate) => {
+      const index = remaining.indexOf(candidate);
       const similarity = selected.length
         ? Math.max(...selected.map((item) => cosineSimilarity(item.vector, candidate.vector) || 0))
         : 0;
