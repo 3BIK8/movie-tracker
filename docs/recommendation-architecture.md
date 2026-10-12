@@ -59,3 +59,38 @@ Generic TMDB exploration that is not grounded in the user's history must not lea
   `ignored` is only a passive non-response signal.
 - Recommendation scoring may use library state and item-level feedback, but navigation events do not rewrite the user's taste profile.
 - UI page size is independent from server candidate capacity. Capacity adapts to history size and recent inventory consumption.
+## Authoritative feedback transition
+
+The existing Recommendations page still records its exposure ledger in browser
+storage and writes legacy exposure records to `recommendation_feedback`. During
+the transition, those records are retained for exposure and diagnostics.
+
+Permanent rejection is now server-owned. Authenticated clients send
+`POST /api/feedback/events` with a batch of normalized interaction events.
+`POST /api/feed/events` is a compatibility alias for the same ingestion service;
+it does not have separate persistence or ranking behavior. A `reject` event
+inserts a user-scoped row in `rejections` and an `interaction_events` row in
+one transaction. `undo_reject` removes the rejection and records the undo
+event. Replayed `clientEventId` values are idempotent per user.
+
+The existing Recommendations route also translates legacy
+`not_interested` interactions into authoritative rejection events, so clearing
+local storage cannot make a server-recorded rejection eligible again. Both the
+legacy candidate pipeline and future SQLite-only For You queries must exclude
+the authenticated user's `rejections`.
+
+Legacy exposure storage will be removed in a follow-up after the For You feed
+is stable and its migration period is complete.
+
+## Embedding backfill
+
+Phase 2 adds `media_embeddings`, keyed by media identity and embedding model.
+The backfill reads persisted `media` metadata and builds input text from the
+title, tagline, overview, genres, and keywords. Input text is hashed with
+SHA-256; unchanged hashes are skipped so rerunning the job is safe.
+
+Embedding generation is intentionally unavailable on request paths. Run
+`npm run backfill:embeddings` from `server/` with `EMBEDDER=local` for the
+default local `Xenova/all-MiniLM-L6-v2` model, or `EMBEDDER=hosted` with the
+hosted provider environment variables. Both implementations return
+L2-normalized vectors and are isolated behind the embedder interface.

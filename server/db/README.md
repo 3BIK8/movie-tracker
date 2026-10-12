@@ -75,3 +75,14 @@ Set `DATABASE_PATH` to override the location. SQLite WAL files are ignored by Gi
 ## Migrations
 
 Migration files live in `server/db/migrations/` and are applied in filename order. Applied filenames are recorded in `schema_migrations`; an applied migration must never be edited in place. Add a new migration for schema changes.
+### Embeddings
+
+Migration `005_media_embeddings.sql` adds persistent metadata freshness fields
+and model-specific normalized embedding BLOBs. Embeddings are generated only
+by `npm run backfill:embeddings`, never while serving a request.
+
+Set `EMBEDDER=local` (the default) to use the local
+`Xenova/all-MiniLM-L6-v2` model. Set `EMBEDDER=hosted` with
+`EMBEDDER_API_URL`, optional `EMBEDDER_API_KEY`, `EMBEDDER_MODEL`, and
+`EMBEDDER_DIMENSION` to use a hosted OpenAI-compatible embedding endpoint.
+Unchanged embedding input text is identified by SHA-256 and skipped.

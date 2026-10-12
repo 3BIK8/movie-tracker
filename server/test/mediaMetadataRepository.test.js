@@ -15,6 +15,7 @@ const {
   cacheMediaMetadata,
   getCachedMediaMetadata,
 } = await import("../repositories/mediaMetadataRepository.js");
+const { closeDatabase } = await import("../db/database.js");
 
 const sampleMetadata = {
   id: "550",
@@ -36,6 +37,7 @@ const sampleMetadata = {
 };
 
 test.after(() => {
+  closeDatabase();
   for (const suffix of ["", "-shm", "-wal"]) {
     fs.rmSync(`${databasePath}${suffix}`, { force: true });
   }

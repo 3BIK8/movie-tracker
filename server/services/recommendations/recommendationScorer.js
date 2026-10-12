@@ -7,9 +7,9 @@ const RATING_WEIGHTS = {
 };
 
 const LIBRARY_WEIGHTS = {
-  watched: 0.35,
-  to_watch: 0.45,
-  not_sure: 0.15,
+  watched: 0.6,
+  to_watch: 0.3,
+  not_sure: 0.12,
 };
 
 const FEEDBACK_WEIGHTS = { skipped: -0.15, ignored: -0.25 };

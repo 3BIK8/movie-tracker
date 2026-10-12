@@ -26,7 +26,7 @@ const MAX_SOURCES_PER_TYPE = {
 
 const MAX_PERSON_CAST_CREDITS = 60;
 const MAX_PERSON_CREW_CREDITS = 40;
-const EXPLORATION_BATCHES = 6;
+const EXPLORATION_BATCHES = 3;
 const SOURCE_DISCOVERY_CONCURRENCY = 6;
 const EXPLORATION_DISCOVERY_CONCURRENCY = 3;
 const CANDIDATE_ENRICHMENT_CONCURRENCY = 6;
@@ -45,8 +45,8 @@ function createCandidateKey(type, id) {
   return createMediaKey(type, id);
 }
 
-function getKnownMediaIds(history) {
-  return new Set(
+function getKnownMediaIds(history, feedback = null, rejectedKeys = new Set()) {
+  const knownIds = new Set(
     history
       .filter(
         (item) =>
@@ -55,6 +55,16 @@ function getKnownMediaIds(history) {
       )
       .map((item) => createCandidateKey(item.type, item.id)),
   );
+
+  for (const exposure of feedback?.exposures || []) {
+    if (["movie", "tv"].includes(exposure?.type) && exposure?.id != null) {
+      knownIds.add(createCandidateKey(exposure.type, exposure.id));
+    }
+  }
+
+  for (const key of rejectedKeys) knownIds.add(key);
+
+  return knownIds;
 }
 
 function createExplorationSeed(history, mediaType) {
@@ -393,11 +403,13 @@ export async function generateCandidates(
   mediaType,
   limit = 100,
   diagnostics = null,
+  feedback = null,
+  rejectedKeys = new Set(),
 ) {
   const phaseDiagnostics = diagnostics || {};
   const sourceBudget = getSourceBudget(profile);
   const strongConnections = getStrongConnections(profile, sourceBudget);
-  const knownIds = getKnownMediaIds(history);
+  const knownIds = getKnownMediaIds(history, feedback, rejectedKeys);
   const candidates = new Map();
 
   phaseDiagnostics.sourceCount = strongConnections.length;

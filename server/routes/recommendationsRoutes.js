@@ -11,6 +11,11 @@ import {
   getRecommendationFeedback,
   recordRecommendationFeedback,
 } from "../repositories/recommendationExposureRepository.js";
+import {
+  getRejectedMediaKeys,
+  recordLegacyRecommendationRejections,
+} from "../repositories/feedbackRepository.js";
+import { getCurrentUserId } from "../utils/currentUser.js";
 
 const router = express.Router();
 
@@ -30,15 +35,19 @@ router.post("/analyze", async (req, res) => {
   try {
     validateOptionalClientHistory(req.body, normalizeWatchHistory);
 
+    const userId = getCurrentUserId(req);
     const submittedFeedback = normalizeRecommendationFeedback(req.body.feedback);
     if (submittedFeedback) {
-      recordRecommendationFeedback(submittedFeedback, req.userId);
+      recordRecommendationFeedback(submittedFeedback, userId);
     }
-    const feedback = submittedFeedback || getRecommendationFeedback(null, req.userId);
+    const feedback = submittedFeedback || getRecommendationFeedback(null, userId);
+    recordLegacyRecommendationRejections(userId, feedback);
     const historyReadStartedAt = Date.now();
-    const history = getWatchHistory(req.userId);
+    const history = getWatchHistory(userId);
     const historyReadMs = Date.now() - historyReadStartedAt;
-    const result = await analyzeWatchHistory(history, feedback);
+    const result = await analyzeWatchHistory(history, feedback, {
+      rejectedKeys: getRejectedMediaKeys(userId),
+    });
 
     result.recommendationDiagnostics = {
       ...result.recommendationDiagnostics,

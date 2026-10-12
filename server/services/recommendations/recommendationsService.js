@@ -75,7 +75,7 @@ function diversifyRecommendationSet(candidates) {
   };
 }
 
-export async function analyzeWatchHistory(history, feedback = null) {
+export async function analyzeWatchHistory(history, feedback = null, options = {}) {
   const pipelineStartedAt = Date.now();
   const canonicalHistory = normalizeWatchHistory(history);
   const recommendationHistory = canonicalHistory.filter((item) =>
@@ -83,6 +83,7 @@ export async function analyzeWatchHistory(history, feedback = null) {
   );
   const watchedHistory = recommendationHistory.filter((item) => item.status === "watched");
   const effectiveFeedback = feedback || null;
+  const rejectedKeys = options.rejectedKeys || new Set();
   const recommendationCapacity = calculateRecommendationCapacity({
     historyCount: watchedHistory.length,
     recentExposureCount: countRecentRecommendationExposures(effectiveFeedback),
@@ -129,8 +130,8 @@ export async function analyzeWatchHistory(history, feedback = null) {
       const movieDiagnostics = {};
       const tvDiagnostics = {};
       const [movieCandidates, tvCandidates] = await Promise.all([
-        generateCandidates(profile.movies.connections, enrichedRecommendationHistory, "movie", recommendationCapacity, movieDiagnostics),
-        generateCandidates(profile.tv.connections, enrichedRecommendationHistory, "tv", recommendationCapacity, tvDiagnostics),
+        generateCandidates(profile.movies.connections, enrichedRecommendationHistory, "movie", recommendationCapacity, movieDiagnostics, effectiveFeedback, rejectedKeys),
+        generateCandidates(profile.tv.connections, enrichedRecommendationHistory, "tv", recommendationCapacity, tvDiagnostics, effectiveFeedback, rejectedKeys),
       ]);
       return {
         candidates: [movieCandidates, tvCandidates],
@@ -178,6 +179,7 @@ export async function analyzeWatchHistory(history, feedback = null) {
       .filter((item) => ["watched", "to_watch", "not_sure"].includes(item.status))
       .map((item) => createMediaKey(item.type, item.id)),
   );
+  for (const key of rejectedKeys) knownIds.add(key);
   const safeMovies = removeKnownRecommendations(diversifiedMovies, knownIds);
   const safeTv = removeKnownRecommendations(diversifiedTv, knownIds);
 

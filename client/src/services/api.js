@@ -152,6 +152,18 @@ export async function getRecommendations(_history, feedback = null) {
   );
 }
 
+export async function recordFeedbackEvents(events, endpoint = "feedback") {
+  return request(
+    `${API_URL}/${endpoint}/events`,
+    "Unable to record feedback.",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ events }),
+    },
+  );
+}
+
 export async function discoverPerson({ personId, role = "actor", page = 1 }) {
   const params = new URLSearchParams({ personId, role, page });
 
