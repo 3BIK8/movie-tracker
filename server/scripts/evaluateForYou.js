@@ -6,6 +6,7 @@ import {
   buildInterestVectors,
   assignEmbeddingClusters,
   cosineSimilarity,
+  filterByMinimumAttribution,
   generateEmbeddingCandidates,
 } from "../services/forYou/forYouCandidateService.js";
 import { diversifyWithEmbeddingMmr, scoreForYouCandidates } from "../services/forYou/forYouRanker.js";
@@ -14,6 +15,7 @@ import { tmdbFetch } from "../utils/tmdbClient.js";
 const model = process.env.EMBEDDER_MODEL || "Xenova/all-MiniLM-L6-v2";
 const userId = Number(process.env.EVALUATION_USER_ID || 1);
 const minimumSimilarity = Number(process.env.FOR_YOU_MIN_SIMILARITY || 0.3);
+const minimumAttribution = Number(process.env.FOR_YOU_MIN_ATTRIBUTION || 0.5);
 const tmdbSeedLimit = Number(process.env.FOR_YOU_TMDB_SEED_LIMIT || 4);
 const embeddings = assignEmbeddingClusters(listMediaEmbeddings(model));
 const embeddingByKey = new Map(embeddings.map((item) => [`${item.type}:${item.id}`, item]));
@@ -27,7 +29,8 @@ const libraryRows = db.prepare(`
 const libraryKeys = new Set(libraryRows.map((row) => `${row.type}:${row.id}`));
 const libraryEmbeddings = libraryRows
   .map((row) => ({ ...row, embedding: embeddingByKey.get(`${row.type}:${row.id}`) }))
-  .filter((row) => row.embedding);
+  .filter((row) => row.embedding)
+  .map((row) => ({ ...row, vector: row.embedding.vector }));
 const long = rebuildLongUserVector(userId, model);
 const positiveRows = libraryRows.filter((row) => ["watched", "to_watch"].includes(row.status));
 const positiveKeys = new Set(positiveRows.map((row) => `${row.type}:${row.id}`));
@@ -57,7 +60,7 @@ function topLibraryNeighbors(candidate) {
       title: row.title || `${row.type}:${row.id}`,
       type: row.type,
       id: row.id,
-      similarity: cosineSimilarity(candidate.vector, row.embedding.vector),
+      similarity: cosineSimilarity(candidate.vector, row.vector),
     }))
     .filter((neighbor) => neighbor.similarity !== null)
     .sort((left, right) => right.similarity - left.similarity)
@@ -80,12 +83,8 @@ async function fetchTmdbSeeds() {
         const response = await tmdbFetch(path);
         for (const item of response.results || []) {
           const key = `${seed.type}:${item.id}`;
-          if (embeddingByKey.has(key) && !libraryKeys.has(key)) {
-            related.push({
-              key,
-              source: `tmdb_${endpoint}`,
-              seedTitle: seed.title,
-            });
+          if (!libraryKeys.has(key)) {
+            related.push({ key, source: `tmdb_${endpoint}`, seedTitle: seed.title });
           }
         }
       } catch (error) {
@@ -96,73 +95,16 @@ async function fetchTmdbSeeds() {
   return related;
 }
 
-const candidates = generateEmbeddingCandidates({
-  embeddings,
-  queryVectors,
-  libraryKeys,
-  limit: 250,
-  minimumSimilarity,
-});
-const tmdbSeeds = await fetchTmdbSeeds();
-const sourceByKey = new Map();
-for (const seed of tmdbSeeds) {
-  if (!sourceByKey.has(seed.key)) sourceByKey.set(seed.key, seed);
-}
-for (const candidate of candidates) {
-  const seed = sourceByKey.get(`${candidate.type}:${candidate.id}`);
-  if (seed) {
-    candidate.source = seed.source;
-    candidate.seedTitle = seed.seedTitle;
+function sourceMapFor(seeds) {
+  const map = new Map();
+  for (const seed of seeds) {
+    if (!map.has(seed.key)) map.set(seed.key, seed);
   }
+  return map;
 }
 
-const fullRanked = scoreForYouCandidates(candidates, {
-  longVector: long?.vector,
-  interestVectors: interest,
-});
-const scoreValues = fullRanked.map((item) => item.score);
-const top50 = fullRanked.slice(0, 50).map((item) => item.score);
-const candidateSourceMix = Object.fromEntries(
-  [...new Set(fullRanked.map((item) => item.source))].map((source) => [
-    source,
-    fullRanked.filter((item) => item.source === source).length,
-  ]),
-);
-const movieShare = libraryRows.length
-  ? libraryRows.filter((row) => row.type === "movie").length / libraryRows.length
-  : 0.5;
-const ranked = diversifyWithEmbeddingMmr(
-  fullRanked,
-  20,
-  0.72,
-  { movieShare },
-);
-
-console.log(JSON.stringify({
-  library: {
-    total: libraryRows.length,
-    movies: libraryRows.filter((row) => row.type === "movie").length,
-    tv: libraryRows.filter((row) => row.type === "tv").length,
-    movieShare: Number(movieShare.toFixed(4)),
-    tvShare: Number((1 - movieShare).toFixed(4)),
-  },
-  configuration: { minimumSimilarity, tmdbSeedLimit },
-  tmdb: {
-    seedCount: tmdbSeeds.length,
-    sourceMix: Object.fromEntries(
-      [...new Set(tmdbSeeds.map((item) => item.source))].map((source) => [
-        source,
-        tmdbSeeds.filter((item) => item.source === source).length,
-      ]),
-    ),
-  },
-  scoreDistribution: {
-    fullCandidatePool: stats(scoreValues),
-    top50: stats(top50),
-    top50Spread: top50.length ? Number((Math.max(...top50) - Math.min(...top50)).toFixed(4)) : 0,
-  },
-  candidateSourceMix,
-  results: ranked.map((item) => ({
+function formatCandidate(item) {
+  return {
     rank: item.rank,
     type: item.type,
     id: item.id,
@@ -174,5 +116,94 @@ console.log(JSON.stringify({
       Object.entries(item.scoreBreakdown).map(([key, value]) => [key, Number(value.toFixed(4))]),
     ),
     libraryNeighbors: topLibraryNeighbors(item),
-  })),
+  };
+}
+
+function evaluateProfile({ name, minimumSimilarityFloor, weights, sourceMap }) {
+  let candidates = generateEmbeddingCandidates({
+    embeddings,
+    queryVectors,
+    libraryKeys,
+    limit: 250,
+    minimumSimilarity: minimumSimilarityFloor,
+  });
+  candidates = filterByMinimumAttribution(candidates, libraryEmbeddings, minimumAttribution);
+  candidates = candidates.map((candidate) => {
+    const seed = sourceMap.get(`${candidate.type}:${candidate.id}`);
+    return seed ? { ...candidate, source: seed.source, seedTitle: seed.seedTitle } : candidate;
+  });
+  const fullRanked = scoreForYouCandidates(candidates, {
+    longVector: long?.vector,
+    interestVectors: interest,
+    weights,
+  });
+  const scores = fullRanked.map((item) => item.score);
+  const top50 = scores.slice(0, 50);
+  const movieShare = libraryRows.length
+    ? libraryRows.filter((row) => row.type === "movie").length / libraryRows.length
+    : 0.5;
+  const ranked = diversifyWithEmbeddingMmr(fullRanked, 20, 0.72, { movieShare });
+  return {
+    name,
+    minimumSimilarityFloor,
+    candidateCount: fullRanked.length,
+    scoreDistribution: {
+      fullCandidatePool: stats(scores),
+      top50: stats(top50),
+      top50Spread: top50.length ? Number((Math.max(...top50) - Math.min(...top50)).toFixed(4)) : 0,
+    },
+    sourceMix: Object.fromEntries(
+      [...new Set(fullRanked.map((item) => item.source))].map((source) => [
+        source,
+        fullRanked.filter((item) => item.source === source).length,
+      ]),
+    ),
+    results: ranked.map(formatCandidate),
+  };
+}
+
+const tmdbSeeds = await fetchTmdbSeeds();
+const sourceMap = sourceMapFor(tmdbSeeds);
+const baseline = evaluateProfile({
+  name: "current",
+  minimumSimilarityFloor: minimumSimilarity,
+  weights: undefined,
+  sourceMap,
+});
+const experiment = evaluateProfile({
+  name: "floor_0.40_quality_0",
+  minimumSimilarityFloor: 0.4,
+  weights: {
+    longWeight: 0.55,
+    interestWeight: 0.35,
+    sessionWeight: 0.1,
+    qualityWeight: 0,
+    negativeWeight: 0.2,
+    fatigueWeight: 0.08,
+  },
+  sourceMap,
+});
+
+console.log(JSON.stringify({
+  library: {
+    total: libraryRows.length,
+    movies: libraryRows.filter((row) => row.type === "movie").length,
+    tv: libraryRows.filter((row) => row.type === "tv").length,
+    movieShare: Number((libraryRows.filter((row) => row.type === "movie").length / Math.max(libraryRows.length, 1)).toFixed(4)),
+  },
+  configuration: { minimumAttribution, tmdbSeedLimit },
+  tmdb: {
+    seedCount: tmdbSeeds.length,
+    uniqueCandidates: new Set(tmdbSeeds.map((item) => item.key)).size,
+    uniqueEmbeddableCandidates: new Set(
+      tmdbSeeds.filter((item) => embeddingByKey.has(item.key)).map((item) => item.key),
+    ).size,
+    sourceMix: Object.fromEntries(
+      [...new Set(tmdbSeeds.map((item) => item.source))].map((source) => [
+        source,
+        tmdbSeeds.filter((item) => item.source === source).length,
+      ]),
+    ),
+  },
+  profiles: { baseline, experiment },
 }, null, 2));

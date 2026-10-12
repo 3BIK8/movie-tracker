@@ -4,6 +4,7 @@ import {
   buildInterestVectors,
   assignEmbeddingClusters,
   generateEmbeddingCandidates,
+  filterByMinimumAttribution,
 } from "../services/forYou/forYouCandidateService.js";
 import {
   diversifyWithEmbeddingMmr,
@@ -48,6 +49,14 @@ test("For You retrieval filters library and rejection leakage", () => {
     const ranked = diversifyWithEmbeddingMmr(candidates, 4, 0.72, { movieShare: 0.5 });
     assert.equal(ranked.filter((item) => item.type === "movie").length, 2);
     assert.equal(ranked.filter((item) => item.type === "tv").length, 2);
+  });
+
+  test("For You drops candidates without a strong library attribution", () => {
+    const result = filterByMinimumAttribution([
+      { id: "strong", vector: new Float32Array([1, 0]) },
+      { id: "weak", vector: new Float32Array([0, 1]) },
+    ], [{ vector: new Float32Array([1, 0]) }], 0.5);
+    assert.deepEqual(result.map((item) => item.id), ["strong"]);
   });
   assert.deepEqual(result.map((item) => item.id), ["3"]);
 });

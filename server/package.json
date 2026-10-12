@@ -12,6 +12,7 @@
     "benchmark": "node scripts/benchmarkPerformance.js",
     "benchmark:enrichment": "node scripts/benchmarkEnrichmentYield.js",
     "backfill:embeddings": "node scripts/backfillEmbeddings.js",
+    "repair:metadata": "node scripts/repairMediaMetadata.js",
     "nearest:embeddings": "node scripts/nearestEmbeddingNeighbors.js",
     "evaluate:for-you": "node scripts/evaluateForYou.js"
   },

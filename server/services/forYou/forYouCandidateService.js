@@ -106,7 +106,17 @@ export function generateEmbeddingCandidates({
       source: "embedding_knn",
     });
   }
+
   return candidates.sort((left, right) => right.retrievalScore - left.retrievalScore).slice(0, limit);
+}
+
+export function filterByMinimumAttribution(candidates, libraryEmbeddings, minimumSimilarity = 0.5) {
+  return candidates.filter((candidate) =>
+    libraryEmbeddings.some((libraryItem) => {
+      const similarity = cosineSimilarity(candidate.vector, libraryItem.vector);
+      return similarity !== null && similarity >= minimumSimilarity;
+    }),
+  );
 }
 
 export async function seedFromTmdbConnections({

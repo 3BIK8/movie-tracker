@@ -125,3 +125,12 @@ they are not fetched by request handlers.
 `npm run evaluate:for-you` prints the current user's top 20 offline candidates,
 including source and score breakdown. Phase 4a does not create feed queue rows,
 routes, refill jobs, or UI.
+
+## Phase 4b refill boundary
+
+The Phase 4b background refill job must persist every new TMDB candidate's
+normalized metadata in `media`, then enqueue embedding work outside the feed
+read request. Embedding work should be short, bounded batches with retry and
+progress logging; request handlers must never fetch or embed a whole candidate
+pool. Only candidates with completed embeddings can enter the embedding ranker,
+and the minimum library-attribution rule must be applied before queue insertion.
