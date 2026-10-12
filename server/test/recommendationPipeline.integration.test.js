@@ -11,6 +11,7 @@ const TEST_DATABASE_PATH = path.join(
 process.env.DATABASE_PATH = TEST_DATABASE_PATH;
 
 const { analyzeWatchHistory } = await import("../services/recommendations/recommendationsService.js");
+const { recordInteractionEvents } = await import("../repositories/feedbackRepository.js");
 
 const originalFetch = global.fetch;
 const originalToken = process.env.TMDB_TOKEN;
@@ -129,5 +130,32 @@ test("recommendation pipeline preserves historical identity, provenance, diversi
     } catch {
       // Best-effort cleanup; CI workspaces are ephemeral.
     }
+  }
+});
+
+test("recommendation pipeline excludes authoritative rejections", async () => {
+  process.env.TMDB_TOKEN = "test-token";
+  global.fetch = buildFetchMock();
+
+  try {
+    await recordInteractionEvents(1, [{
+      mediaType: "movie",
+      tmdbId: "2001",
+      eventType: "reject",
+      surface: "recommendations",
+      clientEventId: "pipeline-rejection",
+    }]);
+
+    const result = await analyzeWatchHistory(
+      [{ id: "1001", type: "movie", rating: "S", status: "watched" }],
+      null,
+      { rejectedKeys: new Set(["movie:2001"]) },
+    );
+
+    assert.equal(result.recommendations.movies.some((item) => item.id === "2001"), false);
+  } finally {
+    global.fetch = originalFetch;
+    if (originalToken === undefined) delete process.env.TMDB_TOKEN;
+    else process.env.TMDB_TOKEN = originalToken;
   }
 });

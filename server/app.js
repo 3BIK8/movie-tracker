@@ -6,6 +6,7 @@ import detailsRoutes from "./routes/detailsRoutes.js";
 import healthRoutes from "./routes/healthRoutes.js";
 import recommendationsRoutes from "./routes/recommendationsRoutes.js";
 import watchHistoryRoutes from "./routes/watchHistoryRoutes.js";
+import feedbackRoutes from "./routes/feedbackRoutes.js";
 import { requireAuthentication } from "./middleware/authentication.js";
 
 const app = express();
@@ -34,5 +35,7 @@ app.use("/api/details", detailsRoutes);
 app.use("/api/health", healthRoutes);
 app.use("/api/recommendations", requireAuthentication, recommendationsRoutes);
 app.use("/api/watch-history", requireAuthentication, watchHistoryRoutes);
+app.use("/api/feedback", requireAuthentication, feedbackRoutes);
+app.use("/api/feed", requireAuthentication, feedbackRoutes);
 
 export default app;

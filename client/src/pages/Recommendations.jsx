@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import MovieCard from "../components/MovieCard";
 import Pagination from "../components/Pagination";
-import { getRecommendations } from "../services/api";
+import { getRecommendations, recordFeedbackEvents } from "../services/api";
 import { getWatchHistory, WATCH_HISTORY_UPDATED } from "../services/watchlist";
 import {
   finalizeIgnoredRecommendations,
@@ -126,6 +126,17 @@ function RecommendationsView({ onPersonClick }) {
 
   function handleNotInterested(item) {
     recordRecommendationInteraction(activeType, item.id, "not_interested");
+    const clientEventId = globalThis.crypto?.randomUUID?.()
+      || `${activeType}:${item.id}:${Date.now()}`;
+    void recordFeedbackEvents([{
+      mediaType: activeType,
+      tmdbId: item.id,
+      eventType: "reject",
+      surface: "recommendations",
+      clientEventId,
+    }]).catch((requestError) => {
+      console.error(requestError);
+    });
     setRecommendations((current) => ({
       ...current,
       [recommendationKey]: current[recommendationKey].filter(
