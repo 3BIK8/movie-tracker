@@ -7,6 +7,7 @@ import {
   assignEmbeddingClusters,
   cosineSimilarity,
   filterByMinimumAttribution,
+  filterByAttributionSupport,
   generateEmbeddingCandidates,
 } from "../services/forYou/forYouCandidateService.js";
 import { diversifyWithEmbeddingMmr, scoreForYouCandidates } from "../services/forYou/forYouRanker.js";
@@ -15,7 +16,7 @@ import { tmdbFetch } from "../utils/tmdbClient.js";
 const model = process.env.EMBEDDER_MODEL || "Xenova/all-MiniLM-L6-v2";
 const userId = Number(process.env.EVALUATION_USER_ID || 1);
 const minimumSimilarity = Number(process.env.FOR_YOU_MIN_SIMILARITY || 0.3);
-const minimumAttribution = Number(process.env.FOR_YOU_MIN_ATTRIBUTION || 0.5);
+const minimumAttribution = Number(process.env.FOR_YOU_MIN_ATTRIBUTION || 0.55);
 const tmdbSeedLimit = Number(process.env.FOR_YOU_TMDB_SEED_LIMIT || 4);
 const embeddings = assignEmbeddingClusters(listMediaEmbeddings(model));
 const embeddingByKey = new Map(embeddings.map((item) => [`${item.type}:${item.id}`, item]));
@@ -127,7 +128,16 @@ function evaluateProfile({ name, minimumSimilarityFloor, weights, sourceMap }) {
     limit: 250,
     minimumSimilarity: minimumSimilarityFloor,
   });
-  candidates = filterByMinimumAttribution(candidates, libraryEmbeddings, minimumAttribution);
+  const preAttributionTop20 = scoreForYouCandidates(candidates, {
+    longVector: long?.vector,
+    interestVectors: interest,
+    weights,
+  }).slice(0, 20);
+  const supportedCandidates = filterByAttributionSupport(candidates, libraryEmbeddings, {
+    minimumSimilarity: 0.5,
+    minimumNeighbors: 2,
+  });
+  candidates = filterByMinimumAttribution(supportedCandidates, libraryEmbeddings, minimumAttribution);
   candidates = candidates.map((candidate) => {
     const seed = sourceMap.get(`${candidate.type}:${candidate.id}`);
     return seed ? { ...candidate, source: seed.source, seedTitle: seed.seedTitle } : candidate;
@@ -147,6 +157,15 @@ function evaluateProfile({ name, minimumSimilarityFloor, weights, sourceMap }) {
     name,
     minimumSimilarityFloor,
     candidateCount: fullRanked.length,
+    preAttributionTop20Count: preAttributionTop20.length,
+    preAttributionTop20Surviving: preAttributionTop20.filter((item) =>
+      candidates.some((candidate) => candidate.type === item.type && candidate.id === item.id),
+    ).length,
+    attributionSupport: {
+      minimumNeighborSimilarity: 0.5,
+      minimumNeighbors: 2,
+      minimumAttributionFloor: minimumAttribution,
+    },
     scoreDistribution: {
       fullCandidatePool: stats(scores),
       top50: stats(top50),

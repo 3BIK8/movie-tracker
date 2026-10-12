@@ -9,13 +9,14 @@ import { buildEmbeddingText, hashEmbeddingText } from "./embeddingText.js";
 export async function backfillEmbeddings({
   embedder,
   batchSize = 25,
+  mediaKeys = null,
   logger = console,
 } = {}) {
   if (!embedder?.embed || !embedder.model || !Number.isInteger(embedder.dimension)) {
     throw new TypeError("A valid embedder is required.");
   }
 
-  const rows = listMediaEmbeddingInputs();
+  const rows = listMediaEmbeddingInputs(mediaKeys);
   let embedded = 0;
   let skipped = 0;
   const startedAt = Date.now();

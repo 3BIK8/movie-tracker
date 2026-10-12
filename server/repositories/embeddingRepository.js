@@ -72,7 +72,15 @@ export function upsertMediaEmbedding({
   );
 }
 
-export function listMediaEmbeddingInputs() {
+export function listMediaEmbeddingInputs(mediaKeys = null) {
+  if (mediaKeys?.length) {
+    const clauses = mediaKeys.map(() => "(media_type = ? AND tmdb_id = ?)").join(" OR ");
+    const values = mediaKeys.flatMap((item) => [item.type, item.id]);
+    return db.prepare(`
+      SELECT media_type AS type, tmdb_id AS id, title, metadata_json AS metadataJson
+      FROM media WHERE ${clauses} ORDER BY media_type, tmdb_id
+    `).all(...values);
+  }
   return db.prepare(`
     SELECT media_type AS type, tmdb_id AS id, title, metadata_json AS metadataJson
     FROM media

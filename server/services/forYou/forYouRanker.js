@@ -1,10 +1,10 @@
 import { cosineSimilarity } from "./forYouCandidateService.js";
 
 export const FOR_YOU_RANK_CONFIG = Object.freeze({
-  longWeight: 0.45,
-  interestWeight: 0.25,
-  sessionWeight: 0.2,
-  qualityWeight: 0.1,
+  longWeight: 0.55,
+  interestWeight: 0.35,
+  sessionWeight: 0.1,
+  qualityWeight: 0,
   negativeWeight: 0.2,
   fatigueWeight: 0.08,
   minimumSimilarity: 0.3,

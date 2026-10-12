@@ -14,7 +14,8 @@
     "backfill:embeddings": "node scripts/backfillEmbeddings.js",
     "repair:metadata": "node scripts/repairMediaMetadata.js",
     "nearest:embeddings": "node scripts/nearestEmbeddingNeighbors.js",
-    "evaluate:for-you": "node scripts/evaluateForYou.js"
+    "evaluate:for-you": "node scripts/evaluateForYou.js",
+    "refill:for-you": "node scripts/refillForYou.js"
   },
   "engines": {
     "node": ">=22.5.0"

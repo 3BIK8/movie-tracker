@@ -119,6 +119,17 @@ export function filterByMinimumAttribution(candidates, libraryEmbeddings, minimu
   );
 }
 
+export function filterByAttributionSupport(
+  candidates,
+  libraryEmbeddings,
+  { minimumSimilarity = 0.5, minimumNeighbors = 2 } = {},
+) {
+  return candidates.filter((candidate) => libraryEmbeddings.filter((libraryItem) => {
+    const similarity = cosineSimilarity(candidate.vector, libraryItem.vector);
+    return similarity !== null && similarity >= minimumSimilarity;
+  }).length >= minimumNeighbors);
+}
+
 export async function seedFromTmdbConnections({
   mediaType,
   seedIds,
