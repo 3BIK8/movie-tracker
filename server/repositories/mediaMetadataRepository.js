@@ -61,9 +61,11 @@ export function cacheMediaMetadata(metadata, now = new Date()) {
       genre_ids_json,
       metadata_json,
       created_at,
-      updated_at
+      updated_at,
+      metadata_fetched_at,
+      metadata_version
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(media_type, tmdb_id) DO UPDATE SET
       title = excluded.title,
       date = excluded.date,
@@ -71,7 +73,9 @@ export function cacheMediaMetadata(metadata, now = new Date()) {
       poster_path = excluded.poster_path,
       genre_ids_json = excluded.genre_ids_json,
       metadata_json = excluded.metadata_json,
-      updated_at = excluded.updated_at
+      updated_at = excluded.updated_at,
+      metadata_fetched_at = excluded.metadata_fetched_at,
+      metadata_version = excluded.metadata_version
   `).run(
     mediaType,
     tmdbId,
@@ -83,6 +87,8 @@ export function cacheMediaMetadata(metadata, now = new Date()) {
     JSON.stringify(metadata),
     timestamp,
     timestamp,
+    timestamp,
+    Number.isInteger(metadata.metadata_version) ? metadata.metadata_version : 1,
   );
 
   return true;

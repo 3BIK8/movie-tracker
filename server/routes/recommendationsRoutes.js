@@ -39,9 +39,9 @@ router.post("/analyze", async (req, res) => {
     const submittedFeedback = normalizeRecommendationFeedback(req.body.feedback);
     if (submittedFeedback) {
       recordRecommendationFeedback(submittedFeedback, userId);
-      recordLegacyRecommendationRejections(userId, submittedFeedback);
     }
     const feedback = submittedFeedback || getRecommendationFeedback(null, userId);
+    recordLegacyRecommendationRejections(userId, feedback);
     const historyReadStartedAt = Date.now();
     const history = getWatchHistory(userId);
     const historyReadMs = Date.now() - historyReadStartedAt;

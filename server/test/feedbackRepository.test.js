@@ -17,6 +17,10 @@ const {
   recordInteractionEvents,
   recordLegacyRecommendationRejections,
 } = await import("../repositories/feedbackRepository.js");
+const {
+  getRecommendationFeedback,
+  recordRecommendationFeedback,
+} = await import("../repositories/recommendationExposureRepository.js");
 
 test.after(() => {
   closeDatabase();
@@ -80,6 +84,22 @@ test("legacy not_interested feedback is converted without converting ignored", (
   });
 
   assert.deepEqual([...getRejectedMediaKeys(1)], ["tv:456"]);
+});
+
+test("stored legacy exposure feedback migrates on the next recommendations read", () => {
+  recordRecommendationFeedback({
+    exposures: [{
+      type: "movie",
+      id: "999",
+      generationId: "stored-generation",
+      interactions: [{ event: "not_interested" }],
+    }],
+  }, 1);
+
+  const storedFeedback = getRecommendationFeedback(null, 1);
+  recordLegacyRecommendationRejections(1, storedFeedback);
+
+  assert.equal(getRejectedMediaKeys(1).has("movie:999"), true);
 });
 
 test("reject validates shared media identity", () => {

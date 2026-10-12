@@ -81,3 +81,16 @@ the authenticated user's `rejections`.
 
 Legacy exposure storage will be removed in a follow-up after the For You feed
 is stable and its migration period is complete.
+
+## Embedding backfill
+
+Phase 2 adds `media_embeddings`, keyed by media identity and embedding model.
+The backfill reads persisted `media` metadata and builds input text from the
+title, tagline, overview, genres, and keywords. Input text is hashed with
+SHA-256; unchanged hashes are skipped so rerunning the job is safe.
+
+Embedding generation is intentionally unavailable on request paths. Run
+`npm run backfill:embeddings` from `server/` with `EMBEDDER=local` for the
+default local `Xenova/all-MiniLM-L6-v2` model, or `EMBEDDER=hosted` with the
+hosted provider environment variables. Both implementations return
+L2-normalized vectors and are isolated behind the embedder interface.
