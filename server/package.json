@@ -11,7 +11,8 @@
     "test": "node --test",
     "benchmark": "node scripts/benchmarkPerformance.js",
     "benchmark:enrichment": "node scripts/benchmarkEnrichmentYield.js",
-    "backfill:embeddings": "node scripts/backfillEmbeddings.js"
+    "backfill:embeddings": "node scripts/backfillEmbeddings.js",
+    "nearest:embeddings": "node scripts/nearestEmbeddingNeighbors.js"
   },
   "engines": {
     "node": ">=22.5.0"

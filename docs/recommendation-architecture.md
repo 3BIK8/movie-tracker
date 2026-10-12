@@ -94,3 +94,20 @@ Embedding generation is intentionally unavailable on request paths. Run
 default local `Xenova/all-MiniLM-L6-v2` model, or `EMBEDDER=hosted` with the
 hosted provider environment variables. Both implementations return
 L2-normalized vectors and are isolated behind the embedder interface.
+
+## For You user vectors
+
+Phase 3 stores per-user `long` and `session` vectors in
+`user_vectors`. The For You weights are defined only in
+`server/services/recommendations/forYouConfig.js`; they are deliberately
+separate from the existing Recommendations profile weights:
+
+- `watched`: `+1.0`
+- `to_watch`: `+0.2`
+- `not_sure`: `0`
+
+Ratings and interaction events have their own weights in that same module.
+`rebuildLongUserVector` applies the configured time decay to persisted library
+state and events. `updateSessionUserVector` uses an EMA and resets after the
+configured inactivity window. Phase 3 provides vector persistence and scoring
+primitives; the persistent feed queue and request endpoints remain Phase 4.
