@@ -10,3 +10,23 @@
 @import "./styles/recommendations.css";
 @import "./styles/library.css";
 @import "./styles/person.css";
+
+.auth-gate {
+  display: grid;
+  min-height: 100vh;
+  place-content: center;
+  gap: 1rem;
+  padding: 2rem;
+  text-align: center;
+}
+
+.auth-gate button {
+  padding: 0.7rem 1.2rem;
+}
+
+.account-control {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 20;
+}

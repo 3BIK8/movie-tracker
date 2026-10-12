@@ -47,13 +47,14 @@ function normalizeExposure(exposure) {
     )
     .slice(-MAX_INTERACTIONS_PER_EXPOSURE)
     .map((interaction) => ({
-      event: interaction.event === "not_interested" ? "ignored" : interaction.event,
+      event: interaction.event,
       timestamp: interaction.timestamp || null,
     }));
 
   return {
     type,
     id,
+    generationId: exposure.generationId || null,
     pool: exposure.pool || null,
     exposedAt: exposure.exposedAt || null,
     connections,

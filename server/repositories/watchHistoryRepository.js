@@ -1,6 +1,5 @@
 import { db } from "../db/database.js";
 
-const USER_ID = 1;
 const VALID_TYPES = new Set(["movie", "tv"]);
 const VALID_STATUSES = new Set(["watched", "to_watch", "not_sure"]);
 const VALID_RATINGS = new Set(["S", "A", "B", "C", "D"]);
@@ -12,7 +11,8 @@ function normalizeType(value) {
 
 function normalizeId(value) {
   const id = String(value ?? "").trim();
-  return /^\d+$/.test(id) ? id.replace(/^0+/, "") || "0" : null;
+  const normalized = /^\d+$/.test(id) ? id.replace(/^0+/, "") : "";
+  return normalized && normalized !== "0" ? normalized : null;
 }
 
 function normalizeArray(value) {
@@ -136,21 +136,73 @@ const SELECT_SQL = `
   WHERE w.user_id = ?
 `;
 
-export function getWatchHistory() {
+export function getWatchHistory(userId = 1) {
   const rows = db
     .prepare(`${SELECT_SQL} ORDER BY w.last_interacted_at DESC, w.media_type, w.tmdb_id`)
-    .all(USER_ID);
+    .all(userId);
 
   return rows.map(rowToHistoryItem);
 }
 
-export function getWatchHistoryCount() {
+export function getWatchHistoryCount(userId = 1) {
   return db
     .prepare("SELECT COUNT(*) AS count FROM watch_entries WHERE user_id = ?")
-    .get(USER_ID).count;
+    .get(userId).count;
 }
 
-export function upsertWatchHistoryItem(rawItem) {
+export function getCachedMediaMetadata(type, id) {
+  const normalizedType = normalizeType(type);
+  const normalizedId = normalizeId(id);
+
+  if (!normalizedType || !normalizedId) {
+    return null;
+  }
+
+  const row = db.prepare(`
+    SELECT media_type, tmdb_id, title, date, year, poster_path, metadata_json
+    FROM media
+    WHERE media_type = ? AND tmdb_id = ?
+  `).get(normalizedType, normalizedId);
+
+  if (!row) {
+    return null;
+  }
+
+  const metadata = parseJson(row.metadata_json, {});
+  const hasConnections = [
+    metadata.actors,
+    metadata.directors,
+    metadata.genres,
+    metadata.keywords,
+    metadata.studios,
+  ].some((value) => Array.isArray(value) && value.length > 0);
+
+  if (!hasConnections) {
+    return null;
+  }
+
+  return {
+    id: row.tmdb_id,
+    type: row.media_type,
+    title: row.title,
+    year: row.year,
+    overview: metadata.overview || "",
+    poster_path: row.poster_path,
+    backdrop_path: metadata.backdrop_path || null,
+    actors: normalizeArray(metadata.actors),
+    directors: normalizeArray(metadata.directors),
+    genres: normalizeArray(metadata.genres),
+    keywords: normalizeArray(metadata.keywords),
+    franchises: metadata.franchise ? [metadata.franchise] : normalizeArray(metadata.franchises),
+    studios: normalizeArray(metadata.studios),
+    language: metadata.language || null,
+    rating: metadata.tmdbRating ?? null,
+    voteCount: metadata.voteCount ?? null,
+    popularity: metadata.popularity ?? null,
+  };
+}
+
+export function upsertWatchHistoryItem(rawItem, userId = 1) {
   const item = normalizeHistoryItem(rawItem);
   const now = new Date().toISOString();
 
@@ -208,7 +260,7 @@ export function upsertWatchHistoryItem(rawItem) {
     );
 
     entry.run(
-      USER_ID,
+      userId,
       item.type,
       item.id,
       item.status,
@@ -229,16 +281,16 @@ export function upsertWatchHistoryItem(rawItem) {
   }
 
   if (item.status === null && !item.favorite) {
-    deleteWatchHistoryItem(item.type, item.id);
+    deleteWatchHistoryItem(item.type, item.id, userId);
     return null;
   }
 
-  return getWatchHistory().find(
+  return getWatchHistory(userId).find(
     (historyItem) => historyItem.type === item.type && historyItem.id === item.id,
   );
 }
 
-export function deleteWatchHistoryItem(type, id) {
+export function deleteWatchHistoryItem(type, id, userId = 1) {
   const normalizedType = normalizeType(type);
   const normalizedId = normalizeId(id);
 
@@ -249,7 +301,7 @@ export function deleteWatchHistoryItem(type, id) {
   db.prepare(`
     DELETE FROM watch_entries
     WHERE user_id = ? AND media_type = ? AND tmdb_id = ?
-  `).run(USER_ID, normalizedType, normalizedId);
+  `).run(userId, normalizedType, normalizedId);
 
   db.prepare(`
     DELETE FROM media
@@ -263,7 +315,7 @@ export function deleteWatchHistoryItem(type, id) {
   `).run(normalizedType, normalizedId, normalizedType, normalizedId);
 }
 
-export function migrateLegacyWatchHistory(history) {
+export function migrateLegacyWatchHistory(history, userId = 1) {
   if (!history || typeof history !== "object" || Array.isArray(history)) {
     throw new Error("Legacy watch history must be an object.");
   }
@@ -319,7 +371,7 @@ export function migrateLegacyWatchHistory(history) {
           favorite_at = excluded.favorite_at,
           last_interacted_at = excluded.last_interacted_at
       `).run(
-        USER_ID,
+        userId,
         normalized.type,
         normalized.id,
         normalized.status,
@@ -340,5 +392,5 @@ export function migrateLegacyWatchHistory(history) {
     throw error;
   }
 
-  return { migrated: true, count: getWatchHistoryCount() };
+  return { migrated: true, count: getWatchHistoryCount(userId) };
 }

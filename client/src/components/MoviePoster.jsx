@@ -23,30 +23,25 @@ const MoviePoster = forwardRef(function MoviePoster(
   const title = type === "movie" ? item.title : item.name;
   const imageUrl = getTmdbImageUrl(item.poster_path);
 
-  const handleKeyDown = (event) => {
-    if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault();
-      onClick();
-    }
-  };
-
   return (
     <div
       ref={ref}
       className="movie-poster"
-      role="button"
-      tabIndex={0}
-      aria-label={`Show details for ${title || "this title"}`}
-      aria-expanded={isExpanded}
-      onClick={onClick}
-      onKeyDown={handleKeyDown}
     >
       <div className="poster-container">
-        {imageUrl ? (
-          <img src={imageUrl} alt={title} loading="lazy" decoding="async" />
-        ) : (
-          <div className="no-poster">No Poster</div>
-        )}
+        <button
+          type="button"
+          className="poster-details-trigger"
+          onClick={onClick}
+          aria-label={`Show details for ${title || "this title"}`}
+          aria-expanded={isExpanded}
+        >
+          {imageUrl ? (
+            <img src={imageUrl} alt="" loading="lazy" decoding="async" />
+          ) : (
+            <span className="no-poster">No Poster</span>
+          )}
+        </button>
 
         <WatchActions
           status={status}

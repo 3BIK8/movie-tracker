@@ -6,7 +6,7 @@ const RATING_WEIGHTS = {
   D: -0.08,
 };
 
-const LIBRARY_WEIGHTS = { watched: 0.35, to_watch: 0.45, not_sure: 0.15 };
+const LIBRARY_WEIGHTS = { watched: 0.6, to_watch: 0.3, not_sure: 0.12 };
 const CONNECTION_TYPES = ["actors", "directors", "genres", "franchises", "studios", "keywords", "years", "languages", "mediaTypes", "popularity"];
 const TEMPORAL_HALF_LIFE_DAYS = 180;
 const FAVORITE_TEMPORAL_MULTIPLIER = 1.1;

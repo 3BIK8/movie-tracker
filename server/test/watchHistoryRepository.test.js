@@ -18,6 +18,7 @@ const {
   migrateLegacyWatchHistory,
   upsertWatchHistoryItem,
 } = await import("../repositories/watchHistoryRepository.js");
+const { closeDatabase } = await import("../db/database.js");
 
 const sampleItem = {
   type: "movie",
@@ -48,6 +49,7 @@ const sampleItem = {
 };
 
 test.after(() => {
+  closeDatabase();
   for (const suffix of ["", "-shm", "-wal"]) {
     fs.rmSync(`${databasePath}${suffix}`, { force: true });
   }

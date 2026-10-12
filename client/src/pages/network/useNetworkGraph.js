@@ -37,7 +37,7 @@ export function useNetworkGraph({ history, activeTypes, focusedConnection, showM
         setLoading(true);
         setError("");
         setSelectedNode(null);
-        const data = await getWatchHistoryNetwork(historyItems);
+        const data = await getWatchHistoryNetwork();
         if (cancelled) return;
         networkDataRef.current = data;
         setNetworkData(data);

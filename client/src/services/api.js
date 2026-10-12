@@ -2,9 +2,20 @@ import { compactRecommendationFeedback } from "./recommendationFeedbackPayload";
 
 const API_URL = (import.meta.env.VITE_API_URL || "/api").replace(/\/+$/, "");
 const WATCH_HISTORY_MIGRATION_BATCH_SIZE = 10;
+let authTokenProvider = null;
+
+export function setAuthTokenProvider(provider) {
+  authTokenProvider = provider;
+}
 
 async function request(url, fallbackMessage, options = {}) {
-  const response = await fetch(url, options);
+  const token = authTokenProvider ? await authTokenProvider() : null;
+  const headers = new Headers(options.headers);
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+
+  const response = await fetch(url, { ...options, headers });
 
   if (response.ok) {
     if (response.status === 204) {

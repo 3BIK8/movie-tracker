@@ -1,13 +1,14 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import DiscoverView from "./pages/Discover";
 import LibraryView from "./pages/Library";
-import NetworkView from "./pages/Network";
 import PersonView from "./pages/Person";
 import RecommendationsView from "./pages/Recommendations";
 import {
   initializeWatchHistory,
   migrateWatchHistoryGenres,
 } from "./services/watchlist";
+
+const NetworkView = lazy(() => import("./pages/Network"));
 
 function getNavigationState() {
   const params = new URLSearchParams(window.location.search);
@@ -185,7 +186,17 @@ function App() {
           <RecommendationsView onPersonClick={openPerson} />
         )}
         {view === "library" && <LibraryView />}
-        {view === "network" && <NetworkView />}
+        {view === "network" && (
+          <Suspense
+            fallback={
+              <section className="loading-state">
+                <p>Loading network…</p>
+              </section>
+            }
+          >
+            <NetworkView />
+          </Suspense>
+        )}
         {view === "person" && navigation.personId && (
           <PersonView
             personId={navigation.personId}
