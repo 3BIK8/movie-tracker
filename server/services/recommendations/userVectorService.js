@@ -96,9 +96,12 @@ export function updateSessionUserVector(userId, model, event) {
   const stale = !existing || now - Date.parse(existing.updatedAt) > FOR_YOU_VECTOR_CONFIG.sessionResetMinutes * 60_000;
   const vector = stale ? new Float32Array(embedding.dim) : existing.vector;
   const source = decodeVector(embedding);
-  const eta = FOR_YOU_VECTOR_CONFIG.sessionEta;
+  const eventWeight = FOR_YOU_EVENT_WEIGHTS[event.eventType] || 0;
+  if (eventWeight === 0) return existing?.vector || null;
+  const direction = eventWeight < 0 ? -1 : 1;
+  const eta = Math.min(1, FOR_YOU_VECTOR_CONFIG.sessionEta * Math.abs(eventWeight));
   for (let index = 0; index < vector.length; index += 1) {
-    vector[index] = (stale ? 0 : (1 - eta) * vector[index]) + eta * source[index];
+    vector[index] = (stale ? 0 : (1 - eta) * vector[index]) + direction * eta * source[index];
   }
   normalize(vector);
   upsertUserVector({
